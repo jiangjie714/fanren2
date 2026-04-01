@@ -1,0 +1,230 @@
+/** 存档模型 v4：v3 字段 + M11 道号档案/锻体法器/论武战绩，字段与 docs/数值假设.md 对齐 */
+import { DestId } from './config/expeditions';
+
+export interface DailyState {
+    /** 最近重置日期 YYYY-MM-DD（本地时区） */
+    date: string;
+    /** 每日仙缘（广告领免费凡俗宝盒）当日是否已用 */
+    dailyGiftUsed: boolean;
+    /** 月卡今日奖励是否已领 */
+    monthlyClaimed: boolean;
+    /** 今日已用灵石救济次数（docs/数值假设.md #19） */
+    lingshiAidCount: number;
+    // ---------- v2（M8 日常循环，#27–#29） ----------
+    /** 每日任务进度：任务 id → 累计计数 */
+    questProgress: Record<string, number>;
+    /** 已领取的活跃度宝箱档位（[30, 60, 100] 的子集） */
+    activityClaimed: number[];
+    /** 今日已出发历练次数 */
+    expeditionUsed: number;
+    /** 今日历练广告召回是否已用 */
+    expeditionRecallUsed: boolean;
+    /** 今日心魔幻境免费次数是否已用 */
+    illusionFreeUsed: boolean;
+    /** 今日心魔幻境广告加次是否已用 */
+    illusionAdUsed: boolean;
+    /** 今日幻境最佳分（档位奖励结算依据） */
+    illusionBest: number;
+    /** 今日已发放的最高幻境奖励档位（0/60/120/180） */
+    illusionRewardedTier: number;
+    /** 今日已进行的论武场次（M11 #36） */
+    pkUsed: number;
+}
+
+export interface SettingsState {
+    sound: boolean;
+    bgm: boolean;
+}
+
+export interface SaveStats {
+    opens: number;
+    breakthroughWins: number;
+    breakthroughFails: number;
+    // ---------- v3（M9a 成就/长线，#31） ----------
+    /** 渡劫评分历史最高（0–100） */
+    bestTribScore: number;
+    /** 单局最大连击历史最高 */
+    bestCombo: number;
+    /** 完美接引（仙阶且零劫雨）累计次数 */
+    perfectTribulations: number;
+    /** 累计获得灵石（正向入账合计，成就指标） */
+    lingshiEarned: number;
+}
+
+export interface AchievementState {
+    /** 已达成（可领取）的成就 id */
+    reached: string[];
+    /** 已领取奖励的成就 id */
+    claimed: string[];
+}
+
+export interface ExpeditionState {
+    /** 进行中的目的地；null = 空闲 */
+    dest: DestId | null;
+    /** 出发时间（epoch ms） */
+    startedAt: number;
+}
+
+// ---------- v4（M11 捏人 / 战斗属性 / 论武） ----------
+
+/** 道号档案：捏人一次成型，性别决定首页立绘（#32） */
+export interface ProfileState {
+    /** 'm' | 'f'，影响首页与捏人立绘 */
+    gender: 'm' | 'f';
+    /** 道号（2~6 字，空串 = 尚未捏人，启动时进 ProfileScene） */
+    name: string;
+    createdAt: number;
+}
+
+/** 战斗成长：锻体等级 + 已拥有的法器档位（自动佩最高档，#33/#34） */
+export interface CombatState {
+    /** 锻体等级 0~20 */
+    forging: number;
+    /** 已购法器 tier 列表 */
+    weapons: number[];
+}
+
+/** 论武战绩（#36） */
+export interface PkState {
+    wins: number;
+    losses: number;
+    /** 当前连胜（败清零） */
+    streak: number;
+    bestStreak: number;
+}
+
+export interface SaveData {
+    version: 4;
+    lingshi: number;
+    xiuwei: number;
+    jiyuan: number;
+    /** 大境界下标（0=凡人） */
+    realmIndex: number;
+    /** 保底计数：连续未出稀有的开箱次数 */
+    pityCount: number;
+    /** 灵根碎片：id → 数量 */
+    fragments: Record<string, number>;
+    /** 已解锁灵根 id */
+    unlocked: string[];
+    daily: DailyState;
+    /** 月卡到期时间戳（epoch ms），0 = 无 */
+    monthlyCardExpire: number;
+    settings: SettingsState;
+    stats: SaveStats;
+    /** 修真宝盒券（活跃度宝箱获得，免费开 1 次修真宝盒；不入每日重置） */
+    xiuzhenTickets: number;
+    /** 进行中的历练 */
+    expedition: ExpeditionState;
+    /** 幻境本周最佳分（周榜上报用，M9b） */
+    illusionWeekBest: number;
+    /** 幻境周键（本周一日期，跨周清零） */
+    illusionWeekKey: string;
+    // ---------- v3（M9a） ----------
+    /** 幻境历史最高分（成就指标） */
+    illusionBestEver: number;
+    /** 成就达成/领取状态 */
+    achievements: AchievementState;
+    // ---------- v4（M11） ----------
+    /** 道号档案（性别 + 道号），捏人前 name 为空串 */
+    profile: ProfileState;
+    /** 锻体与法器 */
+    combat: CombatState;
+    /** 论武战绩 */
+    pk: PkState;
+}
+
+import { INITIAL_LINGSHI } from './config/economy';
+
+export function defaultSave(): SaveData {
+    return {
+        version: 4,
+        lingshi: INITIAL_LINGSHI,
+        xiuwei: 0,
+        jiyuan: 0,
+        realmIndex: 0,
+        pityCount: 0,
+        fragments: {},
+        unlocked: [],
+        daily: {
+            date: todayString(),
+            dailyGiftUsed: false,
+            monthlyClaimed: false,
+            lingshiAidCount: 0,
+            questProgress: {},
+            activityClaimed: [],
+            expeditionUsed: 0,
+            expeditionRecallUsed: false,
+            illusionFreeUsed: false,
+            illusionAdUsed: false,
+            illusionBest: 0,
+            illusionRewardedTier: 0,
+            pkUsed: 0,
+        },
+        monthlyCardExpire: 0,
+        settings: { sound: true, bgm: true },
+        stats: {
+            opens: 0,
+            breakthroughWins: 0,
+            breakthroughFails: 0,
+            bestTribScore: 0,
+            bestCombo: 0,
+            perfectTribulations: 0,
+            lingshiEarned: 0,
+        },
+        xiuzhenTickets: 0,
+        expedition: { dest: null, startedAt: 0 },
+        illusionWeekBest: 0,
+        illusionWeekKey: '',
+        illusionBestEver: 0,
+        achievements: { reached: [], claimed: [] },
+        profile: { gender: 'm', name: '', createdAt: 0 },
+        combat: { forging: 0, weapons: [] },
+        pk: { wins: 0, losses: 0, streak: 0, bestStreak: 0 },
+    };
+}
+
+/**
+ * 兼容旧版本存档：v1/v2/v3 → v4 保留全部玩家数据并补齐新字段；
+ * 缺失字段回退默认值；未知版本（高于当前/损坏）一律重置。
+ * 注意 profile.name 默认为空串：老玩家首次进入新版会走一次捏人流（保留原有进度）。
+ */
+export function migrate(raw: unknown): SaveData {
+    const d = defaultSave();
+    if (!raw || typeof raw !== 'object') return d;
+    const r = raw as Record<string, unknown>;
+    if (r.version !== 1 && r.version !== 2 && r.version !== 3 && r.version !== 4) return d;
+    const profile = { ...d.profile, ...(r.profile as object ?? {}) };
+    return {
+        ...d,
+        ...(r as object),
+        daily: { ...d.daily, ...(r.daily as object ?? {}) },
+        settings: { ...d.settings, ...(r.settings as object ?? {}) },
+        stats: { ...d.stats, ...(r.stats as object ?? {}) },
+        achievements: { ...d.achievements, ...(r.achievements as object ?? {}) },
+        expedition: { ...d.expedition, ...(r.expedition as object ?? {}) },
+        fragments: { ...(r.fragments as object ?? {}) },
+        unlocked: Array.isArray(r.unlocked) ? (r.unlocked as string[]) : [],
+        profile: {
+            ...profile,
+            // 性别字段只接受合法值，防止手改存档注入
+            gender: profile.gender === 'f' ? 'f' : 'm',
+            name: typeof profile.name === 'string' ? profile.name.slice(0, 8) : '',
+        },
+        combat: {
+            ...d.combat,
+            ...(r.combat as object ?? {}),
+            weapons: Array.isArray(r.combat && (r.combat as CombatState).weapons)
+                ? (r.combat as CombatState).weapons.filter((x) => Number.isInteger(x) && x >= 0 && x < 6)
+                : [],
+        },
+        pk: { ...d.pk, ...(r.pk as object ?? {}) },
+        version: 4,
+    } as SaveData;
+}
+
+export function todayString(now: Date = new Date()): string {
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+}
