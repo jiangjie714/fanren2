@@ -1,0 +1,11 @@
+{
+    "name": "subres-pack",
+    "title": "subres 分包构建配置",
+    "package_version": 2,
+    "version": "1.0.0",
+    "author": "fanren",
+    "description": "构建期注入 subres 小游戏分包配置与抖音引擎分离（CLI/IDE 构建统一生效）",
+    "contributions": {
+        "builder": "./dist/builder.js"
+    }
+}
