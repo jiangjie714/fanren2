@@ -224,6 +224,25 @@ describe('M11 论武（#36/#37）', () => {
         expect(wr(0)).toBeGreaterThan(bare + 0.1);
     });
 
+    it('胜率预估（pkWinOdds）与 simulateBattle 同公式，随蓄力单调上升', () => {
+        const { save, combat } = make(2026);
+        save.realmIndex = 3;
+        const opp = combat.makeOpponent(save, 'random', new Rng(31));
+        let prev = 0;
+        for (let ads = 0; ads <= 10; ads++) {
+            const odds = combat.pkWinOdds(save, ads, opp);
+            expect(odds).toBeGreaterThan(0);
+            expect(odds).toBeLessThan(1);
+            expect(odds).toBeGreaterThanOrEqual(prev);
+            prev = odds;
+        }
+        // 与蓄力系数逐项对照：odds = (P²·1.15)/(P²·1.15 + oppP²)
+        const my = combat.chargedStats(save, 5);
+        const myP2 = (my.atk + my.def) ** 2 * 1.15;
+        const oppP2 = (opp.atk + opp.def) ** 2;
+        expect(combat.pkWinOdds(save, 5, opp)).toBeCloseTo(myP2 / (myP2 + oppP2), 10);
+    });
+
     it('胜方奖励随境界提升；连胜系数封顶 +25%', () => {
         const { save, eco, combat, rng } = make(9);
         void rng;

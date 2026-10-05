@@ -22,12 +22,18 @@ export class FrameAnimator extends Component {
     private interval = 1 / 8;
     private looping = true;
     private playing = false;
+    private onFinished: (() => void) | null = null;
 
-    play(frames: SpriteFrame[], fps = 8, loop = true): void {
-        if (frames.length === 0) return;
+    play(frames: SpriteFrame[], fps = 8, loop = true, onFinished?: () => void): void {
+        if (frames.length === 0) {
+            // 帧全缺（资源未随包）：立即回调，让调用方走静态回退，不能让主角停在空白
+            onFinished?.();
+            return;
+        }
         this.frames = frames;
         this.interval = 1 / Math.max(1, fps);
         this.looping = loop;
+        this.onFinished = onFinished ?? null;
         this.index = 0;
         this.accum = 0;
         this.playing = true;
@@ -60,6 +66,9 @@ export class FrameAnimator extends Component {
                 } else {
                     this.index = this.frames.length - 1;
                     this.playing = false;
+                    const cb = this.onFinished;
+                    this.onFinished = null;
+                    cb?.();
                 }
             }
             this.sprite.spriteFrame = this.frames[this.index];

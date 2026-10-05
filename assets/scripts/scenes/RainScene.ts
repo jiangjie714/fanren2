@@ -25,11 +25,15 @@ import {
     uinode,
 } from '../ui/ThemeLib';
 import { showDialog } from '../ui/dialog';
+import { animFrames, spriteAnimation } from '../ui/ThemeLib';
 import { ResultScene } from './ResultScene';
 import { IllusionResultScene } from './IllusionResultScene';
 
 /** 波次开场横幅文案（按 RAIN_WAVES 下标） */
 const WAVE_TEXTS = [TEXTS.waveYunyu, TEXTS.waveLingchao, TEXTS.waveJieyun];
+/** 聚灵咒施法动画（2x3 网格 6 帧），8fps ≈ 0.75s。 */
+const CAST_FRAMES = 6;
+const CAST_FPS = 8;
 
 /** 灵气雨渡劫页：HUD 与玩法分层，雨滴与角色使用主题资产。幻境模式（M8）复用同页。 */
 export class RainScene implements IScene {
@@ -301,6 +305,24 @@ export class RainScene implements IScene {
         AudioMgr.play('rare');
         this.magnetBtn?.setEnabled(false);
         this.magnetBtn?.setText(TEXTS.magnetActive);
+        this.playCastFx();
+    }
+
+    /**
+     * 聚灵咒施法演出：主角播 cast 6 帧（one-shot，约 0.75s），播完恢复静态立绘。
+     * 蜕变/施法帧目前只有男主境界 0 一套——女修与高境界维持金环光环，不硬播其他
+     * 主体（外观跳变比没演出更伤观感）；后续按 art-rebuild 管线补齐其余主体。
+     */
+    private playCastFx() {
+        if (Game.save.profile.gender === 'f' || Game.save.realmIndex !== 0) return;
+        const charIdx = Math.min(5, Math.max(0, Game.save.realmIndex));
+        this.player.destroyAllChildren();
+        spriteAnimation(this.player, animFrames('char_cast', CAST_FRAMES, 'cast'), 108, 108, CAST_FPS, false,
+            () => {
+                if (this.player.isValid) {
+                    image(this.player, `art/characters/char_realm_0${charIdx}/spriteFrame`, 108, 108);
+                }
+            });
     }
 
     private updateTargetX(e: EventTouch) {

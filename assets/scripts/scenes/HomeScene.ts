@@ -34,8 +34,8 @@ import { QuestScene } from './QuestScene';
 import { RainScene } from './RainScene';
 import { SettingsScene } from './SettingsScene';
 import { ShopScene } from './ShopScene';
+import { PlayerScene } from './PlayerScene';
 import { WeaponScene } from './WeaponScene';
-import { showAgreementDialog, showPrivacyDialog, showProbabilityDialog } from '../ui/infoDialogs';
 import { ACTIVITY_CHESTS } from '../core/config/quests';
 
 /**
@@ -48,6 +48,9 @@ const ANIMATED_REALMS = new Set<number>([0]);
 /** 待机动画帧数（2x3 网格切出 6 帧）与播放速率。4fps ≈ 1.5s 一个呼吸循环。 */
 const IDLE_FRAMES = 6;
 const IDLE_FPS = 4;
+/** 渡劫蜕变动画（3x3 网格 9 帧），8fps ≈ 1.1s 一次蜕变。 */
+const BREAK_FRAMES = 9;
+const BREAK_FPS = 8;
 
 /**
  * Ink-wash home. The background and avatar are layered images; all controls
@@ -92,6 +95,8 @@ export class HomeScene implements IScene {
 
         this.stage = uinode('stage', n, 560, 400);
         this.stage.setPosition(0, 195, 0);
+        // M11b：点按角色立绘 → 个人属性页（道体：属性/法器/福禄）
+        this.stage.on(Node.EventType.TOUCH_END, () => Game.stack.push(new PlayerScene()));
 
         // 底层静雅玄莲台基（温润微光 + 墨玉莲台，摒弃繁杂人造同心圆）
         const seatBase = uinode('seatBase', this.stage, 360, 120);
@@ -224,23 +229,6 @@ export class HomeScene implements IScene {
         this.weaponBtn.node.setPosition(286, -20, 0);
         railLabel('法器', -70);
 
-        // 底部合规入口（位于 -480 处，高于底部 -536 安全线，彻底远离手势栏冲突）
-        const links: Array<[string, () => void]> = [
-            [TEXTS.probabilityPublic, () => showProbabilityDialog(n)],
-            [TEXTS.settingsUserAgreement, () => showAgreementDialog(n)],
-            [TEXTS.settingsPrivacy, () => showPrivacyDialog(n)],
-        ];
-        const linkW = 184;
-        const linkH = 46;
-        links.forEach(([text, cb], i) => {
-            const b = spriteButton(n, linkW, linkH, text, cb, {
-                fontSize: 19,
-                variant: 'ghost',
-                textColor: THEME.inkSoft,
-            });
-            b.node.setPosition((i - 1) * (linkW + 16), -492, 0);
-        });
-
         this.refresh();
     }
 
@@ -257,17 +245,20 @@ export class HomeScene implements IScene {
             : `【${REALMS[realmIndex].name}】`;
         // M11：立绘按性别切换（女修用 _f 系列，资源未随包时回退男修立绘）
         if (realmIndex !== this.shownRealm || save.profile.gender !== this.shownGender) {
+            const upgraded = this.shownRealm >= 0 && realmIndex > this.shownRealm;
+            const genderChanged = save.profile.gender !== this.shownGender;
             this.shownRealm = realmIndex;
             this.shownGender = save.profile.gender;
             const holder = this.stage.getChildByName('char')!;
             holder.destroyAllChildren();
             const female = save.profile.gender === 'f';
-            const suffix = realmIndex < 10 ? `0${realmIndex}` : realmIndex;
-            if (!female && ANIMATED_REALMS.has(realmIndex)) {
-                spriteAnimation(holder, animFrames('char_idle', IDLE_FRAMES), 340, 340, IDLE_FPS);
+            const suffix: string = realmIndex < 10 ? `0${realmIndex}` : String(realmIndex);
+            if (upgraded && !genderChanged) {
+                // 突破归来：先播渡劫蜕变动画，落定后接日常待机/立绘。
+                // 蜕变帧目前只有男主一套——女修升级直接切立绘，不硬播男主体。
+                this.playBreakthrough(holder, female, suffix);
             } else {
-                image(holder, `art/characters/char_realm_${suffix}${female ? '_f' : ''}/spriteFrame`, 340, 340,
-                    female ? { fallbackPath: `art/characters/char_realm_${suffix}/spriteFrame` } : {});
+                this.showIdleOrPortrait(holder, realmIndex, female, suffix);
             }
         }
         const stats = Game.combat.deriveStats(save);
@@ -301,6 +292,25 @@ export class HomeScene implements IScene {
         g.stroke();
         dot.active = false;
         return dot;
+    }
+
+    /** 境界立绘的日常形态：有逐帧动画的境界播待机，否则走静态立绘（女修回退男修图） */
+    private showIdleOrPortrait(holder: Node, realmIndex: number, female: boolean, suffix: string) {
+        if (ANIMATED_REALMS.has(realmIndex)) {
+            const dir = female ? 'char_idle_f' : 'char_idle';
+            spriteAnimation(holder, animFrames(dir, IDLE_FRAMES), 340, 340, IDLE_FPS);
+        } else {
+            image(holder, `art/characters/char_realm_${suffix}${female ? '_f' : ''}/spriteFrame`, 340, 340,
+                female ? { fallbackPath: `art/characters/char_realm_${suffix}/spriteFrame` } : {});
+        }
+    }
+
+    /** 突破归来演出：渡劫蜕变动画（break 9 帧 one-shot）播完接回日常形态；帧缺失时直接回退 */
+    private playBreakthrough(holder: Node, female: boolean, suffix: string) {
+        spriteAnimation(holder, animFrames('char_break', BREAK_FRAMES, 'break'), 340, 340, BREAK_FPS, false,
+            () => {
+                if (holder.isValid) this.showIdleOrPortrait(holder, Game.save.realmIndex, female, suffix);
+            });
     }
 
     private enterRain() {

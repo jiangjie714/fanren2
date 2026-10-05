@@ -168,4 +168,23 @@ export const TEXTS = {
     pkWinRewardTitle: '切磋得胜 · 天道酬勤',
     pkFriendShared: '切磋帖已发出，等道友应战（先与影修过招）',
     pkFriendHint: '向道友发起切磋，以武会友',
+    // M11b 细化：个人属性页
+    playerPageTitle: '道 体',
+    playerForgeLine: (lv: number, cost: string) => `锻体 ${lv} 重${cost ? ` · 下级 ${cost} 灵石` : ' · 圆满'}`,
+    playerWeapon: '当前法器',
+    playerWeaponNone: '尚未佩剑 · 前往法器阁选购',
+    playerGoWeapon: '前往法器阁',
+    playerFortune: '福 禄',
+    playerFortuneMonthly: (d: number) => `月卡特权 · 剩余 ${d} 天`,
+    playerFortuneMonthlyNone: '月卡未激活（内购待版号）',
+    playerFortuneTicket: (n: number) => `修真宝盒券 ×${n}`,
+    playerFortuneGift: (used: boolean) => `每日仙缘 · ${used ? '今日已领' : '今日未领'}`,
+    playerFortuneLingen: (pct: number) => `灵根图鉴 · 修为加成 +${pct}%`,
+    // M11b 细化：论武蓄力与斗法演出
+    pkChargeStage: (cn: string) => `蓄力${cn}重`,
+    pkChargeStageZero: '蓄力未启 · 观广告凝聚战意',
+    pkWinOdds: (p: number) => `胜率预估 ${p}%`,
+    pkWinOddsNext: (p: number) => `再蓄一支 +${p}%`,
+    pkChargeFull: '蓄力十重 · 战意如虹',
+    pkFighting: '斗法进行中…',
 } as const;

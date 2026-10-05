@@ -270,6 +270,9 @@ export function pageBackground(parent: Node, path = 'art/ui/bg_home/spriteFrame'
  * 帧数与命名自由（idle 6 帧、cast 6 帧、break 9 帧互不影响）。
  * 任一顿帧加载失败都不致命：过滤掉缺失帧后继续播放，最差退化为静态图，
  * 不会像 Sprite.FILLED 那样在资源缺失时直接把引擎打崩。
+ *
+ * `onFinished` 在两种时机回调：非循环播放自然播完，或帧全缺（资源未随包）
+ * 直接跳过播放 —— 调用方用它衔接「演出结束后的静态回退」，两种路径都会走到。
  */
 export function spriteAnimation(
     parent: Node,
@@ -278,6 +281,7 @@ export function spriteAnimation(
     h: number,
     fps = 8,
     loop = true,
+    onFinished?: () => void,
 ): Node {
     const n = uinode('anim', parent, w, h);
     const sp = n.addComponent(Sprite);
@@ -290,7 +294,8 @@ export function spriteAnimation(
     ).then((loaded) => {
         if (!n.isValid) return;
         const frames = loaded.filter((f): f is SpriteFrame => f !== null);
-        if (frames.length > 0) animator.play(frames, fps, loop);
+        if (frames.length > 0) animator.play(frames, fps, loop, onFinished);
+        else onFinished?.();
     });
     return n;
 }
@@ -625,4 +630,94 @@ export function pageHeader(parent: Node, title: string, onBack: () => void): Nod
         color: THEME.goldLight,
     });
     return header;
+}
+
+// ---------- 战斗演出三件套（斩妖 / 论武共用；全部火忘式 tween，自清理） ----------
+
+/**
+ * 飘浮伤害/增益数字：从 (x, y) 上浮 64px 并淡出后自毁。
+ * 需要深墨描边——数字会压在立绘与背景上，纯色必糊。
+ */
+export function floatText(parent: Node, x: number, y: number, text: string, color: Color = THEME.goldLight, size = 30): void {
+    const n = label(parent, text, size, {
+        bold: true,
+        color,
+        outline: faded(THEME.void, 230),
+        outlineWidth: 3,
+    });
+    n.setPosition(x, y, 0);
+    const op = n.addComponent(UIOpacity);
+    op.opacity = 255;
+    tween(n).by(0.55, { position: new Vec3(0, 64, 0) }, { easing: 'sineOut' }).start();
+    tween(op).delay(0.28).to(0.28, { opacity: 0 }).call(() => n.destroy()).start();
+}
+
+/**
+ * 斩击弧光（斩妖点按 / 论武我方攻击为金色，妖兽爪击传朱砂红）：弧线扫过 + 快速淡出。
+ * 纯 Graphics 直涂实色，不与 tint 混用（乘算画不出亮金）。
+ */
+export function slashFx(parent: Node, x: number, y: number, scale = 1, color: Color = THEME.goldLight): void {
+    const n = uinode('slashFx', parent, 0, 0);
+    n.setPosition(x, y, 0);
+    n.angle = -28;
+    const g = n.addComponent(Graphics);
+    g.strokeColor = faded(color, 235);
+    g.lineWidth = 7 * scale;
+    g.arc(0, 0, 62 * scale, -0.7, 1.9, false);
+    g.stroke();
+    g.strokeColor = Color.WHITE;
+    g.lineWidth = 3 * scale;
+    g.arc(0, 0, 62 * scale, -0.55, 1.75, false);
+    g.stroke();
+    const op = n.addComponent(UIOpacity);
+    op.opacity = 0;
+    tween(op).to(0.05, { opacity: 255 }).to(0.18, { opacity: 0 }).call(() => n.destroy()).start();
+    tween(n).by(0.22, { angle: 55 }).start();
+}
+
+/**
+ * 灵光法弹（论武对方攻击）：紫霄光珠从 from 飞向 to，命中炸开一圈涟漪。
+ */
+export function boltFx(parent: Node, from: { x: number; y: number }, to: { x: number; y: number }, color: Color = THEME.violet): void {
+    const n = uinode('bolt', parent, 0, 0);
+    n.setPosition(from.x, from.y, 0);
+    const g = n.addComponent(Graphics);
+    g.fillColor = color;
+    g.circle(0, 0, 9);
+    g.fill();
+    g.fillColor = faded(THEME.white, 190);
+    g.circle(-2, 2, 4);
+    g.fill();
+    const op = n.addComponent(UIOpacity);
+    op.opacity = 255;
+    tween(n).to(0.22, { position: new Vec3(to.x, to.y, 0) }, { easing: 'sineIn' }).call(() => {
+        const ring = uinode('boltRing', parent, 0, 0);
+        ring.setPosition(to.x, to.y, 0);
+        const rg = ring.addComponent(Graphics);
+        rg.strokeColor = color;
+        rg.lineWidth = 4;
+        rg.circle(0, 0, 16);
+        rg.stroke();
+        const rop = ring.addComponent(UIOpacity);
+        tween(ring).to(0.2, { scale: new Vec3(2.6, 2.6, 1) }).start();
+        tween(rop).to(0.2, { opacity: 0 }).call(() => {
+            ring.destroy();
+            n.destroy();
+        }).start();
+    }).start();
+    tween(op).delay(0.16).to(0.1, { opacity: 0 }).start();
+}
+
+/**
+ * 短促受击震屏：宿主节点小幅抖动后归位（宿主应是「战斗舞台」容器，
+ * 不能抖页面根节点——会带歪 pageHeader 与状态栏）。
+ */
+export function shakeNode(node: Node, strength = 7): void {
+    const ox = node.position.x;
+    const oy = node.position.y;
+    tween(node)
+        .to(0.04, { position: new Vec3(ox + strength, oy, 0) })
+        .to(0.04, { position: new Vec3(ox - strength, oy, 0) })
+        .to(0.04, { position: new Vec3(ox, oy, 0) })
+        .start();
 }

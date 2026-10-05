@@ -1,4 +1,4 @@
-import { Color, Label, Layers, Node, Sprite, tween, Vec3 } from 'cc';
+import { Color, Graphics, Label, Layers, Node, Sprite, tween, UIOpacity, Vec3 } from 'cc';
 import { IScene } from '../infra/SceneStack';
 import { Game } from '../infra/Game';
 import { Ads } from '../infra/Ads';
@@ -14,12 +14,15 @@ import {
     THEME,
     faded,
     fadeIn,
+    floatText,
     image,
     label,
     labelL,
     pageBackground,
     pageHeader,
     progressBar,
+    shakeNode,
+    slashFx,
     spriteButton,
     spritePanel,
     toast,
@@ -49,6 +52,8 @@ export class ExpeditionScene implements IScene {
     private monsterBar: ProgressBarHandle | null = null;
     private myBar: ProgressBarHandle | null = null;
     private monsterNode: Node | null = null;
+    private playerNode: Node | null = null;
+    private stageNode: Node | null = null;
 
     constructor() {
         this.node = new Node('ExpeditionScene');
@@ -171,7 +176,7 @@ export class ExpeditionScene implements IScene {
         }
     }
 
-    // ---------- #35 斩妖 ----------
+    // ---------- #35 斩妖（舞台化互砍演出） ----------
 
     private resetSlay() {
         this.slayDone = false;
@@ -185,9 +190,11 @@ export class ExpeditionScene implements IScene {
         this.monsterBar = null;
         this.myBar = null;
         this.monsterNode = null;
+        this.playerNode = null;
+        this.stageNode = null;
     }
 
-    /** 归来先打拦路妖兽：点按斩击，胜负决定事件灵石是否带战意加成 */
+    /** 归来先打拦路妖兽：人物与妖兽分立舞台两侧，点按斩击互砍 */
     private renderSlay(panel: Node) {
         const dest = Game.save.expedition.dest!;
         const monster = Game.combat.monsterOf(dest);
@@ -200,30 +207,85 @@ export class ExpeditionScene implements IScene {
             this.strikeAcc = 0;
         }
 
-        label(panel, TEXTS.slayTitle, 24, { bold: true, color: THEME.danger }).setPosition(0, 262, 0);
-        label(panel, `${monster.name}`, 32, { bold: true, color: THEME.paper }).setPosition(0, 210, 0);
-        label(panel, monster.intro, 20, { color: THEME.inkSoft, width: 560, shrink: true }).setPosition(0, 164, 0);
+        label(panel, TEXTS.slayTitle, 22, { bold: true, color: THEME.danger }).setPosition(0, 268, 0);
+        label(panel, `${monster.name}`, 30, { bold: true, color: THEME.paper }).setPosition(0, 224, 0);
+        label(panel, monster.intro, 18, { color: THEME.inkSoft, width: 560, shrink: true }).setPosition(0, 186, 0);
 
-        const mon = image(panel, `art/monsters/monster_${dest}/spriteFrame`, 230, 230, {
+        // 战斗舞台：我方左、妖兽右（受击震屏抖舞台，不抖整页）
+        const stage = uinode('slayStage', panel, 600, 280);
+        stage.setPosition(0, 26, 0);
+        this.stageNode = stage;
+
+        const gender = Game.save.profile.gender;
+        const pAtk = uinode('playerAtk', stage, 180, 180);
+        pAtk.setPosition(-138, 10, 0);
+        const pBob = uinode('pBob', pAtk, 180, 180);
+        const pPath = gender === 'f' ? 'art/characters/char_realm_00_f/spriteFrame' : 'art/characters/char_realm_00/spriteFrame';
+        image(pBob, pPath, 180, 180, { fallbackPath: 'art/characters/char_realm_00/spriteFrame' });
+        tween(pBob).repeatForever(
+            tween().to(1.1, { y: 8 }, { easing: 'sineInOut' }).to(1.1, { y: 0 }, { easing: 'sineInOut' })
+        ).start();
+        this.playerNode = pAtk;
+        // 脚下影子
+        this.drawShadow(stage, -138, -76, 92);
+
+        const mAtk = uinode('monsterAtk', stage, 210, 210);
+        mAtk.setPosition(142, 0, 0);
+        const mBob = uinode('mBob', mAtk, 210, 210);
+        image(mBob, `art/monsters/monster_${dest}/spriteFrame`, 210, 210, {
             fallbackPath: 'art/ui/icons/icon_expedition/spriteFrame',
         });
-        mon.setPosition(0, 8, 0);
-        this.monsterNode = mon;
+        tween(mBob).repeatForever(
+            tween().to(0.9, { y: -9 }, { easing: 'sineInOut' }).to(0.9, { y: 0 }, { easing: 'sineInOut' })
+        ).start();
+        this.monsterNode = mAtk;
+        this.drawShadow(stage, 142, -80, 104);
 
-        this.monsterBar = progressBar(panel, 560, 34, { text: '妖兽 气血', fontSize: 20 });
-        this.monsterBar.node.setPosition(0, -136, 0);
-        this.myBar = progressBar(panel, 560, 30, { text: '我方 气血', fontSize: 19 });
-        this.myBar.node.setPosition(0, -184, 0);
+        this.monsterBar = progressBar(panel, 480, 30, { text: '妖兽 气血', fontSize: 19 });
+        this.monsterBar.node.setPosition(0, -122, 0);
+        this.myBar = progressBar(panel, 480, 26, { text: '我方 气血', fontSize: 18 });
+        this.myBar.node.setPosition(0, -158, 0);
         this.refreshSlayBars();
 
-        label(panel, TEXTS.slayTip, 19, { color: THEME.inkSoft, width: 560, shrink: true })
-            .setPosition(0, -232, 0);
+        label(panel, TEXTS.slayTip, 18, { color: THEME.inkSoft, width: 560, shrink: true })
+            .setPosition(0, -200, 0);
 
-        const slash = spriteButton(panel, 560, 84, '斩 ！', () => this.slashTap(), {
-            fontSize: 32,
+        const slash = spriteButton(panel, 480, 78, '斩 ！', () => this.slashTap(), {
+            fontSize: 30,
             variant: 'primary',
         });
-        slash.node.setPosition(0, -276, 0);
+        slash.node.setPosition(0, -256, 0);
+    }
+
+    /** 立绘脚下椭圆墨影（Graphics 直涂实色） */
+    private drawShadow(parent: Node, x: number, y: number, w: number) {
+        const n = uinode('shadow', parent, w, 22);
+        n.setPosition(x, y, 0);
+        const g = n.addComponent(Graphics);
+        g.fillColor = faded(THEME.void, 120);
+        g.ellipse(0, 0, w / 2, 10);
+        g.fill();
+    }
+
+    /** 攻击突进：冲出 dx 再归位（外层节点，内层呼吸动画互不干扰） */
+    private lunge(node: Node, dx: number) {
+        const ox = node.position.x;
+        const oy = node.position.y;
+        tween(node)
+            .to(0.07, { position: new Vec3(ox + dx, oy, 0) }, { easing: 'sineOut' })
+            .delay(0.06)
+            .to(0.1, { position: new Vec3(ox, oy, 0) }, { easing: 'sineIn' })
+            .start();
+    }
+
+    /** 受击红闪（直接改 Sprite 颜色，短 tween 归白） */
+    private hitFlash(charNode: Node | null) {
+        if (!charNode) return;
+        const img = charNode.children[0]?.children[0] ?? charNode.children[0];
+        const sp = img?.getComponent(Sprite);
+        if (!sp) return;
+        sp.color = faded(THEME.danger, 255);
+        tween(sp).delay(0.1).to(0.12, { color: Color.WHITE }).start();
     }
 
     private refreshSlayBars() {
@@ -231,39 +293,47 @@ export class ExpeditionScene implements IScene {
         this.myBar?.set(Math.max(0, this.myHp / this.myHpMax), `我方 气血 ${Math.max(0, Math.ceil(this.myHp))}/${this.myHpMax}`);
     }
 
-    /** 每次点按：结算一次斩击；每 8 下妖兽额外反扑一次 */
+    /** 每次点按：我方突进斩击 → 弧光落点结算伤害；每 8 下妖兽额外反扑 */
     private slashTap() {
         if (this.slayDone || this.monsterHp <= 0) return;
-        this.monsterHp -= Game.combat.slayTapDamage(Game.save);
-        this.taps += 1;
         this.strikeAcc = 0;
-        this.refreshSlayBars();
-        AudioMgr.play('click');
-        if (this.monsterHp <= 0) {
-            this.slayWin();
-            return;
-        }
-        if (this.taps % SLAY_STRIKE_EVERY_TAPS === 0) this.monsterStrike();
+        this.lunge(this.playerNode, 96);
+        const dmg = Game.combat.slayTapDamage(Game.save);
+        const mx = this.monsterNode?.position.x ?? 142;
+        tween(this.node).delay(0.08).call(() => {
+            if (this.slayDone || !this.stageNode) return;
+            slashFx(this.stageNode, mx, 26);
+            this.hitFlash(this.monsterNode);
+            floatText(this.stageNode, mx - 10, 108, `-${dmg}`, THEME.goldLight, 30);
+            this.monsterHp -= dmg;
+            this.refreshSlayBars();
+            AudioMgr.play('click');
+            if (this.monsterHp <= 0) {
+                this.slayWin();
+                return;
+            }
+            if (this.taps % SLAY_STRIKE_EVERY_TAPS === 0) this.monsterStrike();
+        }).start();
+        this.taps += 1;
     }
 
+    /** 妖兽反扑：扑向人物 → 朱砂爪光落点结算（防御减伤已在公式内） */
     private monsterStrike() {
         if (this.slayDone || this.monsterHp <= 0) return;
-        this.myHp -= Game.combat.slayStrikeDamage(Game.save);
-        this.refreshSlayBars();
-        // 受击反馈：妖兽前顶 + 短暂红晕
-        if (this.monsterNode) {
-            tween(this.monsterNode)
-                .to(0.06, { position: new Vec3(24, 8, 0) })
-                .to(0.12, { position: new Vec3(0, 8, 0) })
-                .start();
-            const sp = this.monsterNode.getComponent(Sprite);
-            if (sp) {
-                sp.color = faded(THEME.danger, 255);
-                tween(sp).delay(0.14).to(0.1, { color: Color.WHITE }).start();
-            }
-        }
-        AudioMgr.play('disaster');
-        if (this.myHp <= 0) this.slayLose();
+        this.lunge(this.monsterNode, -96);
+        const dmg = Game.combat.slayStrikeDamage(Game.save);
+        const px = this.playerNode?.position.x ?? -138;
+        tween(this.node).delay(0.09).call(() => {
+            if (this.slayDone || !this.stageNode) return;
+            slashFx(this.stageNode, px, 10, 0.9, THEME.cinnabar);
+            this.hitFlash(this.playerNode);
+            shakeNode(this.stageNode, 6);
+            floatText(this.stageNode, px - 10, 96, `-${dmg}`, THEME.cinnabar, 26);
+            this.myHp -= dmg;
+            this.refreshSlayBars();
+            AudioMgr.play('disaster');
+            if (this.myHp <= 0) this.slayLose();
+        }).start();
     }
 
     private slayWin() {
@@ -271,25 +341,43 @@ export class ExpeditionScene implements IScene {
         this.morale = true;
         AudioMgr.play('rare');
         const dest = Game.save.expedition.dest!;
+        // 妖兽诛灭演出：淡出下沉
+        if (this.monsterNode) {
+            const m = this.monsterNode;
+            const op = m.addComponent(UIOpacity);
+            tween(m).by(0.35, { position: new Vec3(0, -26, 0) }).start();
+            tween(op).to(0.35, { opacity: 0 }).start();
+        }
+        if (this.stageNode) floatText(this.stageNode, 0, 30, '斩！', THEME.success, 40);
         const items = Game.combat.slayRewards(Game.save, dest);
         Game.persist();
         Game.checkAchievements(this.node);
-        showDialog(this.node, {
-            title: TEXTS.slayWin,
-            lines: [
-                { text: TEXTS.slayMorale, color: 3 as const },
-                ...items.map((i) => ({ text: i.label, color: 1 as const })),
-            ],
-            buttons: [{ text: '继 续', primary: true, cb: () => this.render() }],
-        });
+        tween(this.node).delay(0.55).call(() => {
+            showDialog(this.node, {
+                title: TEXTS.slayWin,
+                lines: [
+                    { text: TEXTS.slayMorale, color: 3 as const },
+                    ...items.map((i) => ({ text: i.label, color: 1 as const })),
+                ],
+                buttons: [{ text: '继 续', primary: true, cb: () => this.render() }],
+            });
+        }).start();
     }
 
     private slayLose() {
         this.slayDone = true;
         this.morale = false;
         AudioMgr.play('disaster');
+        // 我方力竭演出：灰置下沉，妖兽遁走
+        if (this.playerNode) {
+            const p = this.playerNode;
+            const op = p.addComponent(UIOpacity);
+            p.children.forEach((c) => c.children.forEach((img) => { const s = img.getComponent(Sprite); if (s) s.color = THEME.tintMuted; }));
+            tween(p).by(0.35, { position: new Vec3(0, -18, 0) }).start();
+            tween(op).to(0.35, { opacity: 150 }).start();
+        }
         toast(this.node, TEXTS.slayLose);
-        this.render();
+        tween(this.node).delay(0.7).call(() => this.render()).start();
     }
 
     /** 已归来：事件三选一（斩妖胜利带战意加成） */

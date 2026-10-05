@@ -14,6 +14,7 @@ import {
     uinode,
 } from '../ui/ThemeLib';
 import { HomeScene } from './HomeScene';
+import { showAgreementDialog, showPrivacyDialog, showProbabilityDialog } from '../ui/infoDialogs';
 
 type Gender = 'm' | 'f';
 
@@ -48,7 +49,28 @@ export class ProfileScene implements IScene {
 
         this.renderCards();
         this.renderNameInput();
+        this.renderLinks();
         fadeIn(n, 16);
+    }
+
+    /** 底部合规入口（自主页迁入）：位于 -440，高于底部 -536 安全线，远离手势栏冲突 */
+    private renderLinks() {
+        const n = this.node;
+        const links: Array<[string, () => void]> = [
+            [TEXTS.probabilityPublic, () => showProbabilityDialog(n)],
+            [TEXTS.settingsUserAgreement, () => showAgreementDialog(n)],
+            [TEXTS.settingsPrivacy, () => showPrivacyDialog(n)],
+        ];
+        const linkW = 184;
+        const linkH = 46;
+        links.forEach(([text, cb], i) => {
+            const b = spriteButton(n, linkW, linkH, text, cb, {
+                fontSize: 19,
+                variant: 'ghost',
+                textColor: THEME.inkSoft,
+            });
+            b.node.setPosition((i - 1) * (linkW + 16), -440, 0);
+        });
     }
 
     /** 性别双卡：选中卡亮起金环，未选中灰置 */

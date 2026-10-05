@@ -196,6 +196,17 @@ export class CombatSystem {
     }
 
     /**
+     * 胜率预估（蓄力交互的实时反馈）：与 simulateBattle 同一套 logistic 公式，
+     * 蓄力支数越多胜率越高；UI 每蓄一支刷新一次。
+     */
+    pkWinOdds(save: SaveData, chargeAds: number, opp: PkOpponent): number {
+        const my = this.chargedStats(save, chargeAds);
+        const myP2 = Math.pow(Math.max(1, my.atk + my.def), 2) * PK_FIRST_STRIKE_EDGE;
+        const oppP2 = Math.pow(Math.max(1, opp.atk + opp.def), 2);
+        return myP2 / (myP2 + oppP2);
+    }
+
+    /**
      * 生成对手：攻/防按**境界基础值**×带宽生成（不随我方锻体/法器水涨船高），
      * 投入成长的玩家在论武里直接体现为胜率上移；蓄力在其之上继续加成（#36/#37）。
      */
