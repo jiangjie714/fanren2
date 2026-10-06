@@ -204,9 +204,13 @@ export class RainSystem {
                 this.applyCatch(s, d.type);
             }
         }
-        if (s.drops.some((d) => d.dead)) {
-            s.drops = s.drops.filter((d) => !d.dead);
+        // 就地压缩移除 dead 雨滴（P2-2：替代 some()+filter() 的两次遍历与数组重建）
+        let write = 0;
+        for (let i = 0; i < s.drops.length; i++) {
+            const d = s.drops[i];
+            if (!d.dead) s.drops[write++] = d;
         }
+        if (write < s.drops.length) s.drops.length = write;
     }
 
     /** 净化劫雨（激励广告）：3 秒内不再生成劫雨；单局 1 次；幻境模式不可用 */

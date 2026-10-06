@@ -25,7 +25,7 @@ import {
     uinode,
 } from '../ui/ThemeLib';
 import { showDialog } from '../ui/dialog';
-import { animFrames, spriteAnimation } from '../ui/ThemeLib';
+import { animDir, animFrames, spriteAnimation } from '../ui/ThemeLib';
 import { ResultScene } from './ResultScene';
 import { IllusionResultScene } from './IllusionResultScene';
 
@@ -41,6 +41,8 @@ export class RainScene implements IScene {
     private mode: RainMode;
     private session!: RainSession;
     private dropNodes = new Map<number, Node>();
+    /** syncDrops 每帧复用：避免每帧 new Set（P2-2） */
+    private dropSeen = new Set<number>();
     private fieldNode!: Node;
     private player!: Node;
     private countdown!: Label;
@@ -85,7 +87,8 @@ export class RainScene implements IScene {
         aura.circle(0, 0, 62);
         aura.fill();
         aura.stroke();
-        image(this.player, `art/characters/char_realm_0${charIndex}/spriteFrame`, 108, 108);
+        image(this.player, `art/characters/char_realm_0${charIndex}${Game.save.profile.gender === 'f' ? '_f' : ''}/spriteFrame`, 108, 108,
+            Game.save.profile.gender === 'f' ? { fallbackPath: `art/characters/char_realm_0${charIndex}/spriteFrame` } : {});
 
         const hud = spritePanel(n, 648, 92, undefined, THEME.tintDeep);
         hud.setPosition(0, DESIGN_H / 2 - SAFE.top, 0);
@@ -309,18 +312,19 @@ export class RainScene implements IScene {
     }
 
     /**
-     * 聚灵咒施法演出：主角播 cast 6 帧（one-shot，约 0.75s），播完恢复静态立绘。
-     * 蜕变/施法帧目前只有男主境界 0 一套——女修与高境界维持金环光环，不硬播其他
-     * 主体（外观跳变比没演出更伤观感）；后续按 art-rebuild 管线补齐其余主体。
+     * 聚灵咒施法演出：播当前境界/性别的 cast 6 帧（one-shot，约 0.75s），播完恢复静态立绘。
+     * 全境界+女修 cast 已随美术第三批补齐（char_cast / char_cast_f / char_cast_r01..05）；
+     * 帧目录未随包时 spriteAnimation 立即回调 → 直接恢复静态立绘，不会空白。
      */
     private playCastFx() {
-        if (Game.save.profile.gender === 'f' || Game.save.realmIndex !== 0) return;
         const charIdx = Math.min(5, Math.max(0, Game.save.realmIndex));
+        const female = Game.save.profile.gender === 'f';
         this.player.destroyAllChildren();
-        spriteAnimation(this.player, animFrames('char_cast', CAST_FRAMES, 'cast'), 108, 108, CAST_FPS, false,
+        spriteAnimation(this.player, animFrames(animDir('char_cast', charIdx, female), CAST_FRAMES, 'cast'), 108, 108, CAST_FPS, false,
             () => {
                 if (this.player.isValid) {
-                    image(this.player, `art/characters/char_realm_0${charIdx}/spriteFrame`, 108, 108);
+                    image(this.player, `art/characters/char_realm_0${charIdx}${female ? '_f' : ''}/spriteFrame`, 108, 108,
+                        female ? { fallbackPath: `art/characters/char_realm_0${charIdx}/spriteFrame` } : {});
                 }
             });
     }
@@ -331,7 +335,8 @@ export class RainScene implements IScene {
     }
 
     private syncDrops() {
-        const seen = new Set<number>();
+        const seen = this.dropSeen;
+        seen.clear();
         for (const d of this.session.drops) {
             seen.add(d.id);
             let node = this.dropNodes.get(d.id);

@@ -75,6 +75,7 @@ export class BoxScene implements IScene {
     private chargeResolved = false;
     private chargeCursor: Node | null = null;
     private chargeChest: Node | null = null;
+    private chestAnimNode: Node | null = null;
     private runeRoot: Node | null = null;
     private runeLit = 0;
     private runeT = 0;
@@ -140,6 +141,7 @@ export class BoxScene implements IScene {
         const chestAnim = image(anim, CHEST_ART.tiandao, 190, 150);
         chestAnim.name = 'chestAnim';
         chestAnim.setPosition(0, 16, 0);
+        this.chestAnimNode = chestAnim;
         tween(chestAnim)
             .repeatForever(
                 tween(chestAnim)
@@ -197,6 +199,14 @@ export class BoxScene implements IScene {
 
     onResume() {
         this.refresh();
+    }
+
+    onExit() {
+        // P2-3：停掉开箱页所有 repeatForever tween（法台宝箱呼吸 / 蓄力箱摆动 / 符文脉动），
+        // 避免离屏后仍在每帧调度，配合场景销毁也不残留动作。
+        if (this.chestAnimNode) Tween.stopAllByTarget(this.chestAnimNode);
+        if (this.chargeChest) Tween.stopAllByTarget(this.chargeChest);
+        for (const n of this.runeNodes) Tween.stopAllByTarget(n);
     }
 
     private buildCard(parent: Node, box: BoxConfig, x: number, y: number, w: number, h: number): Node {

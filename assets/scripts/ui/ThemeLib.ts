@@ -305,6 +305,24 @@ export function animFrames(dir: string, count: number, prefix = 'idle'): string[
     return Array.from({ length: count }, (_, i) => `art/anims/${dir}/${prefix}_${i + 1}/spriteFrame`);
 }
 
+/**
+ * 境界/性别 → 主角动画目录。
+ *
+ * 境界 0 男女各一套（char_idle / char_idle_f）；境界 1~5 每阶一套
+ * （char_idle_r01..r05，以男修立绘为基准——女修高境界立绘本就回退男修图，
+ * 动画同步回退保持形象一致）。目录未随包时帧全缺，spriteAnimation 会立即
+ * 回调 onFinished，调用方借此回退静态立绘，不会空白。
+ */
+export function animDir(
+    base: 'char_idle' | 'char_cast' | 'char_break',
+    realmIndex: number,
+    female: boolean,
+): string {
+    if (realmIndex <= 0) return female ? `${base}_f` : base;
+    const n = Math.min(5, realmIndex);
+    return `${base}_r${n < 10 ? `0${n}` : n}`;
+}
+
 export function spritePanel(
     parent: Node,
     w: number,

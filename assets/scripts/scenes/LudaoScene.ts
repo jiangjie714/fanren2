@@ -49,6 +49,7 @@ export class LudaoScene implements IScene {
     // M9b 好友榜视图（开放数据域共享画布 → 动态纹理）
     private odcKey: RankKey = 'realm_value';
     private odcTexture: Texture2D | null = null;
+    private odcSpriteFrame: SpriteFrame | null = null;
     private odcPollAcc = 0;
     private odcChips = new Map<RankKey, ButtonHandle>();
 
@@ -70,6 +71,20 @@ export class LudaoScene implements IScene {
         Game.checkAchievements();
         this.renderTab();
         this.renderTabbar();
+    }
+
+    onExit() {
+        // P2-1：释放子域共享画布动态纹理，否则每次进出论道页都泄漏一张 GPU 纹理
+        this.releaseOdcTexture();
+    }
+
+    /** 销毁子域画布动态纹理与 spriteFrame（幂等） */
+    private releaseOdcTexture() {
+        this.odcSpriteFrame = null;
+        if (this.odcTexture) {
+            this.odcTexture.destroy();
+            this.odcTexture = null;
+        }
     }
 
     private renderTabbar() {
@@ -138,6 +153,7 @@ export class LudaoScene implements IScene {
     private renderTab() {
         this.achieveBtns.clear();
         this.content?.destroy();
+        this.releaseOdcTexture(); // 切 tab / 重进时旧纹理已随 view 销毁，这里一并回收
         const n = this.node;
         this.content = uinode('content', n, DESIGN_W, DESIGN_H);
         if (this.tab === 'rank') this.renderRank(this.content);
@@ -189,6 +205,7 @@ export class LudaoScene implements IScene {
                 sp.sizeMode = Sprite.SizeMode.CUSTOM;
                 sp.spriteFrame = sf;
                 this.odcTexture = tex;
+                this.odcSpriteFrame = sf;
                 DouyinSocial.requestRank(this.odcKey);
             } catch {
                 label(view, '好友榜视图初始化失败，稍后重试', 22, { color: THEME.inkSoft, width: 600, shrink: true });

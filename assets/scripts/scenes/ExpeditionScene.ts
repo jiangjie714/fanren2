@@ -38,6 +38,8 @@ export class ExpeditionScene implements IScene {
     private timerLabel!: Label;
     private recallBtn: ButtonHandle | null = null;
     private lastState = '';
+    /** 倒计时文案缓存：分钟数不变就不重写 label（P2-4 每帧堆分配节流） */
+    private lastLeftMin = -1;
 
     // ---------- 斩妖战斗态（complete 期间有效，#35） ----------
     private slayDone = false;
@@ -80,10 +82,15 @@ export class ExpeditionScene implements IScene {
             return;
         }
         if (state === 'running') {
-            const left = Game.expedition.remainingMs(Game.save, Date.now());
+            const now = Date.now();
+            const left = Game.expedition.remainingMs(Game.save, now);
             const m = Math.ceil(left / 60_000);
-            this.timerLabel.string = `${TEXTS.expeditionRunning} 约 ${m} 分钟`;
-            if (this.recallBtn) this.recallBtn.node.active = Game.expedition.recallable(Game.save, Date.now());
+            // 倒计时单位是分钟，分钟数不变就跳过字符串重写与 recallable 重查（P2-4）
+            if (m !== this.lastLeftMin) {
+                this.lastLeftMin = m;
+                this.timerLabel.string = `${TEXTS.expeditionRunning} 约 ${m} 分钟`;
+                if (this.recallBtn) this.recallBtn.node.active = Game.expedition.recallable(Game.save, now);
+            }
         }
         // 斩妖：妖兽周期反扑（真实时间，点得慢就要硬吃伤害）
         if (state === 'complete' && !this.slayDone && this.monsterHp > 0) {
@@ -99,6 +106,7 @@ export class ExpeditionScene implements IScene {
         this.stateNode?.destroy();
         this.stateNode = null;
         this.bar.refresh();
+        this.lastLeftMin = -1;
         const now = Date.now();
         const state = Game.expedition.stateOf(Game.save, now);
         this.lastState = state;

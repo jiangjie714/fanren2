@@ -12,6 +12,8 @@ const KEY_CORRUPT = 'fanren_save_v1_corrupt_backup';
 export class SaveStore {
     /** 本次启动是否发现坏档（原档已备份、已重置新档）；由主页消费后置 false 提示玩家（P1-5） */
     static corrupted = false;
+    /** 上次落盘的序列化串：内容未变则跳过 setItem，消除「连续写两次」的重复 IO（P2-5） */
+    private static lastRaw: string | null = null;
 
     static load(): SaveData {
         try {
@@ -31,13 +33,18 @@ export class SaveStore {
     }
 
     static persist(data: SaveData): void {
+        const raw = JSON.stringify(data);
+        // 内容与上次落盘一致 → 跳过 setItem（局部 IO 比序列化贵得多，且是双写的唯一重复成本）
+        if (raw === this.lastRaw) return;
         try {
-            sys.localStorage.setItem(KEY, JSON.stringify(data));
+            sys.localStorage.setItem(KEY, raw);
+            this.lastRaw = raw;
         } catch (e) {
             // 写入失败重试一次（瞬态配额/序列化问题）；仍失败则高声报错：
             // 此时内存态与磁盘态已分叉，下次启动会回滚玩家进度（P1-5）。
             try {
-                sys.localStorage.setItem(KEY, JSON.stringify(data));
+                sys.localStorage.setItem(KEY, raw);
+                this.lastRaw = raw;
             } catch (e2) {
                 console.error('[fanren] save persist failed twice, progress may roll back', e, e2);
             }

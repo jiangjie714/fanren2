@@ -1,4 +1,4 @@
-import { Color, Graphics, Label, Layers, Node, UIOpacity, tween, Vec3 } from 'cc';
+import { Color, Graphics, Label, Layers, Node, Tween, UIOpacity, tween, Vec3 } from 'cc';
 import { IScene } from '../infra/SceneStack';
 import { Game } from '../infra/Game';
 import { Ads } from '../infra/Ads';
@@ -13,6 +13,7 @@ import {
     DESIGN_H,
     DESIGN_W,
     THEME,
+    animDir,
     animFrames,
     faded,
     fadeIn,
@@ -39,12 +40,10 @@ import { WeaponScene } from './WeaponScene';
 import { ACTIVITY_CHESTS } from '../core/config/quests';
 
 /**
- * 已产出逐帧待机动画的境界。
- *
- * 尚未动画化的境界走静态立绘 —— 不做「先试加载动画、失败再回退」的探测，
- * 因为帧加载是异步的，回退会先闪一帧空白。显式白名单在构建期就能确定行为。
+ * 全境界逐帧动画化（2026-10 第三批）：境界 0 男女各一套 idle，境界 1~5
+ * 每阶一套 idle（char_idle_r01..r05）。帧目录未随包时 spriteAnimation
+ * 立即回调 onFinished → 回退静态立绘，不会闪空白。
  */
-const ANIMATED_REALMS = new Set<number>([0]);
 /** 待机动画帧数（2x3 网格切出 6 帧）与播放速率。4fps ≈ 1.5s 一个呼吸循环。 */
 const IDLE_FRAMES = 6;
 const IDLE_FPS = 4;
@@ -72,6 +71,7 @@ export class HomeScene implements IScene {
     private realmName!: Label;
     private statLabel!: Label;
     private stage!: Node;
+    private charNode!: Node;
     private shownRealm = -1;
     private shownGender: 'm' | 'f' | '' = '';
 
@@ -125,6 +125,7 @@ export class HomeScene implements IScene {
         // 角色立绘主体（待机轻缓悬浮呼吸）
         const charNode = uinode('char', this.stage, 330, 330);
         charNode.setPosition(0, 20, 0);
+        this.charNode = charNode;
         const op = charNode.addComponent(UIOpacity);
         op.opacity = 250;
         tween(charNode)
@@ -236,6 +237,11 @@ export class HomeScene implements IScene {
         this.refresh();
     }
 
+    onExit() {
+        // P2-3：停掉主页立绘的 repeatForever 呼吸 tween，避免离屏后仍在每帧调度
+        if (this.charNode) Tween.stopAllByTarget(this.charNode);
+    }
+
     private refresh() {
         this.bar.refresh();
         const save = Game.save;
@@ -294,20 +300,23 @@ export class HomeScene implements IScene {
         return dot;
     }
 
-    /** 境界立绘的日常形态：有逐帧动画的境界播待机，否则走静态立绘（女修回退男修图） */
+    /** 境界立绘的日常形态：播该境界待机动画，帧缺失时回退静态立绘（女修回退男修图） */
     private showIdleOrPortrait(holder: Node, realmIndex: number, female: boolean, suffix: string) {
-        if (ANIMATED_REALMS.has(realmIndex)) {
-            const dir = female ? 'char_idle_f' : 'char_idle';
-            spriteAnimation(holder, animFrames(dir, IDLE_FRAMES), 340, 340, IDLE_FPS);
-        } else {
-            image(holder, `art/characters/char_realm_${suffix}${female ? '_f' : ''}/spriteFrame`, 340, 340,
-                female ? { fallbackPath: `art/characters/char_realm_${suffix}/spriteFrame` } : {});
-        }
+        spriteAnimation(holder, animFrames(animDir('char_idle', realmIndex, female), IDLE_FRAMES), 340, 340, IDLE_FPS,
+            true,
+            () => {
+                // 帧全缺（目录未随包）→ 静态立绘兜底，避免空白主角
+                if (holder.isValid) {
+                    image(holder, `art/characters/char_realm_${suffix}${female ? '_f' : ''}/spriteFrame`, 340, 340,
+                        female ? { fallbackPath: `art/characters/char_realm_${suffix}/spriteFrame` } : {});
+                }
+            });
     }
 
-    /** 突破归来演出：渡劫蜕变动画（break 9 帧 one-shot）播完接回日常形态；帧缺失时直接回退 */
+    /** 突破归来演出：播新境界的渡劫蜕变动画（break 9 帧 one-shot）播完接回日常形态；帧缺失时直接回退 */
     private playBreakthrough(holder: Node, female: boolean, suffix: string) {
-        spriteAnimation(holder, animFrames('char_break', BREAK_FRAMES, 'break'), 340, 340, BREAK_FPS, false,
+        spriteAnimation(holder, animFrames(animDir('char_break', Game.save.realmIndex, female), BREAK_FRAMES, 'break'),
+            340, 340, BREAK_FPS, false,
             () => {
                 if (holder.isValid) this.showIdleOrPortrait(holder, Game.save.realmIndex, female, suffix);
             });

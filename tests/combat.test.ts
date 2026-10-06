@@ -160,7 +160,10 @@ describe('M11 论武（#36/#37）', () => {
     it('跨天重置论武次数', () => {
         const { save, eco } = make();
         save.daily.pkUsed = 3;
-        const changed = eco.dailyReset(new Date('2026-10-06T00:00:30'));
+        // 用「明天」构造跨天日期：硬编码固定日期会在时间推进到那天后失效
+        // （defaultSave 的 daily.date 已是当天 → dailyReset 判定同一天直接 return false）。
+        const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        const changed = eco.dailyReset(tomorrow);
         expect(changed).toBe(true);
         expect(save.daily.pkUsed).toBe(0);
     });
