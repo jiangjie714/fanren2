@@ -48,6 +48,23 @@ afterEach(() => {
     }
 });
 
+describe('Ads.auditConfig（上线前广告位配置自检）', () => {
+    it('总数与 AD_PLACES 对齐，configured + missing 自洽', () => {
+        const a = Ads.auditConfig();
+        expect(a.total, '广告位总数应等于 AD_PLACES 键数').toBe(7);
+        expect(a.configured + a.missing.length).toBe(a.total);
+        expect(a.names).toHaveLength(a.total);
+    });
+
+    it('missing 里的位确实无 ID，其余位确实有 ID（防自检误报）', () => {
+        const a = Ads.auditConfig();
+        a.names.forEach((n) => {
+            const inMissing = a.missing.indexOf(n.place) >= 0;
+            expect(!!n.id, `${n.place} 的 ID 状态与 missing 判定不一致`).toBe(!inMissing);
+        });
+    });
+});
+
 describe('Ads single-flight（#P0 防连点重复发奖，Web mock 与抖音端统一入口）', () => {
     it('同帧二次 show 被忽略（inFlight 守卫），仅首次调 provider.show', () => {
         const host = {} as any;
@@ -81,6 +98,33 @@ describe('Ads single-flight（#P0 防连点重复发奖，Web mock 与抖音端�
         calls[0].cb.onSkip!();
         Ads.show('dailyGift' as any, host, { onSuccess: () => {}, onSkip: () => {} });
         expect(calls).toHaveLength(2);
+    });
+
+    it('provider 同步抛异常后 inFlight 必须解除（否则该玩家所有广告入口永久失效）', () => {
+        const host = {} as any;
+        const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const onSkip = vi.fn();
+        // 真机场景：tt.createRewardedVideoAd 在广告位 ID 非法/未开通流量主时同步抛错
+        Ads.setProvider({
+            show: () => {
+                throw new Error('createRewardedVideoAd failed');
+            },
+        });
+        Ads.show('dailyGift' as any, host, { onSuccess: vi.fn(), onSkip });
+        expect(onSkip, 'provider 抛错应降级为 onSkip，而非吞掉').toHaveBeenCalledTimes(1);
+        expect((Ads as any).inFlight, 'inFlight 未解除 → 后续所有广告被静默忽略').toBe(false);
+
+        // 关键回归：抛错之后仍能正常拉起广告
+        calls.length = 0;
+        Ads.setProvider({
+            show: (place, h, cb) => {
+                calls.push({ place: place as string, host: h, cb });
+            },
+        });
+        Ads.show('protect' as any, host, { onSuccess: () => {} });
+        expect(calls, '抛错后应能重新拉起广告').toHaveLength(1);
+        calls[0].cb.onSuccess();
+        err.mockRestore();
     });
 
     it('place/host 透传到 provider.show', () => {

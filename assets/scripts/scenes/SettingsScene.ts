@@ -16,6 +16,8 @@ import {
     uinode,
 } from '../ui/ThemeLib';
 import { DouyinSocial } from '../infra/DouyinSocial';
+import { Ads } from '../infra/Ads';
+import { AD_PLACES } from '../core/config/ads';
 
 /**
  * 设置页 — PRD 页面7。
@@ -200,10 +202,17 @@ export class SettingsScene implements IScene {
         node.on(Node.EventType.TOUCH_CANCEL, cancel);
     }
 
-    /** 社交管线自检面板：展示抖音运行时/开放数据域/共享画布/上报与对比的最新状态 */
+    /** 上线自检面板：广告位配置（B1）+ 社交管线状态（M9b），只读，正常点击不触发 */
     private showSocialDiag(parent: Node) {
         const d = DouyinSocial.getDiag();
+        const ad = Ads.auditConfig();
+        const adLine =
+            `广告位配置: ${ad.configured}/${ad.total}` +
+            (ad.missing.length
+                ? ` · 未配 ${ad.missing.map((p) => AD_PLACES[p].name).join('、')}`
+                : ' · 全部就绪');
         const lines = [
+            adLine,
             `运行环境(抖音 tt): ${d.runtime ? '是' : '否'}`,
             `开放数据域可用: ${d.available ? '是' : '否'}`,
             `共享画布尺寸: ${d.sharedCanvas ? `${d.sharedCanvas.w}×${d.sharedCanvas.h}` : '无'}`,
@@ -213,20 +222,22 @@ export class SettingsScene implements IScene {
             `上次对比结果: ${d.lastCompare ? `超越 ${d.lastCompare.beat}/${d.lastCompare.total} · 最高 ${d.lastCompare.top}` : '无'}`,
             `末次错误: ${d.lastError || '无'}`,
         ];
-        const panel = spritePanel(parent, 660, 540, undefined, THEME.tintPanel);
+        const panel = spritePanel(parent, 660, 580, undefined, THEME.tintPanel);
         panel.setPosition(0, 0, 50);
-        label(panel, 'M9b 社交管线自检', 28, { bold: true, color: THEME.goldLight }).setPosition(0, 220, 0);
-        const body = uinode('diagBody', panel, 620, 380);
+        label(panel, '上线自检 · 广告位 + 社交管线', 27, { bold: true, color: THEME.goldLight }).setPosition(0, 240, 0);
+        const body = uinode('diagBody', panel, 620, 420);
         body.setPosition(0, -10, 0);
         lines.forEach((t, i) => {
-            label(body, t, 21, { color: THEME.ink, align: 'left', width: 600 })
-                .setPosition(-290, 150 - i * 40, 0);
+            // 首行是广告位配置：漏配用警示色，全配用墨色，便于一眼判定
+            const color = i === 0 && ad.missing.length > 0 ? THEME.danger : THEME.ink;
+            label(body, t, 21, { color, align: 'left', width: 600 })
+                .setPosition(-290, 170 - i * 40, 0);
         });
         const close = spriteButton(panel, 240, 72, '关闭', () => panel.destroy(), {
             fontSize: 26,
             variant: 'secondary',
             textColor: THEME.paper,
         });
-        close.node.setPosition(0, -226, 0);
+        close.node.setPosition(0, -246, 0);
     }
 }
