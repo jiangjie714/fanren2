@@ -417,8 +417,9 @@ export class RainScene implements IScene {
         this.finished = true;
         const result = Game.rain.finish(this.session);
         if (this.mode === 'illusion') {
-            // M8/M14 秘境结算：计分 → 连胜轨 → 档位奖励（主题系数 × 连胜倍率）→ 结算页
+            // M8/M14 秘境结算：计分 → 连胜轨 → 段位分（#44）→ 档位奖励（主题×连胜倍率）→ 结算页
             const fin = Game.illusion.finish(Game.save, result.goldCount, result.maxCombo, result.redCount, this.session.theme ?? undefined);
+            const rk = Game.trial.settleRank(Game.save, result.score);
             recordIllusion(Game.save, result.score);
             Game.quests.progress(Game.save, 'tribulation');
             Game.quests.progress(Game.save, 'goldRain', result.goldCount);
@@ -432,6 +433,9 @@ export class RainScene implements IScene {
                 mult: fin.mult,
                 interrupted: fin.interrupted,
                 streakBefore: fin.streakBefore,
+                rankGained: rk.gained,
+                rankName: rk.rank.name,
+                rankScore: rk.rankScore,
             }));
             return;
         }

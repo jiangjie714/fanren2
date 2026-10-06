@@ -128,12 +128,14 @@ export interface TrialState {
     streak: number;
     /** 历史最高连胜（成就指标，本期只落字段） */
     bestStreak: number;
-    /** 段位分（赛季制：周一结算发奖后清零） */
+    /** 段位分（赛季制：周一结算后清零） */
     rankScore: number;
     /** 历史最高段位 id（跨赛季只升不降） */
     bestRank: string;
     /** 周键（本周一日期，同 illusionWeekKey 口径） */
     weekKey: string;
+    /** 上赛季达到的段位 id（周奖待领取；'' = 无可领，跨周不补发） */
+    seasonRank: string;
     /** 本周周奖是否已领取（幂等） */
     weekRewardClaimed: boolean;
 }
@@ -246,6 +248,7 @@ export function defaultSave(): SaveData {
             rankScore: 0,
             bestRank: 'xuetu',
             weekKey: weekKeyOf(),
+            seasonRank: '',
             weekRewardClaimed: false,
         },
         daoxin: 0,
@@ -311,6 +314,7 @@ export function migrate(raw: unknown): SaveData {
             rankScore: clampIntOr(srcTrial.rankScore, 0),
             bestRank: typeof srcTrial.bestRank === 'string' ? srcTrial.bestRank : 'xuetu',
             weekKey: typeof srcTrial.weekKey === 'string' ? srcTrial.weekKey : d.trial.weekKey,
+            seasonRank: typeof srcTrial.seasonRank === 'string' ? srcTrial.seasonRank : '',
             weekRewardClaimed: srcTrial.weekRewardClaimed === true,
         },
         daoxin: Math.min(3, clampIntOr(r.daoxin, 0)),

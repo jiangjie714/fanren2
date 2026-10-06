@@ -74,7 +74,7 @@ export class Game {
         this.expedition = new ExpeditionSystem(this.eco, this.rng);
         this.expedition.attachAlchemy(this.alchemy);
         this.illusion = new IllusionSystem(this.eco, this.alchemy);
-        this.trial = new TrialSystem();
+        this.trial = new TrialSystem(this.eco, this.alchemy);
         this.ach = new AchievementSystem(this.eco);
         this.social = new DouyinSocial();
         this.eco.dailyReset();

@@ -7,7 +7,7 @@ import { AudioMgr } from '../infra/AudioMgr';
 import { ACHIEVEMENTS, AchievementConfig } from '../core/config/achievements';
 import { REALMS } from '../core/config/realms';
 import { ILLUSION } from '../core/config/illusion';
-import { STAMINA_MAX } from '../core/config/trial';
+import { STAMINA_MAX, rankBadge, rankById, rankOf } from '../core/config/trial';
 import { TEXTS } from '../core/config/texts';
 import { showDialog } from '../ui/dialog';
 import {
@@ -315,7 +315,7 @@ export class LudaoScene implements IScene {
         const tierPanel = spritePanel(parent, 660, 340, undefined, THEME.tintPanel);
         tierPanel.setPosition(0, -160, 0);
         fadeIn(tierPanel, 12, 0.06);
-        labelL(tierPanel, '— 心魔段位 —', 24, { bold: true, color: THEME.goldLight, width: 300 })
+        labelL(tierPanel, '— 秘境产出档位 —', 24, { bold: true, color: THEME.goldLight, width: 300 })
             .setPosition(-306, 130, 0);
         ILLUSION.tiers.forEach((t, i) => {
             const reached = save.illusionBestEver >= t.at;
@@ -339,6 +339,30 @@ export class LudaoScene implements IScene {
             }).setPosition(181, y, 0);
         });
 
+        // M14-3 段位轨（#44）：本赛季段位（徽章+分）+ 上赛季周奖手动领取（跨周不补发）
+        const rank = rankOf(save.trial.rankScore);
+        const bestRank = rankById(save.trial.bestRank);
+        image(tierPanel, rankBadge(rank.id), 56, 56).setPosition(-282, -118, 0);
+        labelL(tierPanel, TEXTS.trialSeasonLine(rank.name, save.trial.rankScore, bestRank.name), 22, {
+            bold: true,
+            color: THEME.paper,
+            width: 440,
+            shrink: true,
+        }).setPosition(-158, -118, 0);
+        if (Game.trial.canClaimSeason(save)) {
+            const pending = rankById(save.trial.seasonRank);
+            const claimBtn = spriteButton(tierPanel, 240, 62, TEXTS.trialClaimBtn(pending.name), () => this.claimSeason(), {
+                fontSize: 20,
+                variant: 'primary',
+                textColor: THEME.void,
+            });
+            claimBtn.node.setPosition(196, -118, 0);
+        } else {
+            labelL(tierPanel, save.trial.weekRewardClaimed ? TEXTS.trialClaimed : TEXTS.trialNoClaim, 20, {
+                color: THEME.inkSoft, width: 240, shrink: true, align: 'right',
+            }).setPosition(181, -118, 0);
+        }
+
         label(parent, '幻境成绩计入周榜，与好友一较高下（好友榜后续开放）', 20, {
             color: THEME.inkSoft,
             width: 620,
@@ -346,6 +370,16 @@ export class LudaoScene implements IScene {
             outline: faded(THEME.void, 220),
             outlineWidth: 2,
         }).setPosition(0, -DESIGN_H / 2 + 130, 0);
+    }
+
+    /** 领取上赛季秘境周奖（#44）：幂等，领取后刷新本页 */
+    private claimSeason() {
+        const got = Game.trial.claimSeason(Game.save);
+        if (!got) return;
+        Game.persist();
+        AudioMgr.play('rare');
+        toast(this.node, got.map((r) => r.label).join('　'), 26);
+        this.renderTab();
     }
 
     /** 论武 tab（M11 #36）：战力总览 + 随机/约人切磋入口 + 战绩 */

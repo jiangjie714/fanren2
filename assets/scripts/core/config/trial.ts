@@ -92,6 +92,58 @@ export function streakMult(streak: number): number {
     return 1.0;
 }
 
+// ---------- 段位轨（#44，M14-3） ----------
+
+export interface RankTier {
+    id: string;
+    name: string;
+    /** 段位分阈值（rankScore ≥ at 即在该段位） */
+    at: number;
+    /** 赛季周奖（周一结算后手动领取，跨周不补发） */
+    lingshi: number;
+    mats: Record<string, number>;
+    fragments: number;
+    jiyuan: number;
+}
+
+/** 段位阶梯（阈值按 rankScore，只增不减——本周内"当前段位"即"本周最高段位"） */
+export const RANK_TIERS: readonly RankTier[] = [
+    { id: 'xuetu', name: '学徒', at: 0, lingshi: 300, mats: {}, fragments: 0, jiyuan: 0 },
+    { id: 'dengtang', name: '登堂', at: 200, lingshi: 600, mats: { lingcao: 2 }, fragments: 0, jiyuan: 0 },
+    { id: 'rushi', name: '入室', at: 600, lingshi: 1200, mats: { lingcao: 3, lingshi_core: 1 }, fragments: 0, jiyuan: 0 },
+    { id: 'dengfeng', name: '登峰', at: 1400, lingshi: 2400, mats: { lingshi_core: 2, yaodan_core: 1 }, fragments: 2, jiyuan: 0 },
+    { id: 'zaoji', name: '造极', at: 2800, lingshi: 4000, mats: { yaodan_core: 2 }, fragments: 3, jiyuan: 20 },
+    { id: 'chaofan', name: '超凡', at: 5000, lingshi: 6000, mats: { yaodan_core: 3 }, fragments: 5, jiyuan: 40 },
+];
+
+/** 每局段位分：max(0, floor((score-60)/5))——除以 5 缩放防段位通胀（#44） */
+export function rankGain(score: number): number {
+    return Math.max(0, Math.floor((score - 60) / 5));
+}
+
+/** 段位分 → 段位（取 at ≤ score 的最高档） */
+export function rankOf(score: number): RankTier {
+    let out = RANK_TIERS[0];
+    for (const t of RANK_TIERS) if (score >= t.at) out = t;
+    return out;
+}
+
+/** 段位 id → 档位对象（未知 id 回退学徒） */
+export function rankById(id: string): RankTier {
+    return RANK_TIERS.find((t) => t.id === id) ?? RANK_TIERS[0];
+}
+
+/** 段位序（用于 bestRank 只升不降比较） */
+export function rankOrder(id: string): number {
+    const i = RANK_TIERS.findIndex((t) => t.id === id);
+    return i < 0 ? 0 : i;
+}
+
+/** 段位徽章资源路径（176×176，ThemeLib art bundle） */
+export function rankBadge(id: string): string {
+    return `art/ui/ranks/rank_${rankById(id).id}/spriteFrame`;
+}
+
 // ---------- 结算档位产出（#42 §4.E：灵石减半、主产灵材） ----------
 
 export interface TrialTierConfig {

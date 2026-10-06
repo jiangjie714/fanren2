@@ -6,16 +6,22 @@ import { describe, expect, it } from 'vitest';
 import { defaultSave, migrate, SaveData } from '../assets/scripts/core/saveModel';
 import { TrialSystem } from '../assets/scripts/core/systems/TrialSystem';
 import { EconomySystem } from '../assets/scripts/core/systems/EconomySystem';
+import { AlchemySystem } from '../assets/scripts/core/systems/AlchemySystem';
 import {
     STAMINA_AD_PER_DAY,
     STAMINA_MAX,
     STAMINA_REGEN_MS,
     TRIAL_THEMES,
     dayIndexOf,
+    rankBadge,
+    rankById,
+    rankGain,
+    rankOf,
     streakMult,
     themeForDay,
     themeOf,
 } from '../assets/scripts/core/config/trial';
+import { weekKeyOf } from '../assets/scripts/core/config/illusion';
 
 function makeSave(): SaveData {
     return defaultSave();
@@ -192,6 +198,91 @@ describe('M14 连胜轨（#43）', () => {
         trial.reviveStreak(save, 8);
         expect(save.trial.streak).toBe(8);
         expect(save.trial.bestStreak).toBe(8);
+    });
+});
+
+describe('M14 段位轨（#44，M14-3）', () => {
+    it('段位分公式：max(0, floor((score-60)/5))，60 分起计、每 5 分 +1', () => {
+        const cases: Array<[number, number]> = [
+            [0, 0], [59, 0], [60, 0], [64, 0], [65, 1], [70, 2],
+            [98, 7], [128, 13], [180, 24], [200, 28],
+        ];
+        for (const [score, gain] of cases) expect(rankGain(score)).toBe(gain);
+    });
+
+    it('段位阶梯：学徒 0 / 登堂 200 / 入室 600 / 登峰 1400 / 造极 2800 / 超凡 5000', () => {
+        expect(rankOf(0).id).toBe('xuetu');
+        expect(rankOf(199).id).toBe('xuetu');
+        expect(rankOf(200).id).toBe('dengtang');
+        expect(rankOf(600).id).toBe('rushi');
+        expect(rankOf(1400).id).toBe('dengfeng');
+        expect(rankOf(2800).id).toBe('zaoji');
+        expect(rankOf(5000).id).toBe('chaofan');
+        expect(rankOf(99999).id).toBe('chaofan');
+        // 未知 id 回退学徒
+        expect(rankById('bogus').id).toBe('xuetu');
+        expect(rankBadge('chaofan')).toContain('rank_chaofan');
+    });
+
+    it('settleRank：累计段位分、bestRank 只升不降', () => {
+        const save = makeSave();
+        const trial = new TrialSystem();
+        let r = trial.settleRank(save, 98); // +7
+        expect(r.gained).toBe(7);
+        expect(r.rankScore).toBe(7);
+        expect(save.trial.bestRank).toBe('xuetu');
+        save.trial.rankScore = 199; // 模拟累计
+        r = trial.settleRank(save, 180); // +24 → 223 → 登堂
+        expect(r.rankScore).toBe(223);
+        expect(r.rank.id).toBe('dengtang');
+        expect(save.trial.bestRank).toBe('dengtang');
+        // 赛季清零后 bestRank 保留
+        save.trial.rankScore = 0;
+        trial.settleRank(save, 65);
+        expect(save.trial.bestRank).toBe('dengtang');
+    });
+
+    it('赛季结算：换周记 seasonRank 待领奖并清零段位分；0 分不发周奖', () => {
+        const save = makeSave();
+        const trial = new TrialSystem();
+        save.trial.weekKey = weekKeyOf(new Date('2026-09-28T12:00:00')); // 上周
+        save.trial.rankScore = 700; // 入室
+        save.trial.weekRewardClaimed = true; // 上周的领取状态应被重置
+        expect(trial.checkWeek(save, new Date('2026-10-05T00:00:01'))).toBe(true);
+        expect(save.trial.seasonRank).toBe('rushi');
+        expect(save.trial.rankScore).toBe(0);
+        expect(save.trial.weekRewardClaimed).toBe(false);
+        expect(save.trial.weekKey).toBe(weekKeyOf(new Date('2026-10-05T00:00:01')));
+        // 本周未参与（0 分）→ 下次换周无周奖可领
+        save.trial.weekKey = weekKeyOf(new Date('2026-10-05T00:00:01'));
+        save.trial.rankScore = 0;
+        trial.checkWeek(save, new Date('2026-10-12T00:00:01'));
+        expect(save.trial.seasonRank).toBe('');
+    });
+
+    it('claimSeason：按周奖表发放（灵石/灵材/碎片/机缘）且幂等；未注入依赖返回 null', () => {
+        const save = makeSave();
+        save.trial.seasonRank = 'dengfeng'; // 2400 灵石 + 灵石髓2 妖兽丹1 + 碎片2
+        const eco = new EconomySystem(save);
+        const alch = new AlchemySystem(save);
+        const bare = new TrialSystem();
+        expect(bare.claimSeason(save)).toBeNull(); // 未注入依赖
+        const trial = new TrialSystem(eco, alch);
+        const before = save.lingshi;
+        const got = trial.claimSeason(save)!;
+        expect(got.map((r) => r.label)).toEqual(['灵石 +2400', '灵石髓 ×2', '妖兽丹 ×1', '灵根碎片 ×2']);
+        expect(save.lingshi).toBe(before + 2400);
+        expect(save.fortune.materials['lingshi_core']).toBe(2);
+        expect(save.fortune.materials['yaodan_core']).toBe(1);
+        expect(save.fragments['jinmu']).toBe(2);
+        // 幂等：领取后再领返回 null
+        expect(trial.claimSeason(save)).toBeNull();
+        // 机缘段位（造极）
+        save.trial.weekRewardClaimed = false;
+        save.trial.seasonRank = 'zaoji';
+        const jiyuanBefore = save.jiyuan;
+        trial.claimSeason(save);
+        expect(save.jiyuan).toBe(jiyuanBefore + 20);
     });
 });
 

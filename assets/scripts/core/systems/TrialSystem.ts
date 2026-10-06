@@ -6,17 +6,39 @@
  */
 import { SaveData } from '../saveModel';
 import {
+    RANK_TIERS,
     STAMINA_AD_PER_DAY,
     STAMINA_AD_REFILL,
     STAMINA_COST_PER_RUN,
     STAMINA_MAX,
     STAMINA_REGEN_MS,
+    RankTier,
     TrialTheme,
+    rankById,
+    rankGain,
+    rankOf,
+    rankOrder,
     themeOf,
 } from '../config/trial';
 import { weekKeyOf } from '../config/illusion';
+import { MATERIALS } from '../config/alchemy';
+import { RewardItem } from './BoxSystem';
+import { EconomySystem } from './EconomySystem';
+import { AlchemySystem } from './AlchemySystem';
+
+export interface RankSettleResult {
+    gained: number;
+    rank: RankTier;
+    rankScore: number;
+}
 
 export class TrialSystem {
+    constructor(
+        /** 周奖发放依赖（M14-3 claimSeason）；未注入时领取返回 null（旧测试兜底） */
+        private eco?: EconomySystem,
+        private alch?: AlchemySystem,
+    ) {}
+
     /**
      * 惰性结算体力：按距 staminaAt 的整周期数回复（余数保留，不吞）。
      * 回满后把基准推进到 now（满体力期间流逝的时间不再折算，避免「满态挂机反而不涨」的怪象）。
@@ -79,13 +101,68 @@ export class TrialSystem {
         return themeOf(now);
     }
 
-    /** 跨周清零段位（赛季制，周一 0 点换周；M14-3 结算周奖，此处仅维护 weekKey） */
+    // ---------- 段位轨（#44，M14-3） ----------
+
+    /**
+     * 每局段位结算：rankScore += max(0, floor((score-60)/5))；
+     * bestRank 只升不降（跨赛季展示用，不影响周奖）。
+     */
+    settleRank(save: SaveData, score: number): RankSettleResult {
+        const gained = rankGain(score);
+        save.trial.rankScore += gained;
+        const rank = rankOf(save.trial.rankScore);
+        if (rankOrder(rank.id) > rankOrder(save.trial.bestRank)) save.trial.bestRank = rank.id;
+        return { gained, rank, rankScore: save.trial.rankScore };
+    }
+
+    /**
+     * 赛季结算（周一 0 点换周，Game 初始化/回前台调用）：
+     * 上周段位 = 结算时 rankScore 对应段位 → 记入 seasonRank 待玩家手动领周奖
+     * （未领取到下周一作废，制造回归压力）；rankScore 清零重开新赛季。
+     * rankScore 为 0（本周一局未打或最高恰好 0 分）视为未参与，不发周奖。
+     */
     checkWeek(save: SaveData, now: Date = new Date()): boolean {
         const key = weekKeyOf(now);
         if (save.trial.weekKey === key) return false;
+        save.trial.seasonRank = save.trial.rankScore > 0 ? rankOf(save.trial.rankScore).id : '';
+        save.trial.rankScore = 0;
         save.trial.weekKey = key;
         save.trial.weekRewardClaimed = false;
         return true;
+    }
+
+    /** 本周是否可领上赛季周奖 */
+    canClaimSeason(save: SaveData): boolean {
+        return save.trial.seasonRank !== '' && !save.trial.weekRewardClaimed;
+    }
+
+    /**
+     * 领取上赛季周奖（幂等，weekRewardClaimed）：灵石/灵材/碎片/机缘一次发全。
+     * 返回实际发放清单；无可领或依赖未注入返回 null。
+     */
+    claimSeason(save: SaveData): RewardItem[] | null {
+        if (!this.canClaimSeason(save) || !this.eco || !this.alch) return null;
+        const tier = rankById(save.trial.seasonRank);
+        const rewards: RewardItem[] = [];
+        if (tier.lingshi) {
+            const got = this.eco.addLingshi(tier.lingshi);
+            rewards.push({ kind: 'lingshi', amount: got, label: `灵石 +${got}` });
+        }
+        for (const [id, n] of Object.entries(tier.mats)) {
+            this.alch.addMaterial(save, id, n);
+            const name = MATERIALS.find((m) => m.id === id)?.name ?? id;
+            rewards.push({ kind: 'material', amount: n, materialId: id, label: `${name} ×${n}` });
+        }
+        if (tier.fragments) {
+            save.fragments['jinmu'] = (save.fragments['jinmu'] ?? 0) + tier.fragments;
+            rewards.push({ kind: 'fragment', amount: tier.fragments, lingengId: 'jinmu', label: `灵根碎片 ×${tier.fragments}` });
+        }
+        if (tier.jiyuan) {
+            this.eco.addJiyuan(tier.jiyuan);
+            rewards.push({ kind: 'jiyuan', amount: tier.jiyuan, label: `突破机缘 +${tier.jiyuan}` });
+        }
+        save.trial.weekRewardClaimed = true;
+        return rewards;
     }
 
     /**
@@ -106,3 +183,4 @@ export class TrialSystem {
         if (save.trial.streak > save.trial.bestStreak) save.trial.bestStreak = save.trial.streak;
     }
 }
+

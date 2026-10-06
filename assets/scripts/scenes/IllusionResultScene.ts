@@ -33,6 +33,10 @@ export interface IllusionResultParams {
     interrupted?: boolean;
     /** 中断前的连胜层数（护持恢复用） */
     streakBefore?: number;
+    /** M14-3 段位轨（#44）：本局段位分与当前段位 */
+    rankGained?: number;
+    rankName?: string;
+    rankScore?: number;
 }
 
 /** 秘境试炼结算页：得分、连胜、档位与天道赏赐（M8 E 节 + M14 #42/#43；与渡劫结算页独立）。 */
@@ -52,6 +56,7 @@ export class IllusionResultScene implements IScene {
         this.node.layer = Layers.Enum.UI_2D;
         this.p = {
             streak: 0, mult: 0, interrupted: false, streakBefore: 0,
+            rankGained: 0, rankName: '', rankScore: 0,
             ...params,
         };
     }
@@ -83,17 +88,21 @@ export class IllusionResultScene implements IScene {
             : this.p.mult > 0
                 ? `当前连胜 ${this.p.streak} 连 · 奖励倍率 ${multText}`
                 : `当前连胜 ${this.p.streak} 连 · 达 60 分起累计倍率`;
+        const rankText = this.p.rankName
+            ? `段位分 +${this.p.rankGained} · 本赛季「${this.p.rankName}」${this.p.rankScore} 分`
+            : '';
         const lines: string[] = [
             `金色灵雨    ×${r.goldCount}`,
             `最大连击    ×${r.maxCombo}`,
             `劫雨沾身    ×${r.redCount}`,
             `本周最佳    ${Game.save.illusionWeekBest} 分`,
             streakText,
-        ];
+            rankText,
+        ].filter(Boolean);
         lines.forEach((t, i) => {
             const ln = label(detail, t, 26, { color: THEME.paper, align: 'left', width: 440 });
             ln.setPosition(0, 158 - i * 62, 0);
-            if (i === 4) this.streakLabel = ln.getComponent(Label);
+            if (t === streakText) this.streakLabel = ln.getComponent(Label);
         });
 
         // 档位奖励 / 道心护持（互斥复用同一面板）
