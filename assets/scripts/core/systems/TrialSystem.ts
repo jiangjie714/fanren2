@@ -87,4 +87,22 @@ export class TrialSystem {
         save.trial.weekRewardClaimed = false;
         return true;
     }
+
+    /**
+     * 连胜中断清零（#43）：评分 <60 的局在结算时立即清零——存档随时一致，
+     * 玩家即使中途杀进程也不会带着未决策的连胜悬挂。看广告护持成功后用
+     * reviveStreak 恢复（IllusionSystem.finish 返回中断前的层数）。
+     */
+    breakStreak(save: SaveData): number {
+        const before = save.trial.streak;
+        save.trial.streak = 0;
+        return before;
+    }
+
+    /** 道心护持成功（trialRevive 位）：恢复中断前的连胜层数 */
+    reviveStreak(save: SaveData, streakBefore: number): void {
+        if (streakBefore <= 0) return;
+        save.trial.streak = streakBefore;
+        if (save.trial.streak > save.trial.bestStreak) save.trial.bestStreak = save.trial.streak;
+    }
 }

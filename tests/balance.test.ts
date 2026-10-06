@@ -102,14 +102,14 @@ describe('数值平衡模拟（打印报告，宽松断言防崩坏）', () => {
             const box = new BoxSystem(save, eco, rng);
             const quests = new QuestSystem(eco);
             const expedition = new ExpeditionSystem(eco, rng);
-            const illusion = new IllusionSystem(eco);
+            // 炼丹淬体系统（M13）：接入战斗/历练/秘境的灵材产出与四维/福禄加值（#39–#42）
+            const alch = new AlchemySystem(eco);
+            const illusion = new IllusionSystem(eco, alch);
             const combat = new CombatSystem(eco, rng);
 
             const START = 1000;
             eco.addLingshi(START, false);
 
-            // 炼丹淬体系统（M13）：接入战斗/历练的灵材掉落与四维/福禄加值（#39–#41）
-            const alch = new AlchemySystem(eco);
             combat.attachAlchemy(alch);
             expedition.attachAlchemy(alch);
             const matAtStart = sumMaterials(save);

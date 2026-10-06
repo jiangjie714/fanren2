@@ -82,7 +82,17 @@ export function themeOf(now: Date = new Date()): TrialTheme {
     return themeForDay(dayIndexOf(now));
 }
 
-// ---------- 结算档位产出（#42 §4.E：灵石减半、主产灵材；倍率在 M14-2 连胜轨接入） ----------
+// ---------- 连胜轨（#43，M14-2） ----------
+/** 连胜奖励倍率：作用于灵石与灵材数量（灵材向上取整） */
+export function streakMult(streak: number): number {
+    if (streak >= 7) return 2.5;
+    if (streak >= 5) return 2.0;
+    if (streak >= 3) return 1.5;
+    if (streak >= 2) return 1.2;
+    return 1.0;
+}
+
+// ---------- 结算档位产出（#42 §4.E：灵石减半、主产灵材） ----------
 
 export interface TrialTierConfig {
     at: number;

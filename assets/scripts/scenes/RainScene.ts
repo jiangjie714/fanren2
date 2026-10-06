@@ -417,15 +417,22 @@ export class RainScene implements IScene {
         this.finished = true;
         const result = Game.rain.finish(this.session);
         if (this.mode === 'illusion') {
-            // M8 幻境结算：计分 → 档位奖励 → 任务进度/长线计数 → 幻境结算页
-            const fin = Game.illusion.finish(Game.save, result.goldCount, result.maxCombo, result.redCount);
+            // M8/M14 秘境结算：计分 → 连胜轨 → 档位奖励（主题系数 × 连胜倍率）→ 结算页
+            const fin = Game.illusion.finish(Game.save, result.goldCount, result.maxCombo, result.redCount, this.session.theme ?? undefined);
             recordIllusion(Game.save, result.score);
             Game.quests.progress(Game.save, 'tribulation');
             Game.quests.progress(Game.save, 'goldRain', result.goldCount);
             Game.checkAchievements(this.node);
             Game.persist();
             Game.social.reportScores(Game.save); // M9b：幻境周榜上报
-            Game.stack.push(new IllusionResultScene({ result, rewards: fin.rewards }));
+            Game.stack.push(new IllusionResultScene({
+                result,
+                rewards: fin.rewards,
+                streak: fin.streak,
+                mult: fin.mult,
+                interrupted: fin.interrupted,
+                streakBefore: fin.streakBefore,
+            }));
             return;
         }
         // 任务进度：完成一场渡劫 + 累计金雨；长线计数

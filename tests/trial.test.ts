@@ -12,6 +12,7 @@ import {
     STAMINA_REGEN_MS,
     TRIAL_THEMES,
     dayIndexOf,
+    streakMult,
     themeForDay,
     themeOf,
 } from '../assets/scripts/core/config/trial';
@@ -159,6 +160,38 @@ describe('M14 主题轮换（#42）', () => {
         expect(jieyun.rewardMult).toBe(1.3);
         expect(huanxin.randomFallSpeed).toBe(true);
         expect(huanxin.vignetteBursts).toBe(2);
+    });
+});
+
+describe('M14 连胜轨（#43）', () => {
+    it('倍率表边界：1→1.0 / 2→1.2 / 3-4→1.5 / 5-6→2.0 / ≥7→2.5 封顶', () => {
+        const cases: Array<[number, number]> = [
+            [0, 1.0], [1, 1.0], [2, 1.2], [3, 1.5], [4, 1.5],
+            [5, 2.0], [6, 2.0], [7, 2.5], [12, 2.5], [99, 2.5],
+        ];
+        for (const [streak, mult] of cases) expect(streakMult(streak)).toBe(mult);
+    });
+
+    it('中断清零 / 护持恢复 / bestStreak 只增不减', () => {
+        const save = makeSave();
+        const trial = new TrialSystem();
+        save.trial.streak = 5;
+        save.trial.bestStreak = 5;
+        // 中断：清零并返回中断前层数
+        expect(trial.breakStreak(save)).toBe(5);
+        expect(save.trial.streak).toBe(0);
+        expect(save.trial.bestStreak).toBe(5);
+        // 护持：恢复中断前层数（bestStreak 已有记录，不回写更高）
+        trial.reviveStreak(save, 5);
+        expect(save.trial.streak).toBe(5);
+        // 护持非法值（0/负）不生效
+        trial.breakStreak(save);
+        trial.reviveStreak(save, 0);
+        expect(save.trial.streak).toBe(0);
+        // 恢复高于历史 best 时同步刷新
+        trial.reviveStreak(save, 8);
+        expect(save.trial.streak).toBe(8);
+        expect(save.trial.bestStreak).toBe(8);
     });
 });
 

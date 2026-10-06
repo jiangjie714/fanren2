@@ -86,6 +86,13 @@ export const TEXTS = {
     /** M14 秘境：体力与主题（#42） */
     trialStaminaLine: (cur: number, max: number) => `体力 ${cur}/${max}`,
     trialThemeLine: (name: string, desc: string) => `今日秘境 · ${name}：${desc}`,
+    trialStreakLine: (streak: number, mult: number) => `当前连胜 ${streak} 连 · 奖励倍率 ×${mult}`,
+    trialReviveTitle: '道心护持',
+    trialReviveDesc: (streak: number) => `本局未达 60 分，${streak} 连即将中断——观广告可保留连胜`,
+    trialReviveBtn: '道心护持 · 保留连胜',
+    trialReviveDone: '护持成功 · 连胜保留',
+    trialReviveGiveUp: '不复护持',
+    trialReviveGone: '连胜已中断',
     expeditionPageTitle: '云游历练',
     expeditionIdle: (n: number, total: number) => `今日剩余 ${total - n}/${total} 次`,
     expeditionExhausted: '今日历练已用尽，明日再来',

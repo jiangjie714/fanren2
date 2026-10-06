@@ -6,6 +6,7 @@ import { BoxSystem } from '../assets/scripts/core/systems/BoxSystem';
 import { QuestSystem } from '../assets/scripts/core/systems/QuestSystem';
 import { ExpeditionSystem } from '../assets/scripts/core/systems/ExpeditionSystem';
 import { IllusionSystem } from '../assets/scripts/core/systems/IllusionSystem';
+import { AlchemySystem } from '../assets/scripts/core/systems/AlchemySystem';
 import { TrialSystem } from '../assets/scripts/core/systems/TrialSystem';
 import { STAMINA_MAX } from '../assets/scripts/core/config/trial';
 import { RainSystem } from '../assets/scripts/core/systems/RainSystem';
@@ -228,29 +229,51 @@ describe('M8 心魔幻境（数值假设 #29）', () => {
         expect(save.daily.illusionFreeUsed).toBe(false);
     });
 
-    it('档位奖励只发高于已领档位的一档；周最佳随周切换清零', () => {
+    it('档位奖励只发高于已领档位的一档（TRIAL_TIERS：灵石减半+灵材，连胜倍率相乘）；周最佳随周切换清零', () => {
         const save = makeSave();
         const eco = makeEco(save);
-        const sys = new IllusionSystem(eco);
+        const sys = new IllusionSystem(eco, new AlchemySystem(eco));
         sys.checkWeek(save, new Date('2026-10-06T12:00:00'));
-        let r = sys.finish(save, 10, 4, 0); // 40+8 = 48 < 60 无档位
+        let r = sys.finish(save, 10, 4, 0); // 40+8 = 48 < 60 无档位，且连胜清零（本就 0）
         expect(r.tier).toBeNull();
         expect(r.rewards).toEqual([]);
-        r = sys.finish(save, 15, 6, 1); // 60+12-3 = 69 → 初入幻境
+        expect(r.streak).toBe(0);
+        // 69 → 初入幻境；连胜 0→1，倍率 ×1.0：灵石 75 + 灵草 1（#42 灵石减半主产灵材）
+        r = sys.finish(save, 15, 6, 1); // 60+12-3 = 69
         expect(r.tier).toBe('初入幻境');
-        expect(r.rewards.map((i) => i.label)).toEqual(['灵石 +150']);
+        expect(r.streak).toBe(1);
+        expect(r.mult).toBe(1.0);
+        expect(r.rewards.map((i) => i.label)).toEqual(['灵石 +75', '灵草 ×1']);
+        expect(save.lingshi).toBe(200 + 75);
+        expect(save.fortune.materials['lingcao']).toBe(1);
         expect(save.daily.illusionRewardedTier).toBe(60);
-        // 再打 75 分：仍在 60 档，不重复发放
+        // 再打 74 分：仍在 60 档不重复发放；连胜 1→2（倍率升 ×1.2 但无新档位可吃）
         r = sys.finish(save, 18, 4, 2); // 72+8-6 = 74
         expect(r.tier).toBe('初入幻境');
         expect(r.rewards).toEqual([]);
-        // 跨入 120 档：发放 120 档（灵石 300 + 碎片 2）
+        expect(r.streak).toBe(2);
+        // 跨入 120 档：连胜 2→3 → 倍率 ×1.5；灵石 floor(150×1.5)=225，
+        // 灵材 ceil（灵草 2→3、灵石髓 1→2）；碎片不吃倍率仍 ×2
         r = sys.finish(save, 28, 8, 0); // 112+16 = 128
         expect(r.tier).toBe('心魔退散');
-        expect(save.lingshi).toBe(200 + 150 + 300);
+        expect(r.streak).toBe(3);
+        expect(r.mult).toBe(1.5);
+        expect(save.lingshi).toBe(200 + 75 + 225);
+        expect(save.fortune.materials['lingcao']).toBe(1 + 3);
+        expect(save.fortune.materials['lingshi_core']).toBe(2);
         expect(save.fragments['jinmu']).toBe(2);
+        expect(save.trial.bestStreak).toBe(3);
         expect(save.daily.illusionBest).toBe(128);
         expect(save.illusionWeekBest).toBe(128);
+        // 中断：59 分 <60 → 连胜清零、待护持标记、无奖励
+        r = sys.finish(save, 13, 3, 2); // 52+6-6 = 52
+        expect(r.streak).toBe(0);
+        expect(r.interrupted).toBe(true);
+        expect(r.streakBefore).toBe(3);
+        // 护持恢复后续写
+        const trial = new TrialSystem();
+        trial.reviveStreak(save, r.streakBefore);
+        expect(save.trial.streak).toBe(3);
         // 跨周清零
         sys.checkWeek(save, new Date('2026-10-13T08:00:00'));
         expect(save.illusionWeekBest).toBe(0);

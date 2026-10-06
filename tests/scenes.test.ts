@@ -810,4 +810,31 @@ describe('场景集成：结算页（ResultScene / IllusionResultScene）', () =
         // 降级分支仍必须给出出路（否则玩家卡死在结算页）
         expect(h.registry.buttons.some((b) => b.text === '返回仙府'), '降级态缺少返回按钮').toBe(true);
     });
+
+    it('秘境中断（#43）：道心护持面板弹出，放弃清零连胜且单次决策后按钮禁用', () => {
+        bootGame();
+        Game.save.trial.streak = 4;
+        Game.save.trial.bestStreak = 4;
+        const { result } = mkRain(0, 'illusion', 3);
+        const s = new IllusionResultScene({ result, rewards: [], interrupted: true, streakBefore: 4 });
+        s.onEnter();
+
+        expect(h.registry.buttons.some((b) => b.text === '道心护持 · 保留连胜'), '缺护持广告按钮').toBe(true);
+        const giveUp = button('不复护持');
+        expect(giveUp, '缺放弃护持按钮').toBeTruthy();
+
+        // 放弃 → 连胜清零（bestStreak 保留），面板收敛
+        giveUp.onClick();
+        expect(Game.save.trial.streak, '放弃护持未清零连胜').toBe(0);
+        expect(Game.save.trial.bestStreak, 'bestStreak 不应被清零').toBe(4);
+    });
+
+    it('秘境中断：连胜为 0 时不弹护持面板（无可保留）', () => {
+        bootGame();
+        Game.save.trial.streak = 0;
+        const { result } = mkRain(0, 'illusion', 3);
+        const s = new IllusionResultScene({ result, rewards: [], interrupted: false, streakBefore: 0 });
+        s.onEnter();
+        expect(h.registry.buttons.some((b) => b.text === '道心护持 · 保留连胜'), '无连胜不应弹护持').toBe(false);
+    });
 });

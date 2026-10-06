@@ -51,7 +51,7 @@ afterEach(() => {
 describe('Ads.auditConfig（上线前广告位配置自检）', () => {
     it('总数与 AD_PLACES 对齐，configured + missing 自洽', () => {
         const a = Ads.auditConfig();
-        expect(a.total, '广告位总数应等于 AD_PLACES 键数').toBe(7);
+        expect(a.total, '广告位总数应等于 AD_PLACES 键数（M14 增 trialRevive 后为 8）').toBe(8);
         expect(a.configured + a.missing.length).toBe(a.total);
         expect(a.names).toHaveLength(a.total);
     });

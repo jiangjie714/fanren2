@@ -1,5 +1,5 @@
-/** 表 4：广告配置表（PRD 2.5 / 附件表4 + M8 历练召回/幻境加次 + M11 论武蓄力） */
-export type AdPlace = 'dailyGift' | 'purify' | 'protect' | 'doubleXiuwei' | 'expeditionRecall' | 'illusionExtra' | 'pkCharge';
+/** 表 4：广告配置表（PRD 2.5 / 附件表4 + M8 历练召回/幻境加次 + M11 论武蓄力 + M14 道心护持） */
+export type AdPlace = 'dailyGift' | 'purify' | 'protect' | 'doubleXiuwei' | 'expeditionRecall' | 'illusionExtra' | 'pkCharge' | 'trialRevive';
 
 export interface AdPlaceConfig {
     place: AdPlace;
@@ -19,6 +19,7 @@ export const AD_PLACES: Record<AdPlace, AdPlaceConfig> = {
     expeditionRecall: { place: 'expeditionRecall', name: '历练召回', location: '历练页', dailyLimit: 1, reward: '立即结束历练并结算' },
     illusionExtra:    { place: 'illusionExtra',    name: '幻境加次', location: '心魔幻境', dailyLimit: 1, reward: '额外 1 次幻境挑战' },
     pkCharge:         { place: 'pkCharge',         name: '论武蓄力', location: '论武切磋', dailyLimit: -1, reward: '本次论武攻防 +10%（单场最多 10 支）' },
+    trialRevive:      { place: 'trialRevive',      name: '道心护持', location: '秘境试炼结算页', dailyLimit: -1, reward: '连胜中断时保留连胜层数（单次中断 1 支）' },
 };
 
 /** 抖音激励广告位 ID（上线前在字节后台申请后填入） */
@@ -30,4 +31,5 @@ export const DOUYIN_AD_UNIT_IDS: Record<AdPlace, string> = {
     expeditionRecall: '',
     illusionExtra: '',
     pkCharge: '',
+    trialRevive: '',
 };
