@@ -29,6 +29,23 @@ import { FrameAnimator } from './FrameAnimator';
 export const DESIGN_W = 720;
 export const DESIGN_H = 1280;
 
+/**
+ * 当前可见设计宽度/高度。
+ * 项目用 `ResolutionPolicy.FIXED_WIDTH`：宽度恒为 720 设计单位，高度按机型比例延伸。
+ * 长屏机型上可见高度 > 1280，触控换算的纵向中心须用「可见高度/2」而非硬编码
+ * DESIGN_H/2（#P3 长屏 bug：符文命中区纵向偏移）。横向中心恒为 DESIGN_W/2。
+ * `typeof view` 守卫保留，避免非 Cocos 环境（测试/工具）引用未定义。
+ */
+export function visibleHeight(): number {
+    const size = typeof view !== 'undefined' ? view.getVisibleSize() : null;
+    return size && size.height > 0 ? size.height : DESIGN_H;
+}
+
+export function visibleWidth(): number {
+    const size = typeof view !== 'undefined' ? view.getVisibleSize() : null;
+    return size && size.width > 0 ? size.width : DESIGN_W;
+}
+
 export const SAFE = {
     x: 28,
     top: 92,
@@ -113,13 +130,6 @@ export function faded(c: Color, alpha: number): Color {
     return new Color(c.r, c.g, c.b, alpha);
 }
 
-export interface PanelOpts {
-    fill?: Color | null;
-    border?: Color | null;
-    borderWidth?: number;
-    radius?: number;
-}
-
 export interface ImageOpts {
     sliced?: boolean;
     tint?: Color;
@@ -178,22 +188,19 @@ export function uinode(name: string, parent: Node | null = null, w = 0, h = 0): 
     return n;
 }
 
-export function drawPanel(g: Graphics, w: number, h: number, opts: PanelOpts = {}): void {
-    const { fill = THEME.panelBg, border = THEME.border, borderWidth = 2, radius = 12 } = opts;
-    g.clear();
-    const x = -w / 2;
-    const y = -h / 2;
-    if (fill) {
-        g.fillColor = fill;
-        g.roundRect(x, y, w, h, radius);
-        g.fill();
-    }
-    if (border) {
-        g.strokeColor = border;
-        g.lineWidth = borderWidth;
-        g.roundRect(x, y, w, h, radius);
-        g.stroke();
-    }
+/** 红点小圆钮：宣纸描边红圆（THEME.danger 即 cinnabar 别名，视觉一致）。 */
+export function makeRedDot(parent: Node, dx = 24, dy = 24): Node {
+    const dot = uinode('dot', parent, 18, 18);
+    dot.setPosition(dx, dy, 0);
+    const g = dot.addComponent(Graphics);
+    g.fillColor = THEME.danger;
+    g.circle(0, 0, 9);
+    g.fill();
+    g.strokeColor = faded(THEME.paper, 230);
+    g.lineWidth = 2;
+    g.circle(0, 0, 9);
+    g.stroke();
+    return dot;
 }
 
 // 美术资源统一放 subres bundle（assets/subres）：抖音端由 bundle meta 的
@@ -394,13 +401,6 @@ export function scrim(
         g.rect(-w / 2, fromTop ? y : -y - bh, w, bh + 1);
         g.fill();
     }
-    return n;
-}
-
-export function panel(parent: Node, w: number, h: number, opts: PanelOpts = {}): Node {
-    const n = uinode('panel', parent, w, h);
-    const g = n.addComponent(Graphics);
-    drawPanel(g, w, h, opts);
     return n;
 }
 

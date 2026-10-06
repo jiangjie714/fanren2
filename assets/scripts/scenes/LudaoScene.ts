@@ -2,7 +2,7 @@ import { Color, Graphics, ImageAsset, Label, Layers, Node, Sprite, SpriteFrame, 
 import { RANK_KEYS, RankKey } from '../core/systems/SocialRank';
 import { IScene } from '../infra/SceneStack';
 import { Game } from '../infra/Game';
-import { Ads } from '../infra/Ads';
+import { enterIllusion } from '../infra/enterIllusion';
 import { AudioMgr } from '../infra/AudioMgr';
 import { ACHIEVEMENTS, AchievementConfig } from '../core/config/achievements';
 import { REALMS } from '../core/config/realms';
@@ -26,9 +26,9 @@ import {
     spritePanel,
     toast,
     uinode,
+    makeRedDot,
 } from '../ui/ThemeLib';
 import { DouyinSocial } from '../infra/DouyinSocial';
-import { RainScene } from './RainScene';
 import { PkBattleScene } from './PkBattleScene';
 import { PK_DAILY_LIMIT, WEAPONS } from '../core/config/combat';
 
@@ -106,22 +106,9 @@ export class LudaoScene implements IScene {
             });
             btn.node.setPosition((i - 1.5) * 172, DESIGN_H / 2 - 160, 0);
             if (id === 'achieve' && Game.ach.claimableCount(Game.save) > 0) {
-                this.makeDot(btn.node);
+                makeRedDot(btn.node, 78, 26);
             }
         });
-    }
-
-    private makeDot(parent: Node) {
-        const dot = uinode('dot', parent, 18, 18);
-        dot.setPosition(78, 26, 0);
-        const g = dot.addComponent(Graphics);
-        g.fillColor = THEME.cinnabar;
-        g.circle(0, 0, 9);
-        g.fill();
-        g.strokeColor = faded(THEME.paper, 230);
-        g.lineWidth = 2;
-        g.circle(0, 0, 9);
-        g.stroke();
     }
 
     update(dt: number) {
@@ -310,7 +297,7 @@ export class LudaoScene implements IScene {
         }).setPosition(0, -14, 0);
 
         const kind = Game.illusion.startKind(save);
-        this.illusionBtn = spriteButton(card, 300, 84, '', () => this.enterIllusion(), {
+        this.illusionBtn = spriteButton(card, 300, 84, '', () => enterIllusion(this.node), {
             fontSize: 25,
             variant: kind === 'ad' ? 'secondary' : 'primary',
             textColor: kind === 'ad' ? THEME.goldLight : THEME.paper,
@@ -480,27 +467,6 @@ export class LudaoScene implements IScene {
             title: '成就奖励',
             lines: items.map((i) => ({ text: i.label, color: 1 as const })),
             buttons: [{ text: '收 下', primary: true }],
-        });
-    }
-
-    private enterIllusion() {
-        const kind = Game.illusion.startKind(Game.save);
-        if (kind === 'none') {
-            toast(this.node, TEXTS.illusionNone);
-            return;
-        }
-        if (kind === 'free') {
-            Game.illusion.consumeStart(Game.save, 'free');
-            Game.persist();
-            Game.stack.push(new RainScene('illusion'));
-            return;
-        }
-        Ads.show('illusionExtra', this.node, {
-            onSuccess: () => {
-                if (!Game.illusion.consumeStart(Game.save, 'ad')) return;
-                Game.persist();
-                Game.stack.push(new RainScene('illusion'));
-            },
         });
     }
 

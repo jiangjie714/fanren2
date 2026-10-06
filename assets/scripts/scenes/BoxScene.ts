@@ -26,7 +26,9 @@ import {
     spritePanel,
     toast,
     uinode,
+    visibleHeight,
 } from '../ui/ThemeLib';
+import { hitRune } from '../core/runeHit';
 import { RainScene } from './RainScene';
 
 const CHEST_ART: Record<BoxId, string> = {
@@ -454,14 +456,16 @@ export class BoxScene implements IScene {
     private onRuneTap(e: EventTouch) {
         if (this.phase !== 'rune') return;
         const ui = e.getUILocation();
-        // UI 坐标系原点在屏幕左下、y 向上 → 转设计系（中心原点）
+        // 转 runeRoot 本地坐标：横向中心恒为 DESIGN_W/2（FIXED_WIDTH 宽度固定），
+        // 纵向中心用可见高度——长屏机型可见区高于 1280，硬编码 DESIGN_H/2 会让
+        // 符文命中区整体纵向偏移（#P3 长屏 bug）。
         const x = ui.x - DESIGN_W / 2;
-        const y = ui.y - DESIGN_H / 2;
-        const rowY = 60 - 6; // 面板 y + 符文行偏移
-        const RUNE_X = [-170, 0, 170];
-        let tapped = -1;
-        RUNE_X.forEach((rx, i) => {
-            if (Math.abs(x - rx) <= 62 && Math.abs(y - rowY) <= 72) tapped = i;
+        const y = ui.y - visibleHeight() / 2;
+        const tapped = hitRune(x, y, {
+            xs: [-170, 0, 170],
+            rowY: 60 - 6, // 面板 y + 符文行偏移
+            halfW: 62,
+            halfH: 72,
         });
         if (tapped < 0) return;
         if (tapped === this.runeLit) {

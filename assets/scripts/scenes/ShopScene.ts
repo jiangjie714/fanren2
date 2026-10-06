@@ -1,7 +1,7 @@
 import { Color, Layers, Node } from 'cc';
 import { IScene } from '../infra/SceneStack';
 import { Game } from '../infra/Game';
-import { Ads } from '../infra/Ads';
+import { claimDailyGift } from '../infra/dailyGift';
 import { IAP_ENABLED, IAP_ITEMS } from '../core/config/iap';
 import { TEXTS } from '../core/config/texts';
 import { showDialog } from '../ui/dialog';
@@ -17,7 +17,6 @@ import {
     toast,
     uinode,
 } from '../ui/ThemeLib';
-import { BoxScene } from './BoxScene';
 
 /**
  * 仙府商店页 — PRD 页面6。
@@ -59,7 +58,7 @@ export class ShopScene implements IScene {
             .setPosition(-35, 20, 0);
         label(gift, '观看机缘领免费凡俗宝盒 (每日1次)', 18, { color: THEME.inkSoft, align: 'left', width: 285 })
             .setPosition(-35, -20, 0);
-        const giftBtn = spriteButton(gift, 138, 64, used ? '已领取' : '领 取', () => this.dailyGift(), {
+        const giftBtn = spriteButton(gift, 138, 64, used ? '已领取' : '领 取', () => claimDailyGift(this.node), {
             fontSize: 24,
             variant: used ? 'ghost' : 'primary',
             textColor: used ? THEME.disabled : THEME.void,
@@ -120,37 +119,6 @@ export class ShopScene implements IScene {
         // 「已领取」却还能点，且 dailyGift 内部若不复核就会无限刷（P0-3）。
         this.node.destroyAllChildren();
         this.onEnter();
-    }
-
-    private dailyGift() {
-        // 前置复核：onEnter 的快照可能已过期（广告回调期间跨天重置等），
-        // 发放前以存档实时值为准，绝不二次发放（P0-3 击穿 balance 护栏的根因）。
-        if (Game.save.daily.dailyGiftUsed) {
-            toast(this.node, '今日仙缘已领取，明天再来');
-            return;
-        }
-        Ads.show('dailyGift', this.node, {
-            onSuccess: () => {
-                Game.save.daily.dailyGiftUsed = true;
-                // 免费凡俗宝盒：补足开资后直接开箱（净消耗 0），与主页每日仙缘一致
-                Game.eco.addLingshi(50, false);
-                try {
-                    const r = Game.box.open('fansu');
-                    Game.persist();
-                    Game.stack.push(new BoxScene(r));
-                } catch (e) {
-                    // 开箱失败：回滚每日标记并发提示，绝不静默无反应
-                    Game.save.daily.dailyGiftUsed = false;
-                    Game.persist();
-                    console.error('[fanren] dailyGift open failed', e);
-                    toast(this.node, '领取异常，今日次数已退还，请重试');
-                }
-            },
-            onSkip: () => {
-                // 广告未看完（含广告位未配置）：明确反馈，避免"点了没反应"
-                toast(this.node, '广告未看完，本次未获得奖励');
-            },
-        });
     }
 
     private buy(id: string, name: string) {

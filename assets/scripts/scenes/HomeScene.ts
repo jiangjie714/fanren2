@@ -1,10 +1,8 @@
 import { Graphics, Label, Layers, Node, Tween, UIOpacity, tween, Vec3 } from 'cc';
 import { IScene } from '../infra/SceneStack';
 import { Game } from '../infra/Game';
-import { Ads } from '../infra/Ads';
 import { SaveStore } from '../infra/SaveStore';
-import { BoxResult } from '../core/systems/BoxSystem';
-import { AD_PLACES } from '../core/config/ads';
+import { claimDailyGift } from '../infra/dailyGift';
 import { REALMS } from '../core/config/realms';
 import { TEXTS } from '../core/config/texts';
 import { statusBar } from '../ui/StatusBar';
@@ -26,6 +24,7 @@ import {
     spritePanel,
     toast,
     uinode,
+    makeRedDot,
 } from '../ui/ThemeLib';
 import { BoxScene } from './BoxScene';
 import { CollectionScene } from './CollectionScene';
@@ -201,7 +200,7 @@ export class HomeScene implements IScene {
         iconButton(n, 'art/ui/icons/icon_settings/spriteFrame', () => Game.stack.push(new SettingsScene()), 72, 72)
             .node.setPosition(-286, 370, 0);
 
-        this.giftBtn = spriteButton(n, 660, 78, '', () => this.dailyGift(), {
+        this.giftBtn = spriteButton(n, 660, 78, '', () => claimDailyGift(this.node), {
             fontSize: 23,
             variant: 'secondary',
             textColor: THEME.goldLight,
@@ -227,18 +226,18 @@ export class HomeScene implements IScene {
         this.questBtn = iconButton(n, 'art/ui/icons/icon_quest/spriteFrame', () => Game.stack.push(new QuestScene()), 72, 72);
         this.questBtn.node.setPosition(286, 370, 0);
         railLabel('修行', 318);
-        this.questDot = this.makeDot(n, 286, 370);
+        this.questDot = makeRedDot(n, 310, 394);
 
         this.expeditionBtn = iconButton(n, 'art/ui/icons/icon_expedition/spriteFrame', () => Game.stack.push(new ExpeditionScene()), 72, 72);
         this.expeditionBtn.node.setPosition(286, 240, 0);
         railLabel('历练', 188);
-        this.expeditionDot = this.makeDot(n, 286, 240);
+        this.expeditionDot = makeRedDot(n, 310, 264);
 
         // M9a 论道入口：排行（降级版）/ 论武 / 幻境 / 成就
         this.ludaoBtn = iconButton(n, 'art/ui/icons/icon_ludao/spriteFrame', () => Game.stack.push(new LudaoScene()), 72, 72);
         this.ludaoBtn.node.setPosition(286, 110, 0);
         railLabel('论道', 58);
-        this.ludaoDot = this.makeDot(n, 286, 110);
+        this.ludaoDot = makeRedDot(n, 310, 134);
 
         // M11 法器阁入口：锻体 + 六档法器
         this.weaponBtn = iconButton(n, 'art/ui/icons/icon_weapon/spriteFrame', () => Game.stack.push(new WeaponScene()), 72, 72);
@@ -299,22 +298,6 @@ export class HomeScene implements IScene {
         this.ludaoDot.active = Game.ach.claimableCount(Game.save) > 0;
     }
 
-    /** 红点小圆钮 */
-    private makeDot(parent: Node, x: number, y: number): Node {
-        const dot = uinode('dot', parent, 18, 18);
-        dot.setPosition(x + 24, y + 24, 0);
-        const g = dot.addComponent(Graphics);
-        g.fillColor = THEME.danger;
-        g.circle(0, 0, 9);
-        g.fill();
-        g.strokeColor = faded(THEME.paper, 230);
-        g.lineWidth = 2;
-        g.circle(0, 0, 9);
-        g.stroke();
-        dot.active = false;
-        return dot;
-    }
-
     /** 境界立绘的日常形态：播该境界待机动画，帧缺失时回退静态立绘（女修回退男修图） */
     private showIdleOrPortrait(holder: Node, realmIndex: number, female: boolean, suffix: string) {
         spriteAnimation(holder, animFrames(animDir('char_idle', realmIndex, female), IDLE_FRAMES), 340, 340, IDLE_FPS,
@@ -343,34 +326,5 @@ export class HomeScene implements IScene {
             return;
         }
         Game.stack.push(new RainScene());
-    }
-
-    private dailyGift() {
-        // 前置复核：与 ShopScene 同源逻辑，发放前以存档实时值为准，绝不二次发放
-        if (Game.save.daily.dailyGiftUsed) {
-            toast(this.node, '今日仙缘已领取，明天再来');
-            return;
-        }
-        Ads.show(AD_PLACES.dailyGift.place, this.node, {
-            onSuccess: () => {
-                Game.save.daily.dailyGiftUsed = true;
-                Game.eco.addLingshi(50, false);
-                try {
-                    const r: BoxResult = Game.box.open('fansu');
-                    Game.persist();
-                    Game.stack.push(new BoxScene(r));
-                } catch (e) {
-                    // 开箱失败：回滚每日标记并发提示，绝不静默无反应
-                    Game.save.daily.dailyGiftUsed = false;
-                    Game.persist();
-                    console.error('[fanren] dailyGift open failed', e);
-                    toast(this.node, '领取异常，今日次数已退还，请重试');
-                }
-            },
-            onSkip: () => {
-                // 广告未看完（含广告位未配置）：明确反馈，避免"点了没反应"
-                toast(this.node, '广告未看完，本次未获得奖励');
-            },
-        });
     }
 }

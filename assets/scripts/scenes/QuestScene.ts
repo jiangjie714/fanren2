@@ -1,7 +1,7 @@
 import { Color, Graphics, Label, Layers, Node } from 'cc';
 import { IScene } from '../infra/SceneStack';
 import { Game } from '../infra/Game';
-import { Ads } from '../infra/Ads';
+import { enterIllusion } from '../infra/enterIllusion';
 import { AudioMgr } from '../infra/AudioMgr';
 import { ACTIVITY_CHESTS, ACTIVITY_MAX, QUESTS, QuestConfig } from '../core/config/quests';
 import { ILLUSION } from '../core/config/illusion';
@@ -25,7 +25,6 @@ import {
     toast,
     uinode,
 } from '../ui/ThemeLib';
-import { RainScene } from './RainScene';
 
 interface QuestRow {
     quest: QuestConfig;
@@ -65,7 +64,7 @@ export class QuestScene implements IScene {
             color: THEME.inkSoft, width: 330, shrink: true,
         }).getComponent(Label)!;
         this.illusionHint.node.setPosition(-224, -18, 0);
-        this.illusionBtn = spriteButton(illusion, 172, 72, TEXTS.illusionEnter, () => this.enterIllusion(), {
+        this.illusionBtn = spriteButton(illusion, 172, 72, TEXTS.illusionEnter, () => enterIllusion(this.node), {
             fontSize: 23,
             variant: 'primary',
             textColor: THEME.void,
@@ -197,24 +196,4 @@ export class QuestScene implements IScene {
         });
     }
 
-    private enterIllusion() {
-        const kind = Game.illusion.startKind(Game.save);
-        if (kind === 'none') {
-            toast(this.node, TEXTS.illusionNone);
-            return;
-        }
-        if (kind === 'free') {
-            Game.illusion.consumeStart(Game.save, 'free');
-            Game.persist();
-            Game.stack.push(new RainScene('illusion'));
-            return;
-        }
-        Ads.show('illusionExtra', this.node, {
-            onSuccess: () => {
-                if (!Game.illusion.consumeStart(Game.save, 'ad')) return;
-                Game.persist();
-                Game.stack.push(new RainScene('illusion'));
-            },
-        });
-    }
 }
