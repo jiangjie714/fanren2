@@ -1,4 +1,4 @@
-import { Color, Graphics, Label, Layers, Node, Tween, UIOpacity, tween, Vec3 } from 'cc';
+import { Graphics, Label, Layers, Node, Tween, UIOpacity, tween, Vec3 } from 'cc';
 import { IScene } from '../infra/SceneStack';
 import { Game } from '../infra/Game';
 import { Ads } from '../infra/Ads';
@@ -156,44 +156,56 @@ export class HomeScene implements IScene {
         fadeIn(this.stage, 14);
 
         // 游戏标题：典雅沉稳，字号层次清晰
+        // M12：上移 12px —— 主 CTA 为五入口环形让位后，避免标题贴住按钮顶缘
         label(n, '凡人开仙缘', 46, {
             bold: true,
             color: THEME.goldLight,
             shadow: true,
             shadowColor: THEME.shadow,
-        }).setPosition(0, 0, 0);
+        }).setPosition(0, 12, 0);
 
         // 主 CTA：全页唯一的金色实底按钮，放大一档确立视觉锚点。
+        // M12：从 -85 上移到 -68 给下方五入口环形腾位（环形上排钮顶缘 -236，
+        // 与 CTA 下缘 -119 间隙 117；再往上会贴住 y=0 的标题「凡人开仙缘」）。
         this.breakBtn = spriteButton(n, 500, 102, '冲击境界', () => this.enterRain(), {
             fontSize: 32,
             variant: 'primary',
         });
-        this.breakBtn.node.setPosition(0, -85, 0);
+        this.breakBtn.node.setPosition(0, -68, 0);
 
-        // 仙缘宝盒是核心变现入口但不是本页主行动，降为暗底次级款，
-        // 文字用曦金与另外三个入口（宣纸白）拉开半档区分。
-        const entries: Array<[string, string, () => void, Color]> = [
-            ['仙缘宝盒', 'box', () => Game.stack.push(new BoxScene()), THEME.goldLight],
-            ['灵根图鉴', 'collection', () => Game.stack.push(new CollectionScene()), THEME.ink],
-            ['仙府商店', 'shop', () => Game.stack.push(new ShopScene()), THEME.ink],
-            ['设  置', 'settings', () => Game.stack.push(new SettingsScene()), THEME.ink],
+        // ── M12 五入口环形（梅花布局）：四钮围环 + 中央圆形仙府商店 ──
+        // 旧版 2×2 表格四入口（含设置）改为：设置独立成左上角齿轮圆钮，
+        // 新增炼丹淬体/福禄炼制两个占位入口（功能页后续补）。
+        const comingSoon = (name: string) => () => toast(n, `${name} · 功能炼制中，敬请期待`);
+        const ringEntries: Array<[string, string, number, number, number, () => void]> = [
+            // [名称, 图标, x, y, 圆盘直径, 回调]
+            ['仙缘宝盒', 'box', -130, -188, 96, () => Game.stack.push(new BoxScene())],
+            ['灵根图鉴', 'collection', 130, -188, 96, () => Game.stack.push(new CollectionScene())],
+            ['炼丹淬体', 'alchemy', -130, -352, 96, comingSoon('炼丹淬体')],
+            ['福禄炼制', 'fortune', 130, -352, 96, comingSoon('福禄炼制')],
+            ['仙府商店', 'shop', 0, -268, 124, () => Game.stack.push(new ShopScene())],
         ];
-        const positions: Array<[number, number]> = [
-            [-166, -204], [166, -204], [-166, -316], [166, -316],
-        ];
-        entries.forEach(([title, iconPath, cb, textColor], i) => {
-            const b = spriteButton(n, 322, 96, '', cb, { variant: 'secondary', fontSize: 27 });
-            b.node.setPosition(positions[i][0], positions[i][1], 0);
-            image(b.node, `art/ui/icons/icon_${iconPath}/spriteFrame`, 56, 56).setPosition(-64, 0, 0);
-            label(b.node, title, 26, { bold: true, color: textColor }).setPosition(34, 0, 0);
+        ringEntries.forEach(([title, icon, x, y, size, cb]) => {
+            iconButton(n, `art/ui/icons/icon_${icon}/spriteFrame`, cb, size, size).node.setPosition(x, y, 0);
+            // 圆盘钮下方的名称标签：压在高饱和插画上必须描边（与右侧 rail 同规）
+            label(n, title, 19, {
+                bold: true,
+                color: THEME.paper,
+                outline: faded(THEME.void, 220),
+                outlineWidth: 3,
+            }).setPosition(x, y - size / 2 - 18, 0);
         });
+
+        // 设置：左上角齿轮圆钮（与右侧功能 rail 对称位）
+        iconButton(n, 'art/ui/icons/icon_settings/spriteFrame', () => Game.stack.push(new SettingsScene()), 72, 72)
+            .node.setPosition(-286, 370, 0);
 
         this.giftBtn = spriteButton(n, 660, 78, '', () => this.dailyGift(), {
             fontSize: 23,
             variant: 'secondary',
             textColor: THEME.goldLight,
         });
-        this.giftBtn.node.setPosition(0, -420, 0);
+        this.giftBtn.node.setPosition(0, -482, 0);
         image(this.giftBtn.node, 'art/ui/icons/icon_ad/spriteFrame', 50, 50).setPosition(-170, 0, 0);
         label(this.giftBtn.node, `${TEXTS.dailyGiftBtn} · 免费凡俗宝盒`, 23, {
             bold: true,
@@ -203,12 +215,14 @@ export class HomeScene implements IScene {
         // M8 日常循环入口：修行 / 历练（右侧对齐圆钮 + 红点）
         // 图标下沿 = y - 36，标签放到 -52 留 16px 间隙（旧值 -46 时标签顶着图标底缘）；
         // 标签压在高饱和插画上，必须给描边，否则 18px 白字在亮部直接糊掉。
-        const railLabel = (text: string, y: number) => label(n, text, 18, {
+        // M12：x 可传，左上角设置齿轮钮复用同款标签样式。
+        const railLabel = (text: string, y: number, x = 286) => label(n, text, 18, {
             bold: true,
             color: THEME.paper,
             outline: faded(THEME.void, 220),
             outlineWidth: 3,
-        }).setPosition(286, y, 0);
+        }).setPosition(x, y, 0);
+        railLabel('设置', 318, -286);
         this.questBtn = iconButton(n, 'art/ui/icons/icon_quest/spriteFrame', () => Game.stack.push(new QuestScene()), 72, 72);
         this.questBtn.node.setPosition(286, 370, 0);
         railLabel('修行', 318);

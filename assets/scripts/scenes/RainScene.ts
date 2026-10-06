@@ -161,7 +161,7 @@ export class RainScene implements IScene {
         auraG.stroke();
         this.magnetAura.active = false;
 
-        this.purifyBtn = spriteButton(n, 296, 76, `${TEXTS.purifyBtn} · 广告`, () => this.usePurify(), {
+        this.purifyBtn = spriteButton(n, 296, 76, TEXTS.purifyBtn, () => this.usePurify(), {
             fontSize: 25,
             variant: 'secondary',
             textColor: THEME.goldLight,
