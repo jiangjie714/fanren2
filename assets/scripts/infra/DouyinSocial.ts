@@ -22,6 +22,41 @@ export const SOCIAL_KEYS = {
 /** 对比回传超时（ms）：子域无响应走降级（docs/项目现状与后续规划.md 3.2） */
 const COMPARE_TIMEOUT_MS = 800;
 
+/**
+ * M9b 真机联调自检快照：只读记录每个集成点最新状态，逻辑路径完全不受影响。
+ * 真机/开发者工具里游戏 VM 与页面 global 隔离（CDP 摸不到内部），故用屏内诊断面板读取，
+ * 而非依赖外部工具读状态。由 getDiag() 暴露给 SettingsScene 长按诊断面板。
+ */
+export interface SocialDiag {
+    /** 是否检测到抖音运行时（tt 全局对象存在） */
+    runtime: boolean;
+    /** 开放数据域是否可用（tt.getOpenDataContext 为函数） */
+    available: boolean;
+    /** 主域取到的共享画布尺寸（子域绘制目标）；不可用时 null */
+    sharedCanvas: { w: number; h: number } | null;
+    /** 最近一次上报的三榜 KV 值与时间戳；未上报过为 null */
+    lastReport: { values: Record<string, number>; at: number } | null;
+    /** 最近一次好友对比结果（beat/total/top）；未对比过为 null */
+    lastCompare: CompareResult | null;
+    /** 最近一次捕获的错误（上报/请求/对比异常）；无错误为 null */
+    lastError: string | null;
+    /** compare 成功回传次数（验证子域消息回路） */
+    compareCount: number;
+    /** requestRank 发送次数（验证主→子渲染通路） */
+    rankRequestCount: number;
+}
+
+const diagState: SocialDiag = {
+    runtime: false,
+    available: false,
+    sharedCanvas: null,
+    lastReport: null,
+    lastCompare: null,
+    lastError: null,
+    compareCount: 0,
+    rankRequestCount: 0,
+};
+
 /** 周键 → 榜值（跨周单调递增）：YYYYMMDD（周一日期）×1000 + 分数 */
 export function encodeIllusionWeek(weekKey: string, best: number): number {
     const n = Number(weekKey.replace(/^W-/, '').replace(/-/g, '')) || 0;
@@ -43,6 +78,8 @@ export class DouyinSocial {
     static available(): boolean {
         const tt = ttApi();
         const ok = !!tt && typeof tt.getOpenDataContext === 'function';
+        diagState.runtime = !!tt;
+        diagState.available = ok;
         if (this.isDevtoolsSimulator()) console.log(`[fanren][social] available=${ok}`);
         return ok;
     }
@@ -70,7 +107,9 @@ export class DouyinSocial {
     /** 子域共享画布（主域上传纹理用；不可用时 null，页面走降级展示） */
     static getSharedCanvas(): any | null {
         const ctx = this.openContext();
-        return ctx?.canvas ?? null;
+        const canvas = ctx?.canvas ?? null;
+        if (canvas) diagState.sharedCanvas = { w: canvas.width ?? 0, h: canvas.height ?? 0 };
+        return canvas;
     }
 
     /** 请求子域渲染好友榜（三个榜键之一）；不可用时 no-op */
@@ -79,8 +118,10 @@ export class DouyinSocial {
         if (!ctx) return;
         try {
             ctx.postMessage({ type: 'renderRank', key });
+            diagState.rankRequestCount++;
             if (this.isDevtoolsSimulator()) console.log(`[fanren][social] requestRank ${key} sent`);
         } catch (e) {
+            diagState.lastError = `[requestRank] ${String(e).slice(0, 200)}`;
             console.warn('[fanren] requestRank failed', e);
         }
     }
@@ -108,7 +149,10 @@ export class DouyinSocial {
             if (parsed && parsed.type === 'compareResult') {
                 done = true;
                 cleanup();
-                cb({ beat: parsed.beat, total: parsed.total, top: parsed.top });
+                const res = { beat: parsed.beat, total: parsed.total, top: parsed.top };
+                diagState.lastCompare = res;
+                diagState.compareCount++;
+                cb(res);
             }
         };
         try {
@@ -116,6 +160,7 @@ export class DouyinSocial {
             ctx.postMessage({ type: 'compare', key, myValue: Math.max(0, Math.round(myValue)) });
         } catch (e) {
             cleanup();
+            diagState.lastError = `[compare] ${String(e).slice(0, 200)}`;
             cb(null);
             return;
         }
@@ -123,6 +168,7 @@ export class DouyinSocial {
             if (!done) {
                 done = true;
                 cleanup();
+                diagState.lastError = '[compare] 子域 800ms 无响应（超时降级）';
                 cb(null);
             }
         }, COMPARE_TIMEOUT_MS);
@@ -144,8 +190,25 @@ export class DouyinSocial {
                 });
             }
             if (DouyinSocial.isDevtoolsSimulator()) console.log('[fanren][social] report', JSON.stringify(values));
+            diagState.lastReport = { values, at: Date.now() };
         } catch (e) {
+            diagState.lastError = `[reportScores] ${String(e).slice(0, 200)}`;
             console.warn('[fanren] social report failed', e);
         }
+    }
+
+    /** 真机联调自检快照：只读最近状态，逻辑不受影响。供 SettingsScene 长按诊断面板读取。 */
+    static getDiag(): SocialDiag {
+        const d = diagState;
+        return {
+            runtime: d.runtime,
+            available: d.available,
+            sharedCanvas: d.sharedCanvas ? { ...d.sharedCanvas } : null,
+            lastReport: d.lastReport ? { values: { ...d.lastReport.values }, at: d.lastReport.at } : null,
+            lastCompare: d.lastCompare ? { ...d.lastCompare } : null,
+            lastError: d.lastError,
+            compareCount: d.compareCount,
+            rankRequestCount: d.rankRequestCount,
+        };
     }
 }

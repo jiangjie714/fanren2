@@ -11,9 +11,11 @@ import {
     label,
     pageBackground,
     pageHeader,
+    spriteButton,
     spritePanel,
     uinode,
 } from '../ui/ThemeLib';
+import { DouyinSocial } from '../infra/DouyinSocial';
 
 /**
  * 设置页 — PRD 页面7。
@@ -87,6 +89,8 @@ export class SettingsScene implements IScene {
         label(vpanel, '版本 1.0.0 · 墨夜星辰修仙', 20, { color: THEME.inkSoft }).setPosition(0, -2, 0);
         label(vpanel, '健康游戏忠告：抵制不良游戏，拒绝盗版游戏。注意自我保护，谨防受骗上当。', 16, { color: THEME.inkSoft })
             .setPosition(0, -34, 0);
+        // M9b 真机联调：长按版本信息面板 1.5s 弹出社交管线自检（生产无副作用，正常点击不触发）
+        this.enableLongPress(vpanel, () => this.showSocialDiag(n));
 
         // 底部吉语
         label(n, '道历庚子 · 天道酬勤 · 顺遂无虞', 18, { color: THEME.inkSoft })
@@ -176,5 +180,53 @@ export class SettingsScene implements IScene {
 
     private showPrivacy() {
         showPrivacyDialog(this.node);
+    }
+
+    // ---------- M9b 真机联调诊断 ----------
+
+    /** 长按触发（1.5s）：在不改动正常交互的前提下，给真机联调一个只读自检入口 */
+    private enableLongPress(node: Node, cb: () => void) {
+        let timer: ReturnType<typeof setTimeout> | null = null;
+        const cancel = () => {
+            if (timer) {
+                clearTimeout(timer);
+                timer = null;
+            }
+        };
+        node.on(Node.EventType.TOUCH_START, () => {
+            timer = setTimeout(cb, 1500);
+        });
+        node.on(Node.EventType.TOUCH_END, cancel);
+        node.on(Node.EventType.TOUCH_CANCEL, cancel);
+    }
+
+    /** 社交管线自检面板：展示抖音运行时/开放数据域/共享画布/上报与对比的最新状态 */
+    private showSocialDiag(parent: Node) {
+        const d = DouyinSocial.getDiag();
+        const lines = [
+            `运行环境(抖音 tt): ${d.runtime ? '是' : '否'}`,
+            `开放数据域可用: ${d.available ? '是' : '否'}`,
+            `共享画布尺寸: ${d.sharedCanvas ? `${d.sharedCanvas.w}×${d.sharedCanvas.h}` : '无'}`,
+            `请求好友榜次数: ${d.rankRequestCount}`,
+            `对比回传次数: ${d.compareCount}`,
+            `上次上报三榜: ${d.lastReport ? JSON.stringify(d.lastReport.values) : '无（未触发上报）'}`,
+            `上次对比结果: ${d.lastCompare ? `超越 ${d.lastCompare.beat}/${d.lastCompare.total} · 最高 ${d.lastCompare.top}` : '无'}`,
+            `末次错误: ${d.lastError || '无'}`,
+        ];
+        const panel = spritePanel(parent, 660, 540, undefined, THEME.tintPanel);
+        panel.setPosition(0, 0, 50);
+        label(panel, 'M9b 社交管线自检', 28, { bold: true, color: THEME.goldLight }).setPosition(0, 220, 0);
+        const body = uinode('diagBody', panel, 620, 380);
+        body.setPosition(0, -10, 0);
+        lines.forEach((t, i) => {
+            label(body, t, 21, { color: THEME.ink, align: 'left', width: 600 })
+                .setPosition(-290, 150 - i * 40, 0);
+        });
+        const close = spriteButton(panel, 240, 72, '关闭', () => panel.destroy(), {
+            fontSize: 26,
+            variant: 'secondary',
+            textColor: THEME.paper,
+        });
+        close.node.setPosition(0, -226, 0);
     }
 }
