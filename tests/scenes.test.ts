@@ -233,7 +233,10 @@ const h = vi.hoisted(() => {
     // ───────────────── ThemeLib 桩：可观测记录器 ─────────────────
     const registry = {
         nodes: [] as Array<{ name: string; w: number; h: number }>,
-        buttons: [] as Array<{ node: unknown; text: string; onClick: () => void; w: number; h: number; enabled: boolean; comp?: unknown }>,
+        buttons: [] as Array<{
+            node: unknown; text: string; onClick: () => void; w: number; h: number;
+            enabled: boolean; comp?: unknown; variant: string; fontSize: number; textColor?: unknown;
+        }>,
         iconButtons: [] as Array<{ node: unknown; path: string; onClick: () => void; w: number; h: number }>,
         labels: [] as Array<{ node: unknown; text: string; fontSize: number; comp: unknown }>,
         images: [] as Array<{ node: unknown; path: string }>,
@@ -305,13 +308,19 @@ const h = vi.hoisted(() => {
         washedPanel: (parent: unknown, w: number, h: number) => (ThemeLib as any).image(parent, 'panel', w, h),
         // ButtonHandle 契约 = { node, labelNode, setText, setEnabled }；
         // labelNode 是按钮内承载文案的节点（场景会取它的 Label 改字/挪位置）
-        spriteButton: (parent: unknown, w: number, h: number, text: string, onClick: () => void) => {
+        spriteButton: (parent: unknown, w: number, h: number, text: string, onClick: () => void, opts?: { fontSize?: number; variant?: string; textColor?: unknown }) => {
             const n = mkNode('btn', parent, w, h);
             n.addComponent(Button);
             const labelNode = mkNode('btnLabel', n);
             const l = labelNode.addComponent(Label) as Label;
             l.string = text;
-            const rec = { node: n, text, onClick, w, h, enabled: true, comp: l };
+            // variant/fontSize 一并记录：按钮「样式一致性」类需求要靠它断言
+            const rec = {
+                node: n, text, onClick, w, h, enabled: true, comp: l,
+                variant: opts?.variant ?? 'secondary',
+                fontSize: opts?.fontSize ?? 30,
+                textColor: opts?.textColor,
+            };
             registry.buttons.push(rec);
             return {
                 node: n,
@@ -411,6 +420,7 @@ import { PlayerScene } from '../assets/scripts/scenes/PlayerScene';
 import { ProfileScene } from '../assets/scripts/scenes/ProfileScene';
 import { RainScene } from '../assets/scripts/scenes/RainScene';
 import { PkBattleScene } from '../assets/scripts/scenes/PkBattleScene';
+import { TEXTS } from '../assets/scripts/core/config/texts';
 import { ResultScene } from '../assets/scripts/scenes/ResultScene';
 import { IllusionResultScene } from '../assets/scripts/scenes/IllusionResultScene';
 import { RainSystem, RainMode } from '../assets/scripts/core/systems/RainSystem';
@@ -647,6 +657,38 @@ function mkRain(targetIndex: number, mode: RainMode, seed = 7) {
     const result = rs.finish(session);
     return { session, result };
 }
+
+describe('场景集成：捏人页（拜入仙门）两颗按钮样式一致', () => {
+    it('随机道号 与 踏入仙途 同变体 / 同字号 / 同宽度', () => {
+        bootGame();
+        const p = new ProfileScene();
+        p.onEnter();
+
+        const rnd = button(TEXTS.profileRandomName);
+        const go = button(TEXTS.profileConfirm);
+
+        expect(rnd.variant, `随机道号 变体 ${rnd.variant} ≠ ${go.variant}`).toBe(go.variant);
+        expect(rnd.fontSize, `随机道号 字号 ${rnd.fontSize} ≠ ${go.fontSize}`).toBe(go.fontSize);
+        expect(rnd.w, `随机道号 宽度 ${rnd.w} ≠ ${go.w}`).toBe(go.w);
+        expect(rnd.h).toBe(go.h);
+        // primary 金底必须走默认深墨字色：显式传 goldLight 会让金字号压在金底上（对比 1.4:1）
+        expect(rnd.textColor, 'primary 不应再覆盖 textColor').toBeUndefined();
+    });
+
+    it('两颗按钮左右对称且不重叠', () => {
+        bootGame();
+        const p = new ProfileScene();
+        p.onEnter();
+        const rnd = button(TEXTS.profileRandomName);
+        const go = button(TEXTS.profileConfirm);
+        const rx = (rnd.node as unknown as { getPosition(): { x: number; y: number } }).getPosition().x;
+        const gx = (go.node as unknown as { getPosition(): { x: number; y: number } }).getPosition().x;
+        expect(rx, '未左右对称').toBe(-gx);
+        // 相邻边之间必须留缝，否则同色同款会糊成一条
+        const gap = (gx - go.w / 2) - (rx + rnd.w / 2);
+        expect(gap, `两按钮间隙 ${gap} 过小`).toBeGreaterThan(0);
+    });
+});
 
 /**
  * 长屏适配：FIXED_WIDTH 下宽恒 720、高按机型比例延伸（全面屏 ≈1560），而模态遮罩

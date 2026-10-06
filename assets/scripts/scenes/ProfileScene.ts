@@ -18,6 +18,9 @@ import { showAgreementDialog, showPrivacyDialog, showProbabilityDialog } from '.
 
 type Gender = 'm' | 'f';
 
+/** 底部两颗按钮统一宽度：文案长度不同（4 字 vs 6 字符含空格），同宽才能对称 */
+const BTN_W = 280;
+
 /**
  * 捏人开局（M11 #32）：择性别、取道号。
  * 存档 profile.name 为空时由 Game.init 引导至此，确认后 swap 进主页。
@@ -129,16 +132,19 @@ export class ProfileScene implements IScene {
         this.editBox.maxLength = 6;
         this.editBox.inputMode = EditBox.InputMode.SINGLE_LINE;
 
-        const rnd = spriteButton(n, 220, 76, TEXTS.profileRandomName, () => {
+        // 两颗按钮同款：均 primary 明金底 + 27px + 同宽 280 对称排布（中心 ±148，间隙 16）。
+        // 注意不要给 primary 再传 textColor: goldLight —— 金字压金底对比仅 1.4:1 会糊，
+        // primary 的默认字色是归墟深墨（13.7:1），走默认值即可。
+        const rnd = spriteButton(n, BTN_W, 76, TEXTS.profileRandomName, () => {
             this.editBox.string = Game.combat.randomName();
-        }, { fontSize: 24, variant: 'secondary', textColor: THEME.goldLight });
-        rnd.node.setPosition(-130, -330, 0);
+        }, { fontSize: 27, variant: 'primary' });
+        rnd.node.setPosition(-148, -330, 0);
 
-        const go = spriteButton(n, 300, 76, TEXTS.profileConfirm, () => this.confirm(), {
+        const go = spriteButton(n, BTN_W, 76, TEXTS.profileConfirm, () => this.confirm(), {
             fontSize: 27,
             variant: 'primary',
         });
-        go.node.setPosition(130, -330, 0);
+        go.node.setPosition(148, -330, 0);
     }
 
     /**
