@@ -37,6 +37,8 @@ import { SettingsScene } from './SettingsScene';
 import { ShopScene } from './ShopScene';
 import { PlayerScene } from './PlayerScene';
 import { WeaponScene } from './WeaponScene';
+import { AlchemyScene } from './AlchemyScene';
+import { FortuneScene } from './FortuneScene';
 import { ACTIVITY_CHESTS } from '../core/config/quests';
 
 /**
@@ -175,14 +177,13 @@ export class HomeScene implements IScene {
 
         // ── M12 五入口环形（梅花布局）：四钮围环 + 中央圆形仙府商店 ──
         // 旧版 2×2 表格四入口（含设置）改为：设置独立成左上角齿轮圆钮，
-        // 新增炼丹淬体/福禄炼制两个占位入口（功能页后续补）。
-        const comingSoon = (name: string) => () => toast(n, `${name} · 功能炼制中，敬请期待`);
+        // 炼丹淬体/福禄炼制为 M13 新功能入口。
         const ringEntries: Array<[string, string, number, number, number, () => void]> = [
             // [名称, 图标, x, y, 圆盘直径, 回调]
             ['仙缘宝盒', 'box', -130, -188, 96, () => Game.stack.push(new BoxScene())],
             ['灵根图鉴', 'collection', 130, -188, 96, () => Game.stack.push(new CollectionScene())],
-            ['炼丹淬体', 'alchemy', -130, -352, 96, comingSoon('炼丹淬体')],
-            ['福禄炼制', 'fortune', 130, -352, 96, comingSoon('福禄炼制')],
+            ['炼丹淬体', 'alchemy', -130, -352, 96, () => Game.stack.push(new AlchemyScene())],
+            ['福禄炼制', 'fortune', 130, -352, 96, () => Game.stack.push(new FortuneScene())],
             ['仙府商店', 'shop', 0, -268, 124, () => Game.stack.push(new ShopScene())],
         ];
         ringEntries.forEach(([title, icon, x, y, size, cb]) => {

@@ -284,7 +284,7 @@ describe('存档 v4 迁移（#32–#36）', () => {
             achievements: { reached: ['a1'], claimed: ['a1'] },
         };
         const d = migrate(v3);
-        expect(d.version).toBe(4);
+        expect(d.version).toBe(5);
         expect(d.lingshi).toBe(12345);
         expect(d.xiuwei).toBe(678);
         expect(d.stats.lingshiEarned).toBe(5000);
@@ -313,7 +313,7 @@ describe('存档 v4 迁移（#32–#36）', () => {
 
     it('未知版本/损坏输入重置', () => {
         expect(migrate({ version: 99 }).lingshi).toBe(defaultSave().lingshi);
-        expect(migrate(null).version).toBe(4);
-        expect(migrate('junk').version).toBe(4);
+        expect(migrate(null).version).toBe(5);
+        expect(migrate('junk').version).toBe(5);
     });
 });

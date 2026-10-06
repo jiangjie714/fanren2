@@ -73,6 +73,8 @@ export class RainScene implements IScene {
         n.addComponent(UITransform).setContentSize(DESIGN_W, DESIGN_H);
         const targetIndex = Game.save.realmIndex + 1;
         this.session = Game.rain.createSession(targetIndex, Game.eco.monthCardActive, this.mode);
+        // 炼丹「速度」四维：放大角色跟随手指的惯性系数（#39，乘算）
+        this.session.followLerp *= 1 + Game.alchemy.speedMoveBonus(Game.save);
 
         pageBackground(n, 'art/ui/bg_rain/spriteFrame');
         this.fieldNode = uinode('field', n, 0, 0);

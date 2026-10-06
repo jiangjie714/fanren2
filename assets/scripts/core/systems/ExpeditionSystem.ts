@@ -6,14 +6,17 @@ import {
     DESTINATIONS,
     EventOption,
     ExpeditionEvent,
+    EXPED_MAT_CHANCE,
     EXPEDITION_DAILY_LIMIT,
     EXPEDITION_DURATION_MS,
     EXPEDITION_RECALL_AFTER_MS,
     eventsOfDest,
     OutcomeEffect,
 } from '../config/expeditions';
+import { materialName } from '../config/alchemy';
 import { RewardItem } from './BoxSystem';
 import { EconomySystem } from './EconomySystem';
+import { AlchemySystem } from './AlchemySystem';
 
 export type ExpeditionStateName = 'idle' | 'running' | 'complete' | 'exhausted';
 
@@ -30,6 +33,13 @@ export interface ExpeditionResolution {
 
 export class ExpeditionSystem {
     constructor(private eco: EconomySystem, private rng: Rng) {}
+
+    /** 炼丹淬体系统（Game.init 装配后注入；历练灵草掉落写入其灵材库存，#41） */
+    private alch?: AlchemySystem;
+
+    attachAlchemy(alch: AlchemySystem) {
+        this.alch = alch;
+    }
 
     destConfig(dest: DestId) {
         const d = DESTINATIONS.find((x) => x.id === dest);
@@ -124,6 +134,15 @@ export class ExpeditionSystem {
             const lost = this.eco.loseXiuweiPct(effect.xiuweiPctLoss);
             items.push({ kind: 'xiuwei', amount: -lost, label: `修为 -${lost}` });
             disaster = true;
+        }
+
+        // 灵材掉落（#41）：历练按目的地概率采得灵草（低阶炼材），注入灵材库存供炼丹/福禄消耗。
+        // 未注入炼丹系统时（如测试）静默跳过，不影响其他结算。
+        const destId = save.expedition.dest!;
+        if (this.rng.chance(EXPED_MAT_CHANCE[destId])) {
+            const matId = 'lingcao';
+            this.alch?.addMaterial(save, matId, 1);
+            items.push({ kind: 'material', amount: 1, materialId: matId, label: `灵材 · ${materialName(matId)} ×1` });
         }
 
         save.expedition.dest = null;

@@ -2,6 +2,7 @@ import { Node, ResolutionPolicy, Widget, view } from 'cc';
 import { Rng } from '../core/rng';
 import { SaveData } from '../core/saveModel';
 import { AchievementSystem } from '../core/systems/AchievementSystem';
+import { AlchemySystem } from '../core/systems/AlchemySystem';
 import { BoxSystem } from '../core/systems/BoxSystem';
 import { CollectionSystem } from '../core/systems/CollectionSystem';
 import { CombatSystem } from '../core/systems/CombatSystem';
@@ -30,6 +31,7 @@ export class Game {
     static rng: Rng;
     static eco: EconomySystem;
     static combat: CombatSystem;
+    static alchemy: AlchemySystem;
     static realm: RealmSystem;
     static box: BoxSystem;
     static rain: RainSystem;
@@ -56,13 +58,19 @@ export class Game {
         this.rng = new Rng();
         this.eco = new EconomySystem(this.save);
         this.combat = new CombatSystem(this.eco, this.rng);
+        this.alchemy = new AlchemySystem(this.eco);
+        this.combat.attachAlchemy(this.alchemy);
         this.col = new CollectionSystem();
-        this.eco.xiuweiBonusProvider = () => this.col.totalBonus(this.save);
+        // 修为获取加成 = 灵根图鉴加成（含基数 1）+ 炼丹「智力」四维加成（乘算叠加）
+        this.eco.xiuweiBonusProvider = () => this.col.totalBonus(this.save) + this.alchemy.wisdomXiuweiBonus(this.save);
         this.realm = new RealmSystem(this.save, this.eco, this.rng);
+        // 突破成功率加成 = 炼丹「机缘」四维（加算进 clamp 前）
+        this.realm.fateBonusProvider = () => this.alchemy.fateRateBonus(this.save);
         this.box = new BoxSystem(this.save, this.eco, this.rng);
         this.rain = new RainSystem(this.rng);
         this.quests = new QuestSystem(this.eco);
         this.expedition = new ExpeditionSystem(this.eco, this.rng);
+        this.expedition.attachAlchemy(this.alchemy);
         this.illusion = new IllusionSystem(this.eco);
         this.ach = new AchievementSystem(this.eco);
         this.social = new DouyinSocial();

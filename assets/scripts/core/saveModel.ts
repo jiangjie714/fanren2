@@ -1,4 +1,4 @@
-/** 存档模型 v4：v3 字段 + M11 道号档案/锻体法器/论武战绩，字段与 docs/数值假设.md 对齐 */
+/** 存档模型 v5：v4 字段 + M13 炼丹四维/福禄炼制/灵材库存，字段与 docs/数值假设.md 对齐 */
 import { DestId } from './config/expeditions';
 
 export interface DailyState {
@@ -93,8 +93,27 @@ export interface PkState {
     bestStreak: number;
 }
 
+// ---------- v5（M13 炼丹淬体 / 福禄炼制，#39–#41） ----------
+
+/** 炼丹四维本体属性（智力/速度/淬体/机缘），各自封顶，重复炼制叠加 */
+export interface AlchemyState {
+    /** 四维属性值 */
+    wisdom: number;
+    speed: number;
+    forging: number;
+    fate: number;
+}
+
+/** 福禄炼制：永久攻防加值（与锻体乘算、法器档位并列），按品阶记录炼制次数 */
+export interface FortuneState {
+    /** 各品阶已炼制次数（grade → count） */
+    crafts: Record<string, number>;
+    /** 灵材库存（材料 id → 数量） */
+    materials: Record<string, number>;
+}
+
 export interface SaveData {
-    version: 4;
+    version: 5;
     lingshi: number;
     xiuwei: number;
     jiyuan: number;
@@ -131,13 +150,18 @@ export interface SaveData {
     combat: CombatState;
     /** 论武战绩 */
     pk: PkState;
+    // ---------- v5（M13） ----------
+    /** 炼丹四维本体属性 */
+    alchemy: AlchemyState;
+    /** 福禄炼制与灵材库存 */
+    fortune: FortuneState;
 }
 
 import { INITIAL_LINGSHI } from './config/economy';
 
 export function defaultSave(): SaveData {
     return {
-        version: 4,
+        version: 5,
         lingshi: INITIAL_LINGSHI,
         xiuwei: 0,
         jiyuan: 0,
@@ -180,6 +204,8 @@ export function defaultSave(): SaveData {
         profile: { gender: 'm', name: '', createdAt: 0 },
         combat: { forging: 0, weapons: [] },
         pk: { wins: 0, losses: 0, streak: 0, bestStreak: 0 },
+        alchemy: { wisdom: 0, speed: 0, forging: 0, fate: 0 },
+        fortune: { crafts: {}, materials: {} },
     };
 }
 
@@ -192,7 +218,7 @@ export function migrate(raw: unknown): SaveData {
     const d = defaultSave();
     if (!raw || typeof raw !== 'object') return d;
     const r = raw as Record<string, unknown>;
-    if (r.version !== 1 && r.version !== 2 && r.version !== 3 && r.version !== 4) return d;
+    if (r.version !== 1 && r.version !== 2 && r.version !== 3 && r.version !== 4 && r.version !== 5) return d;
     const profile = { ...d.profile, ...(r.profile as object ?? {}) };
     return {
         ...d,
@@ -218,8 +244,23 @@ export function migrate(raw: unknown): SaveData {
                 : [],
         },
         pk: { ...d.pk, ...(r.pk as object ?? {}) },
-        version: 4,
+        // v5：四维与福禄/灵材，数值字段做非负整数钳制，防手改存档注入负数
+        alchemy: {
+            wisdom: clampInt((r.alchemy as AlchemyState)?.wisdom),
+            speed: clampInt((r.alchemy as AlchemyState)?.speed),
+            forging: clampInt((r.alchemy as AlchemyState)?.forging),
+            fate: clampInt((r.alchemy as AlchemyState)?.fate),
+        },
+        fortune: {
+            crafts: { ...((r.fortune as FortuneState)?.crafts as object ?? {}) },
+            materials: { ...((r.fortune as FortuneState)?.materials as object ?? {}) },
+        },
+        version: 5,
     } as SaveData;
+}
+
+function clampInt(v: unknown): number {
+    return Number.isInteger(v) && (v as number) >= 0 ? (v as number) : 0;
 }
 
 export function todayString(now: Date = new Date()): string {

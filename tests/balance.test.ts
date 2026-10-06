@@ -12,7 +12,16 @@ import { QuestSystem } from '../assets/scripts/core/systems/QuestSystem';
 import { ExpeditionSystem } from '../assets/scripts/core/systems/ExpeditionSystem';
 import { IllusionSystem } from '../assets/scripts/core/systems/IllusionSystem';
 import { CombatSystem } from '../assets/scripts/core/systems/CombatSystem';
+import { AlchemySystem } from '../assets/scripts/core/systems/AlchemySystem';
 import { BOXES } from '../assets/scripts/core/config/boxes';
+import { PILLS, FORTUNES } from '../assets/scripts/core/config/alchemy';
+
+/** 灵材库存总量（三阶炼材求和） */
+function sumMaterials(s: SaveData): number {
+    let n = 0;
+    for (const k in s.fortune.materials) n += s.fortune.materials[k];
+    return n;
+}
 
 function runSimulation(boxId: 'fansu' | 'xiuzhen' | 'tiandao', runs: number, seed: number) {
     const rng = new Rng(seed);
@@ -98,6 +107,12 @@ describe('数值平衡模拟（打印报告，宽松断言防崩坏）', () => {
             const START = 1000;
             eco.addLingshi(START, false);
 
+            // 炼丹淬体系统（M13）：接入战斗/历练的灵材掉落与四维/福禄加值（#39–#41）
+            const alch = new AlchemySystem(eco);
+            combat.attachAlchemy(alch);
+            expedition.attachAlchemy(alch);
+            const matAtStart = sumMaterials(save);
+
             // 开箱 12 次（典型投入时长），三连层数随机（0~3，均值 1.5）
             for (let i = 0; i < 12; i++) {
                 if (!box.canOpen('xiuzhen').ok) break;
@@ -111,11 +126,11 @@ describe('数值平衡模拟（打印报告，宽松断言防崩坏）', () => {
             quests.progress(save, 'tribulation');
             quests.progress(save, 'goldRain', 15);
             quests.progress(save, 'expedition');
-            // 历练 2 次（秘谷/荒古各一，稳健选项），归来斩妖均胜利
+            // 历练 2 次（秘谷/荒古各一，稳健选项），归来斩妖均胜利（斩妖掉落灵石髓/妖兽丹）
             for (const dest of ['migu', 'gudong'] as const) {
                 expedition.start(save, dest, 0);
                 combat.slayRewards(save, dest); // 斩妖胜利结算
-                expedition.resolve(save, 1, 20 * 60_000);
+                expedition.resolve(save, 1, 20 * 60_000); // 历练另按目的地概率掉灵草
             }
             // 幻境 2 次（好手：金 20/连击 12/红 2 → 98 分，60 档内）
             for (let i = 0; i < 2; i++) {
@@ -138,11 +153,61 @@ describe('数值平衡模拟（打印报告，宽松断言防崩坏）', () => {
             // 机缘直接投放：开箱之后所有入账（事件/斩妖/幻境/活跃箱）
             const jiyuanGranted = save.jiyuan - jiyuanAfterBoxes;
             const net = save.lingshi - START;
-            report.push(`seed=${seed}: 日灵石净收入=${net} 机缘直接投放=${jiyuanGranted} 结余=${save.lingshi}`);
+            report.push(`seed=${seed}: 日灵石净收入=${net} 机缘直接投放=${jiyuanGranted} 灵材获取=${sumMaterials(save) - matAtStart} 结余=${save.lingshi}`);
             expect(net).toBeGreaterThanOrEqual(0);
             expect(net).toBeLessThanOrEqual(6000);
             expect(jiyuanGranted).toBeLessThanOrEqual(120);
+
+            // #38 纳入灵材/丹药消耗口径：当日产出的灵石+灵材投入炼丹/福禄（纯 SINK），
+            // 验证封顶机制使投入有界、余额不为负、双资源循环不构成印钞机。
+            const matGained = sumMaterials(save) - matAtStart;
+            // 灵材按日有界（斩妖2+历练2 含概率），不构成无限炼材来源
+            expect(matGained).toBeLessThanOrEqual(12);
+            let pills = 0;
+            while (alch.canCraft(save, 'chu') === null && pills < 100) {
+                alch.craft(save, 'chu');
+                pills++;
+            }
+            expect(pills).toBeLessThanOrEqual(30); // 初品四维 60 封顶 → 最多 30 次
+            let forts = 0;
+            while (alch.canCraftFortune(save, 'chu') === null && forts < 100) {
+                alch.craftFortune(save, 'chu');
+                forts++;
+            }
+            expect(forts).toBeLessThanOrEqual(5); // 初品福禄 5 次封顶
+            expect(save.lingshi).toBeGreaterThanOrEqual(0);
+            expect(sumMaterials(save)).toBeGreaterThanOrEqual(0);
         }
         console.log('=== 典型一日报告 ===\n' + report.join('\n'));
+    });
+
+    /**
+     * M13：炼丹/福禄「双资源消耗」封顶有界（#38/#39/#40）。
+     * 丹药/福禄是纯 SINK——消耗灵石+灵材、只产出封顶的四维/攻防，本身不构成印钞机。
+     * 此用例从配置推导满炼总投入，断言其远小于锻体/法器大坑（≈40 万），且灵材需求有限，
+     * 防止后续松绑封顶时无意中造出无上限的资源漏斗。
+     */
+    it('炼丹/福禄 灵石+灵材 封顶总投入有界（不构成无限印钞机）', () => {
+        // 炼丹：每品 crafts = ceil(cap / statGain)，四维等量
+        let pillLs = 0, pillMat = 0;
+        for (const p of PILLS) {
+            const crafts = Math.ceil(p.cap / p.statGain);
+            pillLs += crafts * p.lingshiCost;
+            pillMat += crafts * p.materialCost;
+        }
+        // 福禄：每品 maxCrafts 封顶
+        let fortLs = 0, fortMat = 0;
+        for (const f of FORTUNES) {
+            fortLs += f.maxCrafts * f.lingshiCost;
+            fortMat += f.maxCrafts * f.materialCost;
+        }
+        const totalLs = pillLs + fortLs;
+        const totalMat = pillMat + fortMat;
+        // 实测：灵石 ≈ 70,600（炼丹 51,600 + 福禄 19,000），灵材 ≈ 255
+        expect(totalLs).toBeGreaterThan(0);
+        expect(totalLs).toBeLessThan(100_000);
+        expect(totalMat).toBeLessThan(500);
+        // 与锻体/法器大坑（#38：约 22 万 + 18 万）相比，丹药/福禄是更小且封顶的支线
+        expect(totalLs).toBeLessThan(400_000);
     });
 });

@@ -78,6 +78,8 @@ export interface RainSession {
     extraXiuwei: number;
     /** 月卡：劫雨权重降低 */
     monthCard: boolean;
+    /** 角色跟随手指的惯性系数（默认 RAIN_FIELD.followLerp，炼丹「速度」四维放大） */
+    followLerp: number;
 }
 
 export interface RainResult {
@@ -153,6 +155,7 @@ export class RainSystem {
             finished: false,
             extraXiuwei: 0,
             monthCard,
+            followLerp: RAIN_FIELD.followLerp,
         };
     }
 
@@ -170,9 +173,9 @@ export class RainSystem {
         if (s.purifyTimeLeft > 0) s.purifyTimeLeft = Math.max(0, s.purifyTimeLeft - dt);
         if (s.magnetTimeLeft > 0) s.magnetTimeLeft = Math.max(0, s.magnetTimeLeft - dt);
 
-        // 角色平滑跟随手指
+        // 角色平滑跟随手指（惯性系数由炼丹「速度」四维放大）
         const target = Math.min(RAIN_FIELD.xMax, Math.max(RAIN_FIELD.xMin, playerTargetX));
-        s.playerX += (target - s.playerX) * Math.min(1, RAIN_FIELD.followLerp * dt);
+        s.playerX += (target - s.playerX) * Math.min(1, s.followLerp * dt);
 
         // 生成（渡劫按当前波次的速率；幻境用平坦参数；净化期间不出劫雨）
         if (s.mode === 'illusion') {

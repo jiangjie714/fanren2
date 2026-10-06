@@ -17,7 +17,7 @@ import { EconomySystem } from './EconomySystem';
 
 export type BoxTier = 'normal' | 'rare' | 'disaster';
 
-export type RewardKind = 'lingshi' | 'xiuwei' | 'jiyuan' | 'fragment' | 'gongfa';
+export type RewardKind = 'lingshi' | 'xiuwei' | 'jiyuan' | 'fragment' | 'gongfa' | 'material';
 
 export interface RewardItem {
     kind: RewardKind;
@@ -26,6 +26,8 @@ export interface RewardItem {
     label: string;
     /** 灵根碎片 id */
     lingengId?: string;
+    /** 灵材 id（kind === 'material' 时） */
+    materialId?: string;
 }
 
 export interface BoxResult {

@@ -1,6 +1,7 @@
-/** 战斗系统：攻防属性、锻体、法器、斩妖与论武（数值假设 #33–#37，纯逻辑可单测） */
+/** 战斗系统：攻防属性、锻体、法器、斩妖与论武（数值假设 #33–#41，纯逻辑可单测） */
 import { Rng } from '../rng';
 import { SaveData } from '../saveModel';
+import { AlchemySystem } from './AlchemySystem';
 import {
     FORGING_MAX_LEVEL,
     MONSTERS,
@@ -28,6 +29,7 @@ import {
     pkChargeFactor,
 } from '../config/combat';
 import { DestId } from '../config/expeditions';
+import { materialName } from '../config/alchemy';
 import { fragmentPool } from '../config/lingens';
 import { EconomySystem } from './EconomySystem';
 import { RewardItem } from './BoxSystem';
@@ -68,15 +70,28 @@ export interface BattleOutcome {
 export class CombatSystem {
     constructor(private eco: EconomySystem, private rng: Rng) {}
 
+    /** 炼丹淬体系统（Game.init 装配后注入；用于四维/福禄加值） */
+    private alch?: AlchemySystem;
+
+    /** 注入炼丹系统（在 Game.init 完成装配后调用一次） */
+    attachAlchemy(alch: AlchemySystem) {
+        this.alch = alch;
+    }
+
     // ---------- #33 攻防属性 ----------
 
-    /** 面板属性：境界基础 × 锻体系数 + 法器加值（法器自动佩最高档） */
+    /**
+     * 面板属性：境界基础 × 锻体系数 + 法器加值 + 福禄加值；防御额外折算淬体减伤。
+     * 福禄为永久攻防加值（#40），淬体四维转化为防御减伤点（#39）。
+     */
     deriveStats(save: SaveData): CombatStats {
         const base = REALM_COMBAT[Math.min(REALM_COMBAT.length - 1, save.realmIndex)];
         const f = forgingFactor(save.combat.forging);
         const w = WEAPONS.find((x) => x.tier === this.equippedTier(save));
-        const atk = Math.round(base.atk * f) + (w?.atk ?? 0);
-        const def = Math.round(base.def * f) + (w?.def ?? 0);
+        const fortune = this.alch?.fortuneBonus(save) ?? { atk: 0, def: 0 };
+        const forgingDef = this.alch?.forgingDefPoints(save) ?? 0;
+        const atk = Math.round(base.atk * f) + (w?.atk ?? 0) + fortune.atk;
+        const def = Math.round(base.def * f) + (w?.def ?? 0) + fortune.def + forgingDef;
         return { atk, def, power: atk + def };
     }
 
@@ -150,6 +165,7 @@ export class CombatSystem {
     /**
      * 斩妖胜利结算：按目的地发奖并入账。失败不调用、无惩罚。
      * fragmentChance 命中时发 1 枚凡俗池碎片。
+     * M13：斩妖另掉落灵材（妖兽丹/灵石髓），供炼丹/福禄炼制使用（#41）。
      */
     slayRewards(save: SaveData, dest: DestId): RewardItem[] {
         const cfg = MONSTERS[dest];
@@ -168,7 +184,20 @@ export class CombatSystem {
             save.fragments[id] = (save.fragments[id] ?? 0) + 1;
             items.push({ kind: 'fragment', amount: 1, lingengId: id, label: '灵根碎片 ×1' });
         }
+        // 灵材掉落：妖兽必掉妖兽丹（高品炼材），中高目的地另掉灵石髓
+        const mat = this.slayMaterials(dest);
+        if (mat) {
+            this.alch?.addMaterial(save, mat, 1);
+            items.push({ kind: 'material', amount: 1, materialId: mat, label: `灵材 · ${materialName(mat)} ×1` });
+        }
         return items;
+    }
+
+    /** 斩妖掉落的灵材（按目的地档次） */
+    private slayMaterials(dest: DestId): string | null {
+        if (dest === 'qianshan') return this.rng.chance(0.5) ? 'lingcao' : null;
+        if (dest === 'migu') return this.rng.chance(0.8) ? 'lingshi_core' : null;
+        return 'yaodan_core'; // 荒古洞天：必掉妖兽丹
     }
 
     // ---------- #36 论武（PK） ----------

@@ -9,6 +9,9 @@ import { EconomySystem } from './EconomySystem';
 export class RealmSystem {
     constructor(private save: SaveData, private eco: EconomySystem, private rng: Rng) {}
 
+    /** 突破成功率加成提供者（炼丹「机缘」四维注入：+0.04%/点，加算进 clamp 前） */
+    fateBonusProvider: () => number = () => 0;
+
     get realmIndex(): number { return this.save.realmIndex; }
     get realm(): RealmConfig { return REALMS[this.save.realmIndex]; }
     /** 下一境界（null = 已达化神） */
@@ -22,11 +25,12 @@ export class RealmSystem {
         return !!n && this.eco.jiyuan >= n.needJiyuan && n.needJiyuan > 0;
     }
 
-    /** 最终突破成功率 = clamp(目标境界基础 + 金雨加成 + 连击加成 - 劫雨扣减 - 心魔, 10%, 95%) */
+    /** 最终突破成功率 = clamp(目标境界基础 + 金雨加成 + 连击加成 - 劫雨扣减 - 心魔 + 机缘四维加成, 10%, 95%) */
     computeFinalRate(targetIndex: number, goldBonus: number, penalty: number, mindDemon: boolean, comboBonus = 0): number {
         const base = REALMS[targetIndex].baseRate;
         const md = mindDemon ? 0.05 : 0;
-        return Math.min(RATE_MAX, Math.max(RATE_MIN, base + goldBonus + comboBonus - penalty - md));
+        const fate = this.fateBonusProvider();
+        return Math.min(RATE_MAX, Math.max(RATE_MIN, base + goldBonus + comboBonus - penalty - md + fate));
     }
 
     /** 概率判定（纯随机一掷；10% 仍可能成功，95% 仍可能失败） */

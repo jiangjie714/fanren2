@@ -24,6 +24,16 @@ export const EXPEDITION_RECALL_AFTER_MS = 5 * 60_000;
 /** 每日免费历练次数 */
 export const EXPEDITION_DAILY_LIMIT = 2;
 
+/**
+ * 历练灵草掉落概率（#41：灵草来源之一为历练；按目的地档次递减，契合"前山采药拾荒"主题）。
+ * 掉落的是低阶炼材「灵草」，供中/高品炼丹与福禄炼制消耗；斩妖另产灵石髓/妖兽丹（#41）。
+ */
+export const EXPED_MAT_CHANCE: Record<DestId, number> = {
+    qianshan: 0.7,
+    migu: 0.4,
+    gudong: 0.2,
+};
+
 export interface OutcomeEffect {
     text: string;
     lingshi?: number;
