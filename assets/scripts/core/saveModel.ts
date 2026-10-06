@@ -1,5 +1,7 @@
-/** 存档模型 v5：v4 字段 + M13 炼丹四维/福禄炼制/灵材库存，字段与 docs/数值假设.md 对齐 */
+/** 存档模型 v6：v5 字段 + M14 秘境试炼（体力/连胜/段位）与道心，字段与 docs/数值假设.md 对齐 */
 import { DestId } from './config/expeditions';
+import { STAMINA_MAX, STAMINA_AD_PER_DAY } from './config/trial';
+import { weekKeyOf } from './config/illusion';
 
 export interface DailyState {
     /** 最近重置日期 YYYY-MM-DD（本地时区） */
@@ -112,8 +114,32 @@ export interface FortuneState {
     materials: Record<string, number>;
 }
 
+// ---------- v6（M14 秘境试炼 / 道心，#42–#45） ----------
+
+/** 秘境试炼进度：体力经济 + 连胜轨 + 段位轨 */
+export interface TrialState {
+    /** 当前体力（0..STAMINA_MAX），读取时惰性回复 */
+    stamina: number;
+    /** 体力结算基准时间戳（epoch ms），惰性回复用，不吞余数 */
+    staminaAt: number;
+    /** 今日广告补给次数（0..STAMINA_AD_PER_DAY），随每日重置 */
+    adRefillToday: number;
+    /** 当前连胜（评分 <60 中断清零；护持可保留） */
+    streak: number;
+    /** 历史最高连胜（成就指标，本期只落字段） */
+    bestStreak: number;
+    /** 段位分（赛季制：周一结算发奖后清零） */
+    rankScore: number;
+    /** 历史最高段位 id（跨赛季只升不降） */
+    bestRank: string;
+    /** 周键（本周一日期，同 illusionWeekKey 口径） */
+    weekKey: string;
+    /** 本周周奖是否已领取（幂等） */
+    weekRewardClaimed: boolean;
+}
+
 export interface SaveData {
-    version: 5;
+    version: 6;
     lingshi: number;
     xiuwei: number;
     jiyuan: number;
@@ -155,13 +181,18 @@ export interface SaveData {
     alchemy: AlchemyState;
     /** 福禄炼制与灵材库存 */
     fortune: FortuneState;
+    // ---------- v6（M14） ----------
+    /** 秘境试炼进度（体力/连胜/段位） */
+    trial: TrialState;
+    /** 道心层数（0..3），突破失败累积 +1（看 protect 广告 +2），突破成功清零（#45） */
+    daoxin: number;
 }
 
 import { INITIAL_LINGSHI } from './config/economy';
 
 export function defaultSave(): SaveData {
     return {
-        version: 5,
+        version: 6,
         lingshi: INITIAL_LINGSHI,
         xiuwei: 0,
         jiyuan: 0,
@@ -206,6 +237,18 @@ export function defaultSave(): SaveData {
         pk: { wins: 0, losses: 0, streak: 0, bestStreak: 0 },
         alchemy: { wisdom: 0, speed: 0, forging: 0, fate: 0 },
         fortune: { crafts: {}, materials: {} },
+        trial: {
+            stamina: STAMINA_MAX,
+            staminaAt: Date.now(),
+            adRefillToday: 0,
+            streak: 0,
+            bestStreak: 0,
+            rankScore: 0,
+            bestRank: 'xuetu',
+            weekKey: weekKeyOf(),
+            weekRewardClaimed: false,
+        },
+        daoxin: 0,
     };
 }
 
@@ -218,8 +261,9 @@ export function migrate(raw: unknown): SaveData {
     const d = defaultSave();
     if (!raw || typeof raw !== 'object') return d;
     const r = raw as Record<string, unknown>;
-    if (r.version !== 1 && r.version !== 2 && r.version !== 3 && r.version !== 4 && r.version !== 5) return d;
+    if (r.version !== 1 && r.version !== 2 && r.version !== 3 && r.version !== 4 && r.version !== 5 && r.version !== 6) return d;
     const profile = { ...d.profile, ...(r.profile as object ?? {}) };
+    const srcTrial = (r.trial as Partial<TrialState>) ?? {};
     return {
         ...d,
         ...(r as object),
@@ -255,12 +299,32 @@ export function migrate(raw: unknown): SaveData {
             crafts: { ...((r.fortune as FortuneState)?.crafts as object ?? {}) },
             materials: { ...((r.fortune as FortuneState)?.materials as object ?? {}) },
         },
-        version: 5,
+        // v6：秘境进度与道心。缺失字段（v5 老档）回退默认值，非法值（手改/损坏）同样回退
+        // 安全默认而非 0——体力字段非法时按满体力起步，避免玩家因坏档被锁在秘境门外。
+        trial: {
+            stamina: Math.min(STAMINA_MAX, clampIntOr(srcTrial.stamina, d.trial.stamina)),
+            staminaAt: typeof srcTrial.staminaAt === 'number' && Number.isFinite(srcTrial.staminaAt)
+                ? srcTrial.staminaAt : d.trial.staminaAt,
+            adRefillToday: Math.min(STAMINA_AD_PER_DAY, clampIntOr(srcTrial.adRefillToday, 0)),
+            streak: clampIntOr(srcTrial.streak, 0),
+            bestStreak: clampIntOr(srcTrial.bestStreak, 0),
+            rankScore: clampIntOr(srcTrial.rankScore, 0),
+            bestRank: typeof srcTrial.bestRank === 'string' ? srcTrial.bestRank : 'xuetu',
+            weekKey: typeof srcTrial.weekKey === 'string' ? srcTrial.weekKey : d.trial.weekKey,
+            weekRewardClaimed: srcTrial.weekRewardClaimed === true,
+        },
+        daoxin: Math.min(3, clampIntOr(r.daoxin, 0)),
+        version: 6,
     } as SaveData;
 }
 
 function clampInt(v: unknown): number {
     return Number.isInteger(v) && (v as number) >= 0 ? (v as number) : 0;
+}
+
+/** 非负整数钳制；缺失或非法回退 fallback（v6 迁移用，防手改存档注入） */
+function clampIntOr(v: unknown, fallback: number): number {
+    return Number.isInteger(v) && (v as number) >= 0 ? (v as number) : fallback;
 }
 
 export function todayString(now: Date = new Date()): string {

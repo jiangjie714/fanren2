@@ -6,10 +6,13 @@ import { BoxSystem } from '../assets/scripts/core/systems/BoxSystem';
 import { QuestSystem } from '../assets/scripts/core/systems/QuestSystem';
 import { ExpeditionSystem } from '../assets/scripts/core/systems/ExpeditionSystem';
 import { IllusionSystem } from '../assets/scripts/core/systems/IllusionSystem';
+import { TrialSystem } from '../assets/scripts/core/systems/TrialSystem';
+import { STAMINA_MAX } from '../assets/scripts/core/config/trial';
 import { RainSystem } from '../assets/scripts/core/systems/RainSystem';
 import { ACTIVITY_CHESTS } from '../assets/scripts/core/config/quests';
 import { EXPEDITION_DAILY_LIMIT } from '../assets/scripts/core/config/expeditions';
 import { ILLUSION, judgeIllusionScore, judgeIllusionTier, weekKeyOf } from '../assets/scripts/core/config/illusion';
+import { TRIAL_THEMES } from '../assets/scripts/core/config/trial';
 
 const NOW = new Date('2026-10-06T12:00:00').getTime();
 
@@ -40,7 +43,7 @@ describe('M9a 存档 v3 迁移（v1/v2 无损升级）', () => {
             stats: { opens: 9, breakthroughWins: 1, breakthroughFails: 0 },
         };
         const s = migrate(v1);
-        expect(s.version).toBe(5); // M13 存档 v5：迁移后版本随当前模型
+        expect(s.version).toBe(6); // M14 存档 v6：迁移后版本随当前模型
         expect(s.lingshi).toBe(1234);
         expect(s.realmIndex).toBe(2);
         expect(s.pityCount).toBe(1);
@@ -215,15 +218,14 @@ describe('M8 心魔幻境（数值假设 #29）', () => {
         expect(judgeIllusionTier(180)).toBe('心魔大圣');
     });
 
-    it('每日 1 免费 + 1 广告次；用尽后不可再战', () => {
+    it('M14 体力制入口：体力 ≥1 可开局并扣 1 点，体力耗尽不可再战', () => {
         const save = makeSave();
-        const sys = new IllusionSystem(makeEco(save));
-        expect(sys.startKind(save)).toBe('free');
-        expect(sys.consumeStart(save, 'free')).toBe(true);
-        expect(sys.startKind(save)).toBe('ad');
-        expect(sys.consumeStart(save, 'ad')).toBe(true);
-        expect(sys.startKind(save)).toBe('none');
-        expect(sys.consumeStart(save, 'free')).toBe(false);
+        const trial = new TrialSystem();
+        expect(trial.canStart(save, new Date(NOW))).toBe(true);
+        expect(trial.consumeStart(save, new Date(NOW))).toBe(true);
+        expect(save.trial.stamina).toBe(STAMINA_MAX - 1);
+        // 次数经济已被 #42 取代：旧每日字段不再被入口读写
+        expect(save.daily.illusionFreeUsed).toBe(false);
     });
 
     it('档位奖励只发高于已领档位的一档；周最佳随周切换清零', () => {
@@ -259,19 +261,22 @@ describe('M8 心魔幻境（数值假设 #29）', () => {
 // ---------- 幻境玩法模式（RainSystem） ----------
 
 describe('M8 幻境模式（RainSystem）', () => {
-    it('会话参数：15 秒、无净化、平坦生成（无蓝雨、落速 ×1.3）', () => {
+    it('会话参数：15 秒、无净化、主题化生成（灵雨：无蓝雨、落速 ×0.95）', () => {
         const rs = new RainSystem(new Rng(7));
-        const s = rs.createSession(1, false, 'illusion');
+        const lingyu = TRIAL_THEMES.find((t) => t.id === 'lingyu')!;
+        const s = rs.createSession(1, false, 'illusion', lingyu);
         expect(s.duration).toBe(ILLUSION.duration);
-        expect(rs.usePurify(s)).toBe(false); // 幻境无净化
-        // 3 秒生成 ≈ 12 滴，全部为金/红（无蓝雨），落速都在幻境倍率区间
+        expect(s.theme).toBe(lingyu);
+        expect(rs.usePurify(s)).toBe(false); // 秘境无净化
+        // 3 秒生成 ≈ 12 滴，全部为金/红（无蓝雨），落速都在主题倍率区间
         for (let i = 0; i < 30; i++) rs.tick(s, 0.1, 0);
         expect(s.drops.length).toBeGreaterThanOrEqual(10);
         expect(s.drops.every((d) => d.type !== 'blue')).toBe(true);
-        expect(s.drops.every((d) => d.vy >= 380 * ILLUSION.fallSpeedMult - 1e-6)).toBe(true);
-        // 渡劫会话不受影响：仍可用净化
+        expect(s.drops.every((d) => d.vy >= 380 * lingyu.fallSpeedMult - 1e-6)).toBe(true);
+        // 渡劫会话不受影响：仍可用净化，且不带主题
         const t = rs.createSession(1, false);
         expect(rs.usePurify(t)).toBe(true);
+        expect(t.theme).toBeNull();
     });
 
     it('finish 汇总：幻境走独立计分（金×4+连击×2−红×3），comboBonus 恒 0', () => {

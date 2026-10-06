@@ -26,6 +26,7 @@ import {
 } from '../config/drops';
 import { GOLD_RAIN_XIUWEI } from '../config/economy';
 import { ILLUSION, IllusionTier, judgeIllusionScore, judgeIllusionTier } from '../config/illusion';
+import { TRIAL_THEMES, TrialTheme, themeOf } from '../config/trial';
 
 export type RainMode = 'tribulation' | 'illusion';
 
@@ -80,6 +81,8 @@ export interface RainSession {
     monthCard: boolean;
     /** 角色跟随手指的惯性系数（默认 RAIN_FIELD.followLerp，炼丹「速度」四维放大） */
     followLerp: number;
+    /** 秘境主题（illusion 模式专用；M14 #42，主题决定权重/速率/落速/成排与视觉） */
+    theme: TrialTheme | null;
 }
 
 export interface RainResult {
@@ -128,8 +131,10 @@ export class RainSystem {
         this.currentWave = waveAt(0);
     }
 
-    createSession(targetIndex: number, monthCard: boolean, mode: RainMode = 'tribulation'): RainSession {
+    createSession(targetIndex: number, monthCard: boolean, mode: RainMode = 'tribulation', theme?: TrialTheme): RainSession {
         const duration = mode === 'illusion' ? ILLUSION.duration : 8;
+        // 秘境主题：调用方可显式指定（测试/回放），缺省按今日日序轮换（#42）
+        const resolvedTheme = mode === 'illusion' ? (theme ?? themeOf()) : null;
         return {
             targetIndex,
             baseRate: 0, // 基础成功率由 RealmSystem.computeFinalRate 依目标境界索引计算，会话内只存索引
@@ -156,6 +161,7 @@ export class RainSystem {
             extraXiuwei: 0,
             monthCard,
             followLerp: RAIN_FIELD.followLerp,
+            theme: resolvedTheme,
         };
     }
 
@@ -177,9 +183,9 @@ export class RainSystem {
         const target = Math.min(RAIN_FIELD.xMax, Math.max(RAIN_FIELD.xMin, playerTargetX));
         s.playerX += (target - s.playerX) * Math.min(1, s.followLerp * dt);
 
-        // 生成（渡劫按当前波次的速率；幻境用平坦参数；净化期间不出劫雨）
+        // 生成（渡劫按当前波次的速率；秘境按主题参数；净化期间不出劫雨）
         if (s.mode === 'illusion') {
-            this.spawnAcc += dt * ILLUSION.spawnRate;
+            this.spawnAcc += dt * (s.theme?.spawnRate ?? ILLUSION.spawnRate);
         } else {
             const wave = waveAt(s.elapsed);
             this.spawnAcc += dt * wave.spawnRate;
@@ -260,18 +266,7 @@ export class RainSystem {
     // ---------- 内部 ----------
     private spawn(s: RainSession, wave: RainWave) {
         if (s.mode === 'illusion') {
-            // 幻境：平坦参数（无蓝雨、无成排、落速 ×1.3、无动态难度）
-            const idx = this.rng.pickWeighted([ILLUSION.goldWeight, 0, ILLUSION.redWeight]);
-            const type: DropType = idx === 0 ? 'gold' : 'red';
-            s.drops.push({
-                id: this.nextDropId++,
-                type,
-                x: this.rng.range(RAIN_FIELD.xMin, RAIN_FIELD.xMax),
-                y: RAIN_FIELD.spawnY,
-                vy: this.rng.range(380, 520) * ILLUSION.fallSpeedMult,
-                radius: RAIN_FIELD.dropRadius,
-                dead: false,
-            });
+            this.spawnTrial(s);
             return;
         }
         let type: DropType;
@@ -295,6 +290,52 @@ export class RainSystem {
             x: this.rng.range(RAIN_FIELD.xMin, RAIN_FIELD.xMax),
             y: RAIN_FIELD.spawnY,
             vy: this.rng.range(380, 520) * speedMult,
+            radius: RAIN_FIELD.dropRadius,
+            dead: false,
+        });
+    }
+
+    /**
+     * 秘境生成（M14 #42）：按主题权重出金/红（无蓝雨）、主题速率与落速；
+     * 幻心主题每滴落速 ×0.8~1.3 随机；劫云主题红雨成排（同 #22 波③编排，保安全缝）。
+     * 评分公式与命中判定不受主题影响。
+     */
+    private spawnTrial(s: RainSession) {
+        const t = s.theme ?? TRIAL_THEMES[0];
+        const idx = this.rng.pickWeighted([t.goldWeight, 0, t.redWeight]);
+        const type: DropType = idx === 0 ? 'gold' : 'red';
+        if (type === 'red' && t.redRows) {
+            // 劫云成排：同排同速，恒保留一条 RED_ROW_GAP 安全缝
+            const halfGap = RED_ROW_GAP / 2;
+            const gapCenter = this.rng.range(RAIN_FIELD.xMin + halfGap, RAIN_FIELD.xMax - halfGap);
+            const vy = this.rng.range(380, 520) * t.fallSpeedMult;
+            const count = 2; // 15 秒短局，成排规模取波③同款 [2,2]
+            for (let i = 0; i < count; i++) {
+                let x = this.rng.range(RAIN_FIELD.xMin, RAIN_FIELD.xMax);
+                if (Math.abs(x - gapCenter) <= halfGap) {
+                    x = x < gapCenter
+                        ? Math.max(RAIN_FIELD.xMin, gapCenter - halfGap - 10)
+                        : Math.min(RAIN_FIELD.xMax, gapCenter + halfGap + 10);
+                }
+                s.drops.push({
+                    id: this.nextDropId++,
+                    type: 'red',
+                    x,
+                    y: RAIN_FIELD.spawnY,
+                    vy,
+                    radius: RAIN_FIELD.dropRadius,
+                    dead: false,
+                });
+            }
+            return;
+        }
+        const speedRoll = t.randomFallSpeed ? this.rng.range(0.8, 1.3) : t.fallSpeedMult;
+        s.drops.push({
+            id: this.nextDropId++,
+            type,
+            x: this.rng.range(RAIN_FIELD.xMin, RAIN_FIELD.xMax),
+            y: RAIN_FIELD.spawnY,
+            vy: this.rng.range(380, 520) * speedRoll,
             radius: RAIN_FIELD.dropRadius,
             dead: false,
         });

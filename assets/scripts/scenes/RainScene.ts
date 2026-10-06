@@ -79,7 +79,8 @@ export class RainScene implements IScene {
         // 炼丹「速度」四维：放大角色跟随手指的惯性系数（#39，乘算）
         this.session.followLerp *= 1 + Game.alchemy.speedMoveBonus(Game.save);
 
-        pageBackground(n, 'art/ui/bg_rain/spriteFrame');
+        // 秘境按今日主题换背景（#42：灵雨=金绿云海 / 劫云=紫红雷劫 / 幻心=青玉幻境）
+        pageBackground(n, this.session.theme?.bg ?? 'art/ui/bg_rain/spriteFrame');
         this.fieldNode = uinode('field', n, 0, 0);
 
         const charIndex = Math.min(5, Math.max(0, Game.save.realmIndex));

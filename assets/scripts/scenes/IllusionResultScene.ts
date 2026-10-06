@@ -1,7 +1,6 @@
 import { Color, Layers, Node } from 'cc';
 import { IScene } from '../infra/SceneStack';
 import { Game } from '../infra/Game';
-import { Ads } from '../infra/Ads';
 import { AudioMgr } from '../infra/AudioMgr';
 import { RainResult } from '../core/systems/RainSystem';
 import { RewardItem } from '../core/systems/BoxSystem';
@@ -102,17 +101,17 @@ export class IllusionResultScene implements IScene {
             });
         }
 
-        // 再战（广告加次）与返回。返回按钮**无条件创建**：
-        // 旧版只在 canAd 时创建，用掉广告加次后（当日第 2 次打完必然如此）
-        // 页面只剩一个禁用按钮，无任何出口，玩家被卡死在结算页（P0-1）。
-        const canAd = !Game.save.daily.illusionAdUsed;
+        // 再战（消耗体力）与返回。返回按钮**无条件创建**：
+        // 旧版只在可再战时创建，用完次数后页面只剩一个禁用按钮，无任何出口（P0-1 教训）。
+        // M14（#42）：进入凭证由「广告加次」改为体力制，1 局 1 点。
+        const canAgain = Game.trial.canStart(Game.save);
         this.againBtn = spriteButton(n, 330, 88, TEXTS.illusionEnterAd, () => this.again(), {
             fontSize: 25,
             variant: 'primary',
             textColor: THEME.void,
         });
         this.againBtn.node.setPosition(-108, -470, 0);
-        if (!canAd) {
+        if (!canAgain) {
             this.againBtn.setEnabled(false);
             this.againBtn.setText(TEXTS.illusionNone);
         }
@@ -125,15 +124,16 @@ export class IllusionResultScene implements IScene {
     }
 
     private again() {
-        Ads.show('illusionExtra', this.node, {
-            onSuccess: () => {
-                if (!Game.illusion.consumeStart(Game.save, 'ad')) return;
-                Game.persist();
-                // 先弹回主页再压新雨：旧栈是 [Home, Rain(已结束), 本页]，
-                // swap 只会换掉本页、把已结束的旧 Rain 留在栈里。
-                Game.stack.popToRoot();
-                Game.stack.push(new RainScene('illusion'));
-            },
-        });
+        if (!Game.trial.canStart(Game.save)) {
+            this.againBtn?.setEnabled(false);
+            this.againBtn?.setText(TEXTS.illusionNone);
+            return;
+        }
+        Game.trial.consumeStart(Game.save);
+        Game.persist();
+        // 先弹回主页再压新雨：旧栈是 [Home, Rain(已结束), 本页]，
+        // swap 只会换掉本页、把已结束的旧 Rain 留在栈里。
+        Game.stack.popToRoot();
+        Game.stack.push(new RainScene('illusion'));
     }
 }

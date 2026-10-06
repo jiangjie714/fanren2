@@ -1,10 +1,12 @@
-/** 心魔幻境系统：每日次数、计分档位奖励、周最佳（数值假设 #29） */
+/**
+ * 心魔幻境/秘境试炼结算系统：计分档位奖励、周最佳（数值假设 #29）。
+ * M14（#42）起进入凭证由「每日 1 免费 + 1 广告」改为体力制（TrialSystem），
+ * 本系统只负责结算与周榜口径；周榜键 illusion_week 语义不变（M9b 零改动）。
+ */
 import { SaveData } from '../saveModel';
 import { ILLUSION, IllusionTier, judgeIllusionScore, judgeIllusionTier, weekKeyOf } from '../config/illusion';
 import { RewardItem } from './BoxSystem';
 import { EconomySystem } from './EconomySystem';
-
-export type IllusionStartKind = 'free' | 'ad' | 'none';
 
 export interface IllusionFinishResult {
     score: number;
@@ -24,25 +26,6 @@ export class IllusionSystem {
         if (save.illusionWeekKey === key) return false;
         save.illusionWeekKey = key;
         save.illusionWeekBest = 0;
-        return true;
-    }
-
-    /** 今日还能否挑战：免费 1 次 → 广告 1 次 → 无 */
-    startKind(save: SaveData): IllusionStartKind {
-        if (!save.daily.illusionFreeUsed) return 'free';
-        if (!save.daily.illusionAdUsed) return 'ad';
-        return 'none';
-    }
-
-    /** 消耗一次次数（kind 由 startKind 决定，调用方在广告成功回调后传 'ad'） */
-    consumeStart(save: SaveData, kind: 'free' | 'ad'): boolean {
-        if (kind === 'free') {
-            if (save.daily.illusionFreeUsed) return false;
-            save.daily.illusionFreeUsed = true;
-            return true;
-        }
-        if (save.daily.illusionAdUsed) return false;
-        save.daily.illusionAdUsed = true;
         return true;
     }
 

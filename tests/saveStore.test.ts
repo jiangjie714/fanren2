@@ -76,7 +76,7 @@ beforeEach(() => {
 describe('SaveStore.load', () => {
     it('无存档时返回 v5 默认档', () => {
         const save = SaveStore.load();
-        expect(save.version).toBe(5);
+        expect(save.version).toBe(6);
         expect(SaveStore.corrupted).toBe(false);
     });
 
@@ -88,7 +88,7 @@ describe('SaveStore.load', () => {
         // 原坏档已隔离备份，便于人工恢复
         expect(h.store[KEY_CORRUPT]).toBe(corrupt);
         // 玩家拿到一份可用新档而非卡死
-        expect(save.version).toBe(5);
+        expect(save.version).toBe(6);
     });
 });
 

@@ -4,8 +4,8 @@
   "imported": true,
   "uuid": "fbb9266a-a851-4826-bd28-7a1486bae57d",
   "files": [
-    ".json",
-    ".jpg"
+    ".jpg",
+    ".json"
   ],
   "subMetas": {
     "6c48a": {
@@ -41,8 +41,8 @@
       "userData": {
         "trimThreshold": 1,
         "rotated": false,
-        "offsetX": 0.0,
-        "offsetY": -0.0,
+        "offsetX": 0,
+        "offsetY": 0,
         "trimX": 0,
         "trimY": 0,
         "width": 720,
@@ -60,17 +60,17 @@
         "meshType": 0,
         "vertices": {
           "rawPosition": [
-            -360.0,
-            -640.0,
+            -360,
+            -640,
             0,
-            360.0,
-            -640.0,
+            360,
+            -640,
             0,
-            -360.0,
-            640.0,
+            -360,
+            640,
             0,
-            360.0,
-            640.0,
+            360,
+            640,
             0
           ],
           "indexes": [
@@ -83,32 +83,32 @@
           ],
           "uv": [
             0,
-            0,
-            720,
-            0,
-            0,
             1280,
             720,
-            1280
+            1280,
+            0,
+            0,
+            720,
+            0
           ],
           "nuv": [
-            0.0,
-            0.0,
-            1.0,
-            0.0,
-            0.0,
-            1.0,
-            1.0,
-            1.0
+            0,
+            0,
+            1,
+            0,
+            0,
+            1,
+            1,
+            1
           ],
           "minPos": [
-            -360.0,
-            -640.0,
+            -360,
+            -640,
             0
           ],
           "maxPos": [
-            360.0,
-            640.0,
+            360,
+            640,
             0
           ]
         },
@@ -128,7 +128,7 @@
   "userData": {
     "type": "sprite-frame",
     "fixAlphaTransparencyArtifacts": false,
-    "hasAlpha": true,
+    "hasAlpha": false,
     "redirect": "fbb9266a-a851-4826-bd28-7a1486bae57d@6c48a"
   }
 }

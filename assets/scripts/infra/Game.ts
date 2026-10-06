@@ -11,6 +11,7 @@ import { ExpeditionSystem } from '../core/systems/ExpeditionSystem';
 import { IllusionSystem } from '../core/systems/IllusionSystem';
 import { QuestSystem } from '../core/systems/QuestSystem';
 import { RainSystem } from '../core/systems/RainSystem';
+import { TrialSystem } from '../core/systems/TrialSystem';
 import { RealmSystem } from '../core/systems/RealmSystem';
 import { TEXTS } from '../core/config/texts';
 import { toast, uinode } from '../ui/ThemeLib';
@@ -39,6 +40,7 @@ export class Game {
     static quests: QuestSystem;
     static expedition: ExpeditionSystem;
     static illusion: IllusionSystem;
+    static trial: TrialSystem;
     static ach: AchievementSystem;
     static social: DouyinSocial;
 
@@ -72,10 +74,12 @@ export class Game {
         this.expedition = new ExpeditionSystem(this.eco, this.rng);
         this.expedition.attachAlchemy(this.alchemy);
         this.illusion = new IllusionSystem(this.eco);
+        this.trial = new TrialSystem();
         this.ach = new AchievementSystem(this.eco);
         this.social = new DouyinSocial();
         this.eco.dailyReset();
         this.illusion.checkWeek(this.save);
+        this.trial.checkWeek(this.save); // M14：秘境赛季周键（周一 0 点换周）
         this.eco.claimMonthlyTicket(); // 月卡每日特权：发 1 张修真宝盒券（#14，购买入口待版号）
         this.ach.check(this.save); // 登录即扫描成就（论道页红点/领取态）
         this.persist();
@@ -125,7 +129,7 @@ export class Game {
     static onForeground() {
         if (!this.save) return;
         const dayChanged = this.eco.dailyReset();
-        const weekChanged = this.illusion.checkWeek(this.save);
+        const weekChanged = this.illusion.checkWeek(this.save) || this.trial.checkWeek(this.save);
         if (dayChanged || weekChanged) {
             // 跨天后补发月卡每日券：与 init 的发放顺序保持一致。
             // 旧版漏调 → 月卡用户跨天必须杀进程重启才拿到券（P0-4）。

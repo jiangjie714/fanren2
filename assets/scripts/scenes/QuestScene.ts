@@ -163,19 +163,16 @@ export class QuestScene implements IScene {
                 btn.setText(TEXTS.questChestLocked(c.at));
             }
         });
-        // 幻境入口
-        const kind = Game.illusion.startKind(Game.save);
+        // 秘境入口（M14 #42：体力制，1 局 1 点；主题按日轮换）
+        const hasStamina = Game.trial.canStart(Game.save);
         this.illusionHint.string = `15 秒强化灵雨 · 无清雨 · 劫雨更疾 ｜ 今日最佳 ${Game.save.daily.illusionBest} 分`;
         if (this.illusionBtn) {
-            if (kind === 'none') {
-                this.illusionBtn.setEnabled(false);
-                this.illusionBtn.setText(TEXTS.illusionNone);
-            } else if (kind === 'ad') {
-                this.illusionBtn.setEnabled(true);
-                this.illusionBtn.setText(TEXTS.illusionEnterAd);
-            } else {
+            if (hasStamina) {
                 this.illusionBtn.setEnabled(true);
                 this.illusionBtn.setText(TEXTS.illusionEnter);
+            } else {
+                this.illusionBtn.setEnabled(false);
+                this.illusionBtn.setText(TEXTS.illusionNone);
             }
         }
     }

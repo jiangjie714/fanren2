@@ -11,6 +11,7 @@ import { BoxSystem } from '../assets/scripts/core/systems/BoxSystem';
 import { QuestSystem } from '../assets/scripts/core/systems/QuestSystem';
 import { ExpeditionSystem } from '../assets/scripts/core/systems/ExpeditionSystem';
 import { IllusionSystem } from '../assets/scripts/core/systems/IllusionSystem';
+import { TrialSystem } from '../assets/scripts/core/systems/TrialSystem';
 import { CombatSystem } from '../assets/scripts/core/systems/CombatSystem';
 import { AlchemySystem } from '../assets/scripts/core/systems/AlchemySystem';
 import { BOXES } from '../assets/scripts/core/config/boxes';
@@ -132,9 +133,10 @@ describe('数值平衡模拟（打印报告，宽松断言防崩坏）', () => {
                 combat.slayRewards(save, dest); // 斩妖胜利结算
                 expedition.resolve(save, 1, 20 * 60_000); // 历练另按目的地概率掉灵草
             }
-            // 幻境 2 次（好手：金 20/连击 12/红 2 → 98 分，60 档内）
+            // 秘境 2 局（好手：金 20/连击 12/红 2 → 98 分，60 档内；M14 体力制，10 点充裕）
+            const trial = new TrialSystem();
             for (let i = 0; i < 2; i++) {
-                illusion.consumeStart(save, i === 0 ? 'free' : 'ad');
+                trial.consumeStart(save);
                 illusion.finish(save, 20, 12, 2);
             }
             // 论武 5 场（裸装口径：不看蓄力广告，胜率 ≈53%）

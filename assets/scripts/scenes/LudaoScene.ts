@@ -7,6 +7,7 @@ import { AudioMgr } from '../infra/AudioMgr';
 import { ACHIEVEMENTS, AchievementConfig } from '../core/config/achievements';
 import { REALMS } from '../core/config/realms';
 import { ILLUSION } from '../core/config/illusion';
+import { STAMINA_MAX } from '../core/config/trial';
 import { TEXTS } from '../core/config/texts';
 import { showDialog } from '../ui/dialog';
 import {
@@ -291,20 +292,24 @@ export class LudaoScene implements IScene {
         fadeIn(card, 12);
         image(card, 'art/ui/icons/icon_illusion/spriteFrame', 64, 64).setPosition(-258, 100, 0);
         label(card, TEXTS.illusionTitle, 30, { bold: true, color: THEME.goldLight }).setPosition(60, 100, 0);
-        label(card, TEXTS.illusionTip, 21, { color: THEME.inkSoft, width: 580, shrink: true }).setPosition(0, 44, 0);
+        // M14 #42：秘境主题按日轮换，体力制进入（1 局 1 点）
+        const theme = Game.trial.themeOf();
+        label(card, `${TEXTS.trialThemeLine(theme.name, theme.desc)} ｜ ${TEXTS.trialStaminaLine(Game.trial.stamina(save), STAMINA_MAX)}`, 21, {
+            color: THEME.inkSoft, width: 580, shrink: true,
+        }).setPosition(0, 44, 0);
         label(card, `今日最佳 ${save.daily.illusionBest} 分 ｜ 本周最佳 ${save.illusionWeekBest} 分 ｜ 历史最佳 ${save.illusionBestEver} 分`, 23, {
             bold: true, color: THEME.paper, width: 600, shrink: true,
         }).setPosition(0, -14, 0);
 
-        const kind = Game.illusion.startKind(save);
+        const hasStamina = Game.trial.canStart(save);
         this.illusionBtn = spriteButton(card, 300, 84, '', () => enterIllusion(this.node), {
             fontSize: 25,
-            variant: kind === 'ad' ? 'secondary' : 'primary',
-            textColor: kind === 'ad' ? THEME.goldLight : THEME.paper,
+            variant: 'primary',
+            textColor: THEME.paper,
         });
         this.illusionBtn.node.setPosition(0, -96, 0);
-        this.illusionBtn.setText(kind === 'none' ? TEXTS.illusionNone : kind === 'ad' ? TEXTS.illusionEnterAd : TEXTS.illusionEnter);
-        if (kind === 'none') this.illusionBtn.setEnabled(false);
+        this.illusionBtn.setText(hasStamina ? TEXTS.illusionEnter : TEXTS.illusionNone);
+        if (!hasStamina) this.illusionBtn.setEnabled(false);
 
         // 段位一览：填补旧版卡片下方的大块留白，同时把「目标分 → 奖励」讲清楚。
         const tierPanel = spritePanel(parent, 660, 340, undefined, THEME.tintPanel);
