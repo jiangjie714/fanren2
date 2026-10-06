@@ -23,6 +23,8 @@ import {
     spritePanel,
     toast,
     uinode,
+    visibleHeight,
+    visibleWidth,
 } from '../ui/ThemeLib';
 import { showDialog } from '../ui/dialog';
 import { animDir, animFrames, spriteAnimation } from '../ui/ThemeLib';
@@ -70,7 +72,8 @@ export class RainScene implements IScene {
 
     onEnter() {
         const n = this.node;
-        n.addComponent(UITransform).setContentSize(DESIGN_W, DESIGN_H);
+        // 触控根节点铺满可见高度：长屏下手指落在上下延伸区也照样能拖动角色
+        n.addComponent(UITransform).setContentSize(visibleWidth(), visibleHeight());
         const targetIndex = Game.save.realmIndex + 1;
         this.session = Game.rain.createSession(targetIndex, Game.eco.monthCardActive, this.mode);
         // 炼丹「速度」四维：放大角色跟随手指的惯性系数（#39，乘算）
@@ -195,10 +198,11 @@ export class RainScene implements IScene {
             outlineWidth: 3,
         }).setPosition(0, -DESIGN_H / 2 + 44, 0);
 
-        this.mindOverlay = uinode('mindFx', n, DESIGN_W, DESIGN_H);
+        // 心魔全屏染色必须铺满可见高度：按 1280 固定会在长屏上下留下两条未染色带
+        this.mindOverlay = uinode('mindFx', n, visibleWidth(), visibleHeight());
         const mg = this.mindOverlay.addComponent(Graphics);
         mg.fillColor = faded(THEME.cinnabarDeep, 46);
-        mg.roundRect(-DESIGN_W / 2, -DESIGN_H / 2, DESIGN_W, DESIGN_H, 0);
+        mg.roundRect(-visibleWidth() / 2, -visibleHeight() / 2, visibleWidth(), visibleHeight(), 0);
         mg.fill();
         this.mindOverlay.active = false;
 

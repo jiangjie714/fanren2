@@ -195,8 +195,12 @@ const h = vi.hoisted(() => {
         get worldPosition() { return this._pos; }
     }
 
+    // 可见尺寸可注入：默认设计分辨率 720×1280，长屏测试把它调成 720×1560
+    // （FIXED_WIDTH 下宽恒 720、高按机型比例延伸，真全面屏就是这种形态）
+    let visibleSize = { width: 720, height: 1280 };
+
     const view = {
-        getVisibleSize: () => ({ width: 720, height: 1280 }),
+        getVisibleSize: () => visibleSize,
         setDesignResolutionSize: () => { },
         setResolutionPolicy: () => { },
         getResolutionPolicy: () => 4,
@@ -228,6 +232,7 @@ const h = vi.hoisted(() => {
 
     // ───────────────── ThemeLib 桩：可观测记录器 ─────────────────
     const registry = {
+        nodes: [] as Array<{ name: string; w: number; h: number }>,
         buttons: [] as Array<{ node: unknown; text: string; onClick: () => void; w: number; h: number; enabled: boolean; comp?: unknown }>,
         iconButtons: [] as Array<{ node: unknown; path: string; onClick: () => void; w: number; h: number }>,
         labels: [] as Array<{ node: unknown; text: string; fontSize: number; comp: unknown }>,
@@ -239,6 +244,8 @@ const h = vi.hoisted(() => {
         stopCalls: stoppedTargets,
     };
     const reset = () => {
+        visibleSize = { width: 720, height: 1280 };
+        registry.nodes.length = 0;
         registry.buttons.length = 0;
         registry.iconButtons.length = 0;
         registry.labels.length = 0;
@@ -273,7 +280,11 @@ const h = vi.hoisted(() => {
         SAFE: { top: 60, bottom: 104 },
         MOTION: { fast: 0.12, base: 0.2, slow: 0.36 },
         THEME,
-        uinode: (name: string, parent: unknown = null, w = 0, h = 0) => mkNode(name, parent, w, h),
+        uinode: (name: string, parent: unknown = null, w = 0, h = 0) => {
+            // 记录尺寸：全屏遮罩必须铺满「可见」高度而非设计高度，断言要用
+            registry.nodes.push({ name, w, h });
+            return mkNode(name, parent, w, h);
+        },
         label: (parent: unknown, text: string, fontSize: number) => {
             const n = mkNode('label', parent);
             const l = n.addComponent(Label) as Label;
@@ -360,8 +371,9 @@ const h = vi.hoisted(() => {
             n.setPosition(dx, dy, 0);
             return n;
         },
-        visibleHeight: () => 1280,
-        visibleWidth: () => 720,
+        // 与真实实现同源：读 view.getVisibleSize()，否则「长屏」测试永远量到 1280
+        visibleHeight: () => visibleSize.height,
+        visibleWidth: () => visibleSize.width,
     };
 
     return {
@@ -373,6 +385,8 @@ const h = vi.hoisted(() => {
         themeStub: ThemeLib,
         registry,
         reset,
+        /** 注入可见尺寸，模拟不同机型（FIXED_WIDTH：宽恒 720，高按屏幕比例延伸） */
+        setVisibleSize: (w: number, height: number) => { visibleSize = { width: w, height }; },
     };
 });
 
@@ -633,6 +647,51 @@ function mkRain(targetIndex: number, mode: RainMode, seed = 7) {
     const result = rs.finish(session);
     return { session, result };
 }
+
+/**
+ * 长屏适配：FIXED_WIDTH 下宽恒 720、高按机型比例延伸（全面屏 ≈1560），而模态遮罩
+ * 若按设计高度 1280 固定，上下各会露出约 140px —— 那段既没压暗、也不拦截点击，
+ * 玩家点上去会穿透触发下层按钮。这里断言所有全屏遮罩铺满「可见」高度。
+ */
+describe('场景集成：长屏模态遮罩铺满（FIXED_WIDTH 穿透点击回归）', () => {
+    const LONG_H = 1560; // iPhone 14 Pro 等全面屏在 720 宽下的可见高度
+
+    function overlay(name: string) {
+        const hit = h.registry.nodes.find((n) => n.name === name);
+        if (!hit) throw new Error(`未创建遮罩 ${name}，现有 uinode：${h.registry.nodes.map((n) => n.name).join(', ')}`);
+        return hit;
+    }
+
+    it('宝箱蓄力遮罩 chargeOverlay 铺满可见高度', () => {
+        h.setVisibleSize(720, LONG_H);
+        bootGame();
+        const box = new BoxScene();
+        box.onEnter();
+        // 直接走真实入口 beginCharge（按压开箱/机缘觅宝都会进这里）
+        (box as unknown as { beginCharge(id: string, mode: 'open'): void })
+            .beginCharge('fansu', 'open');
+        expect(overlay('chargeOverlay').h, `蓄力遮罩未铺满长屏 ${LONG_H}`).toBe(LONG_H);
+    });
+
+    it('宝箱符文遮罩 runeOverlay 铺满可见高度', () => {
+        h.setVisibleSize(720, LONG_H);
+        bootGame();
+        const box = new BoxScene();
+        box.onEnter();
+        (box as unknown as { showRunePhase(id: string, cb: () => void): void })
+            .showRunePhase('fansu', () => { });
+        expect(overlay('runeOverlay').h, `符文遮罩未铺满长屏 ${LONG_H}`).toBe(LONG_H);
+    });
+
+    it('图鉴境界弹窗遮罩 realmDialog 铺满可见高度', () => {
+        h.setVisibleSize(720, LONG_H);
+        bootGame();
+        const col = new CollectionScene();
+        col.onEnter();
+        (col as unknown as { showRealmDialog(i: number): void }).showRealmDialog(0);
+        expect(overlay('realmDialog').h).toBe(LONG_H);
+    });
+});
 
 describe('场景集成：结算页（ResultScene / IllusionResultScene）', () => {
     it('渡劫成功：入账 + 渲染评级与概率明细 + 返回仙府 popToRoot', () => {

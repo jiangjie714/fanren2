@@ -7,8 +7,6 @@ import { TEXTS } from '../core/config/texts';
 import { Share } from '../infra/Share';
 import { showDialog } from '../ui/dialog';
 import {
-    DESIGN_H,
-    DESIGN_W,
     THEME,
     faded,
     fadeIn,
@@ -21,6 +19,8 @@ import {
     spritePanel,
     toast,
     uinode,
+    visibleHeight,
+    visibleWidth,
 } from '../ui/ThemeLib';
 
 const GRADE_COLORS: Record<LingengGrade, Color> = {
@@ -127,10 +127,12 @@ export class CollectionScene implements IScene {
     private showRealmDialog(index: number) {
         const cfg = REALMS[index];
         const reached = Game.save.realmIndex >= index;
-        const layer = uinode('realmDialog', this.node, DESIGN_W, DESIGN_H);
+        // 铺满「可见」尺寸而非设计尺寸：FIXED_WIDTH 下全面屏可见高度可达 ~1560，
+        // 按 1280 固定会让上下各露约 140px —— 那段既没压暗也会穿透点击到下层。
+        const layer = uinode('realmDialog', this.node, visibleWidth(), visibleHeight());
         const dim = layer.addComponent(Graphics);
         dim.fillColor = faded(THEME.void, 162);
-        dim.roundRect(-DESIGN_W / 2, -DESIGN_H / 2, DESIGN_W, DESIGN_H, 0);
+        dim.roundRect(-visibleWidth() / 2, -visibleHeight() / 2, visibleWidth(), visibleHeight(), 0);
         dim.fill();
         layer.addComponent(UIOpacity).opacity = 0;
         tween(layer.getComponent(UIOpacity)!).to(0.12, { opacity: 255 }).start();

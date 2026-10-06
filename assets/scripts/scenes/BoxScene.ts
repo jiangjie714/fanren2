@@ -27,6 +27,7 @@ import {
     toast,
     uinode,
     visibleHeight,
+    visibleWidth,
 } from '../ui/ThemeLib';
 import { hitRune } from '../core/runeHit';
 import { RainScene } from './RainScene';
@@ -302,10 +303,10 @@ export class BoxScene implements IScene {
         this.chargePressT = 0;
         this.chargeOscT = 0;
 
-        const root = uinode('chargeOverlay', this.node, DESIGN_W, DESIGN_H);
+        const root = uinode('chargeOverlay', this.node, visibleWidth(), visibleHeight());
         const dim = root.addComponent(Graphics);
         dim.fillColor = faded(THEME.void, 152);
-        dim.roundRect(-DESIGN_W / 2, -DESIGN_H / 2, DESIGN_W, DESIGN_H, 0);
+        dim.roundRect(-visibleWidth() / 2, -visibleHeight() / 2, visibleWidth(), visibleHeight(), 0);
         dim.fill();
         fadeIn(root, 0);
 
@@ -413,10 +414,11 @@ export class BoxScene implements IScene {
         this.runeCb = cb;
         this.runeNodes = [];
 
-        const root = uinode('runeOverlay', this.node, DESIGN_W, DESIGN_H);
+        // 同 chargeOverlay：铺满可见尺寸，避免长屏上下露白且穿透点击
+        const root = uinode('runeOverlay', this.node, visibleWidth(), visibleHeight());
         const dim = root.addComponent(Graphics);
         dim.fillColor = faded(THEME.void, 152);
-        dim.roundRect(-DESIGN_W / 2, -DESIGN_H / 2, DESIGN_W, DESIGN_H, 0);
+        dim.roundRect(-visibleWidth() / 2, -visibleHeight() / 2, visibleWidth(), visibleHeight(), 0);
         dim.fill();
         fadeIn(root, 0);
 
