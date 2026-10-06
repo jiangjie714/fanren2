@@ -10,6 +10,7 @@ import {
     ButtonHandle,
     DESIGN_H,
     DESIGN_W,
+    ProgressBarHandle,
     THEME,
     animDir,
     animFrames,
@@ -19,6 +20,7 @@ import {
     image,
     label,
     pageBackground,
+    progressBar,
     spriteAnimation,
     spriteButton,
     spritePanel,
@@ -71,6 +73,8 @@ export class HomeScene implements IScene {
     private weaponBtn!: ButtonHandle;
     private realmName!: Label;
     private statLabel!: Label;
+    private collectionLabel!: Label;
+    private collectionBar!: ProgressBarHandle;
     private stage!: Node;
     private charNode!: Node;
     private shownRealm = -1;
@@ -244,6 +248,16 @@ export class HomeScene implements IScene {
         this.weaponBtn.node.setPosition(286, -20, 0);
         railLabel('法器', -70);
 
+        // A11 图鉴进度面板：左下角信息卡，与右侧「法器」同高对称。
+        // 左侧 y=240/110 保持留白——立绘舞台与五入口环形之间的呼吸区，不填满。
+        const colCard = spriteButton(n, 130, 96, '', () => Game.stack.push(new CollectionScene()), { variant: 'secondary' });
+        colCard.node.setPosition(-286, -20, 0);
+        label(colCard.node, '灵根图鉴', 17, { bold: true, color: THEME.goldLight }).setPosition(0, 28, 0);
+        this.collectionLabel = label(colCard.node, '', 22, { bold: true, color: THEME.paper }).getComponent(Label)!;
+        this.collectionLabel.node.setPosition(0, -2, 0);
+        this.collectionBar = progressBar(colCard.node, 110, 16);
+        this.collectionBar.node.setPosition(0, -30, 0);
+
         this.refresh();
     }
 
@@ -296,6 +310,11 @@ export class HomeScene implements IScene {
         const expState = Game.expedition.stateOf(Game.save, Date.now());
         this.expeditionDot.active = expState === 'complete';
         this.ludaoDot.active = Game.ach.claimableCount(Game.save) > 0;
+
+        // A11：图鉴收集进度。合成灵根后从图鉴页返回会走 onResume → 这里刷新。
+        const col = Game.col.progress(Game.save);
+        this.collectionLabel.string = `${col.unlocked}/${col.total}`;
+        this.collectionBar.set(col.total ? col.unlocked / col.total : 0);
     }
 
     /** 境界立绘的日常形态：播该境界待机动画，帧缺失时回退静态立绘（女修回退男修图） */
