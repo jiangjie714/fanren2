@@ -264,7 +264,7 @@ describe('M14 段位轨（#44，M14-3）', () => {
         const save = makeSave();
         save.trial.seasonRank = 'dengfeng'; // 2400 灵石 + 灵石髓2 妖兽丹1 + 碎片2
         const eco = new EconomySystem(save);
-        const alch = new AlchemySystem(save);
+        const alch = new AlchemySystem(eco);
         const bare = new TrialSystem();
         expect(bare.claimSeason(save)).toBeNull(); // 未注入依赖
         const trial = new TrialSystem(eco, alch);

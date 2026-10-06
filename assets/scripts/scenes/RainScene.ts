@@ -457,6 +457,7 @@ export class RainScene implements IScene {
             rate,
             success,
             targetIndex: this.session.targetIndex,
+            daoxin: Game.save.daoxin, // #45：判定时道心（明细对账；此后成功清零/失败 +1）
         }));
     }
 }

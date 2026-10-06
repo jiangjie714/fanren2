@@ -14,7 +14,7 @@ export interface AdPlaceConfig {
 export const AD_PLACES: Record<AdPlace, AdPlaceConfig> = {
     dailyGift:   { place: 'dailyGift',   name: '每日仙缘', location: '首页',        dailyLimit: 1,  reward: '免费凡俗宝盒' },
     purify:      { place: 'purify',      name: '净化劫雨', location: '灵气雨界面',  dailyLimit: -1, reward: '3 秒屏蔽劫雨（单局 1 次）' },
-    protect:     { place: 'protect',     name: '渡劫护道', location: '突破失败结算页', dailyLimit: -1, reward: '保留 50% 修为' },
+    protect:     { place: 'protect',     name: '渡劫护道', location: '突破失败结算页', dailyLimit: -1, reward: '修为仅损一成，道心 +2' },
     doubleXiuwei:{ place: 'doubleXiuwei',name: '修为加倍', location: '开箱结算页',  dailyLimit: -1, reward: '本次修为奖励 ×2' },
     expeditionRecall: { place: 'expeditionRecall', name: '历练召回', location: '历练页', dailyLimit: 1, reward: '立即结束历练并结算' },
     illusionExtra:    { place: 'illusionExtra',    name: '幻境加次', location: '心魔幻境', dailyLimit: 1, reward: '额外 1 次幻境挑战' },

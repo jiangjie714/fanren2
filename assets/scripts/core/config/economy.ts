@@ -12,8 +12,10 @@ export const XIUWEI_PER_LEVEL = 150;
 export const LINGSHI_BONUS_PER_LEVEL = 0.015;
 export const MAX_SMALL_LEVEL = 40;
 
-/** 突破失败：修为清零；护道广告保留 50% */
-export const PROTECT_KEEP_RATIO = 0.5;
+/** 突破失败（M14-4 #45 改造）：修为不再清零，保留 70%（即扣 30%） */
+export const FAIL_XIUWEI_KEEP = 0.7;
+/** 突破失败看护道广告（protect 位）：修为保留 90%（即仅损一成），道心合计 +2 */
+export const PROTECT_XIUWEI_KEEP = 0.9;
 
 /** 中途退出灵气雨：机缘扣除比例 */
 export const QUIT_JIYUAN_LOSS = 0.3;

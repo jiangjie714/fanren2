@@ -229,16 +229,50 @@ describe('PRD 用例 4：突破边界', () => {
         expect(save.xiuwei).toBe(300 + 50 + 30);
     });
 
-    it('突破失败：机缘保留 50%，修为清零；护道广告保留 50% 修为', () => {
+    it('突破失败（#45）：机缘保留 50%，修为保留 70%，道心 +1；护道广告补至仅损一成、道心合计 +2', () => {
         const save = makeSave();
         const eco = new EconomySystem(save);
         eco.addJiyuan(100);
         eco.addXiuwei(300);
         const realm = new RealmSystem(save, eco, new Rng(1));
-        const r1 = realm.fail(false);
+        const r1 = realm.fail();
         expect(save.jiyuan).toBe(50);
-        expect(save.xiuwei).toBe(0);
-        expect(r1.lostXiuwei).toBe(300);
+        expect(save.xiuwei).toBe(210); // 保留 70%
+        expect(r1.lostXiuwei).toBe(90);
+        expect(save.daoxin).toBe(1);
+        // 护道广告：修为补至仅损一成（300×0.9=270）+ 道心再 +1（合计 +2）
+        const r2 = realm.applyProtect(300, r1.lostXiuwei);
+        expect(save.xiuwei).toBe(270);
+        expect(r2.restored).toBe(60);
+        expect(save.daoxin).toBe(2);
+        // 再败一次到道心 3 层：失败不再增层，护道也不再增
+        eco.addJiyuan(100);
+        eco.addXiuwei(300); // 修为 270+300=570
+        realm.fail(); // 保留 70% → 399
+        expect(save.daoxin).toBe(3);
+        const r3 = realm.applyProtect(570, 171);
+        expect(r3.daoxinGain).toBe(0);
+        expect(save.daoxin).toBe(3);
+        expect(save.xiuwei).toBe(513); // 补至 570×0.9
+    });
+
+    it('突破成功清零道心；成功率加成每层 +5% 加算进 clamp 前（#45）', () => {
+        const save = makeSave();
+        save.daoxin = 3;
+        const eco = new EconomySystem(save);
+        eco.addJiyuan(100);
+        const realm = new RealmSystem(save, eco, new Rng(1));
+        // 学徒→练气基础率 0.6（REALMS[1].baseRate）+ 3 层 ×5% = 0.75
+        const rate = realm.computeFinalRate(1, 0, 0, false);
+        expect(rate).toBeCloseTo(0.75, 10);
+        save.daoxin = 1;
+        expect(realm.computeFinalRate(1, 0, 0, false)).toBeCloseTo(0.65, 10);
+        // 加成不越上界
+        save.daoxin = 3;
+        expect(realm.computeFinalRate(1, 0.4, 0, false)).toBe(0.95);
+        // 成功清零
+        realm.succeed(0);
+        expect(save.daoxin).toBe(0);
     });
 
     it('中途退出：机缘扣 30%，修为清零', () => {

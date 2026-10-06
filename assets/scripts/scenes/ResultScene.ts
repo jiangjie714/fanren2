@@ -33,6 +33,8 @@ export interface ResultParams {
     rate: number;
     success: boolean;
     targetIndex: number;
+    /** 突破判定时的道心层数（明细对账用；判定后成功清零/失败 +1 均不改此值） */
+    daoxin?: number;
 }
 
 /** 渡劫结算页：评级、概率明细、状态徽章与主行动保持在同一条视觉链上。 */
@@ -40,6 +42,8 @@ export class ResultScene implements IScene {
     node: Node;
     private p: ResultParams;
     private lostXiuwei = 0;
+    private xwBefore = 0;
+    private daoxinGain = 0;
     private protectedUsed = false;
     private protectBtn: ButtonHandle | null = null;
     private applied = false;
@@ -58,7 +62,12 @@ export class ResultScene implements IScene {
                 Game.realm.succeed(this.p.result.extraXiuwei);
                 AudioMgr.play('success');
             } else {
-                this.lostXiuwei = Game.realm.fail(false).lostXiuwei;
+                // #45：失败瞬间按「不护道」结算（修为保留 70%、道心 +1），存档随时自洽；
+                // 护道广告成功后再经 applyProtect 补至仅损一成、道心合计 +2。
+                this.xwBefore = Game.eco.xiuwei;
+                const f = Game.realm.fail();
+                this.lostXiuwei = f.lostXiuwei;
+                this.daoxinGain = f.daoxinGain;
                 AudioMgr.play('fail');
             }
             Game.persist();
@@ -121,6 +130,9 @@ export class ResultScene implements IScene {
         ];
         if (cb > 0) rows.push({ k: '连击加成', v: `+${Math.round(cb * 100)}%` });
         if (md) rows.push({ k: '心魔干扰', v: '-5%' });
+        // #45 道心加成行：显示突破判定时的层数加成（成功后已清零/失败后已 +1 均不影响对账）
+        const daoUsed = this.p.daoxin ?? 0;
+        if (daoUsed > 0) rows.push({ k: '道心加成', v: `+${daoUsed * 5}%` });
         rows.push({ k: '最终突破率', v: `${Math.round(this.p.rate * 100)}%`, final: true });
         const PITCH = 56;
         const firstRowY = ((rows.length - 1) * PITCH) / 2;
@@ -181,7 +193,12 @@ export class ResultScene implements IScene {
         if (!success) {
             const jyNow = Game.eco.jiyuan;
             const xwNow = Game.eco.xiuwei;
-            label(n, `修为受损 -${this.lostXiuwei}（现存 ${xwNow}） · 机缘残留 ${jyNow}`, 23, {
+            const daoNow = Game.save.daoxin;
+            // 道心提示：本次 +n（已满则提示层数封顶）
+            const daoTip = daoNow >= 3
+                ? ` · 道心已满 ${daoNow}/3`
+                : this.daoxinGain > 0 ? ` · 道心 +${this.daoxinGain}（${daoNow}/3）` : '';
+            label(n, `修为受损 -${this.lostXiuwei}（现存 ${xwNow}） · 机缘残留 ${jyNow}${daoTip}`, 23, {
                 color: THEME.rainRed,
                 width: 580,
                 shrink: true,
@@ -343,11 +360,14 @@ export class ResultScene implements IScene {
         Ads.show('protect', this.node, {
             onSuccess: () => {
                 this.protectedUsed = true;
-                const restored = Math.round(this.lostXiuwei * 0.5);
-                Game.eco.addXiuwei(restored, false);
+                // #45：补至仅损一成 + 道心再 +1（合计 +2，上限 3）
+                const r = Game.realm.applyProtect(this.xwBefore, this.lostXiuwei);
                 Game.persist();
                 this.protectBtn?.setEnabled(false);
-                this.protectBtn?.setText(`已护道 +${restored}`);
+                const total = this.daoxinGain + r.daoxinGain;
+                this.protectBtn?.setText(total > 0
+                    ? `已护道 +${r.restored} · 道心 +${total}`
+                    : `已护道 +${r.restored} · 道心已满`);
             },
         });
     }

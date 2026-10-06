@@ -19,6 +19,12 @@ export const STAMINA_AD_PER_DAY = 3;
 /** 每局消耗 */
 export const STAMINA_COST_PER_RUN = 1;
 
+// ---------- 道心（M14-4，#45） ----------
+/** 道心层数上限（0..3） */
+export const DAOXIN_MAX = 3;
+/** 每层给下次突破的基础成功率加成（加算进 clamp 前，与机缘四维同口径；3 层满 = +15%） */
+export const DAOXIN_RATE_BONUS = 0.05;
+
 /** 秘境主题：按日轮换改变雨滴权重、生成速率、落速与视觉 */
 export interface TrialTheme {
     id: TrialThemeId;
