@@ -28,9 +28,10 @@ writeFileSync('docs/screenshots/m11-profile.png', await page.screenshot());
 console.log('saved m11-profile, canvas=', frames);
 // 点「随机道号」→ 输入框应有值；再点「踏入仙途」
 const design = (dx, dy) => ({ x: 360 + dx, y: 640 - dy });
-await page.mouse.click(design(-130, -330).x, design(-130, -330).y); // 随机道号
+// 两按钮同宽 280、中心 ±148（原 ±130 / 220×300 不同宽，2026-10-06 统一样式后同步改）
+await page.mouse.click(design(-148, -330).x, design(-148, -330).y); // 随机道号
 await new Promise((r) => setTimeout(r, 600));
-await page.mouse.click(design(130, -330).x, design(130, -330).y); // 踏入仙途
+await page.mouse.click(design(148, -330).x, design(148, -330).y); // 踏入仙途
 await new Promise((r) => setTimeout(r, 1500));
 await page.evaluate(() => new Promise((res) => { let n = 0; const tick = () => (++n >= 30) ? res() : requestAnimationFrame(tick); tick(); }));
 writeFileSync('docs/screenshots/m11-profile-confirmed.png', await page.screenshot());
