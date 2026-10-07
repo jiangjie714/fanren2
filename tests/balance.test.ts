@@ -12,6 +12,7 @@ import { QuestSystem } from '../assets/scripts/core/systems/QuestSystem';
 import { ExpeditionSystem } from '../assets/scripts/core/systems/ExpeditionSystem';
 import { IllusionSystem } from '../assets/scripts/core/systems/IllusionSystem';
 import { TrialSystem } from '../assets/scripts/core/systems/TrialSystem';
+import { TRIAL_THEMES, TRIAL_TIERS, RANK_TIERS } from '../assets/scripts/core/config/trial';
 import { CombatSystem } from '../assets/scripts/core/systems/CombatSystem';
 import { AlchemySystem } from '../assets/scripts/core/systems/AlchemySystem';
 import { BOXES } from '../assets/scripts/core/config/boxes';
@@ -85,11 +86,13 @@ describe('数值平衡模拟（打印报告，宽松断言防崩坏）', () => {
      * M9a：典型一日模拟（玩法深化设计.md 八节"幻境经济膨胀"风险）。
      * 口径（对齐真实玩家而非完美脚本）：每日固定开修真箱 12 次、三连层数随机
      * （均值 1.5 层——三连全中虽可 +0.18x，但正期望被"每日次数有限"约束兜底）；
-     * 4 任务全完成 + 2 次历练（秘谷/荒古各一，均斩妖胜利）+ 2 次幻境（好手 98 分）
+     * 4 任务全完成 + 2 次历练（秘谷/荒古各一，均斩妖胜利）+ 秘境 4 局（M14 体力制
+     * 重度口径：劫云主题最坏包络、评分爬档 60→120→180、连胜倍率、翻倍广告 ×3）
      * + 5 场论武（裸装口径，不看蓄力广告）+ 活跃度三箱全领。
-     * 断言：1) 日灵石净收入有界；2) 机缘"直接投放"（活跃箱 50 + 幻境档位 30 +
+     * 断言：1) 日灵石净收入有界；2) 机缘"直接投放"（活跃箱 50 + 秘境档位 30 +
      * 历练事件 0~20 + 斩妖 0~10）有界——宝箱稀有档机缘是玩家驱动产出，不在每日上限口径内。
      * M11 更新：纳入斩妖/论武收入后重新定基线（#10/#38，上限与 docs/数值假设.md 同步）。
+     * M14 终审：纳入秘境产出（#42–#46）后基线 6000→8000、灵材 12→32、机缘 120 维持。
      */
     it('典型一日：灵石净收入有界，机缘直接投放不超每日上限', () => {
         const report: string[] = [];
@@ -133,11 +136,26 @@ describe('数值平衡模拟（打印报告，宽松断言防崩坏）', () => {
                 combat.slayRewards(save, dest); // 斩妖胜利结算
                 expedition.resolve(save, 1, 20 * 60_000); // 历练另按目的地概率掉灵草
             }
-            // 秘境 2 局（好手：金 20/连击 12/红 2 → 98 分，60 档内；M14 体力制，10 点充裕）
+            // 秘境 4 局（M14 体力制重度口径，#42–#46 终审）：体力 10 点充裕；
+            // 主题取劫云（×1.3 最坏系数）作为护栏包络；评分爬档 60→120→180
+            // （每日每档只发一次，第 4 局同档无产出）；连胜 1→4（×1.0/1.2/1.5/1.5）；
+            // 前 3 局用 doubleReward 广告翻倍（每日 3 次，#46）；段位分同步入账。
             const trial = new TrialSystem();
-            for (let i = 0; i < 2; i++) {
+            const jieyun = TRIAL_THEMES.find((t) => t.id === 'jieyun')!;
+            let doubleUsed = 0;
+            for (const [gold, combo, red] of [
+                [17, 2, 0], // 72 分 → 60 档
+                [30, 3, 1], // 123 分 → 120 档
+                [40, 15, 2], // 184 分 → 180 档
+                [40, 15, 2], // 同档无新产出
+            ] as const) {
                 trial.consumeStart(save);
-                illusion.finish(save, 20, 12, 2);
+                const r = illusion.finish(save, gold, combo, red, jieyun);
+                if (r.rewards.length && doubleUsed < 3) {
+                    doubleUsed++;
+                    illusion.applyDouble(save, r.rewards);
+                }
+                trial.settleRank(save, r.score);
             }
             // 论武 5 场（裸装口径：不看蓄力广告，胜率 ≈53%）
             for (let i = 0; i < 5 && combat.canPk(save); i++) {
@@ -157,14 +175,18 @@ describe('数值平衡模拟（打印报告，宽松断言防崩坏）', () => {
             const net = save.lingshi - START;
             report.push(`seed=${seed}: 日灵石净收入=${net} 机缘直接投放=${jiyuanGranted} 灵材获取=${sumMaterials(save) - matAtStart} 结余=${save.lingshi}`);
             expect(net).toBeGreaterThanOrEqual(0);
-            expect(net).toBeLessThanOrEqual(6000);
+            // #38 终审（M14 后重定基线）：旧口径实测 2620–5137（上限 6000）；
+            // 纳入秘境重度口径（三档爬升×劫云1.3×连胜1.5 + 翻倍广告）+1561 后
+            // 实测 4181–6410，上限重定 8000（含段位周奖日均摊前余量）
+            expect(net).toBeLessThanOrEqual(8000);
             expect(jiyuanGranted).toBeLessThanOrEqual(120);
 
             // #38 纳入灵材/丹药消耗口径：当日产出的灵石+灵材投入炼丹/福禄（纯 SINK），
             // 验证封顶机制使投入有界、余额不为负、双资源循环不构成印钞机。
             const matGained = sumMaterials(save) - matAtStart;
-            // 灵材按日有界（斩妖2+历练2 含概率），不构成无限炼材来源
-            expect(matGained).toBeLessThanOrEqual(12);
+            // 灵材按日有界（#42/#46 终审：秘境重度口径爬三档+翻倍 ≈28，斩妖/历练 ≈3），
+            // 不构成无限炼材来源
+            expect(matGained).toBeLessThanOrEqual(32);
             let pills = 0;
             while (alch.canCraft(save, 'chu') === null && pills < 100) {
                 alch.craft(save, 'chu');
@@ -211,5 +233,36 @@ describe('数值平衡模拟（打印报告，宽松断言防崩坏）', () => {
         expect(totalMat).toBeLessThan(500);
         // 与锻体/法器大坑（#38：约 22 万 + 18 万）相比，丹药/福禄是更小且封顶的支线
         expect(totalLs).toBeLessThan(400_000);
+    });
+
+    /**
+     * M14 终审（#42–#46）：秘境产出静态包络（配置推导，不跑模拟）。
+     * 从 TRIAL_TIERS / TRIAL_THEMES / streakMult / RANK_TIERS 推导理论最坏日产出，
+     * 断言其有界且低于"典型一日"护栏余量——未来调参（提档位产出/提倍率/加段位奖）
+     * 若突破包络会在此处爆掉，逼着同步重审护栏②基线。
+     */
+    it('秘境产出静态包络：档位×主题×连胜×翻倍 有界，段位周奖日均摊有限', () => {
+        const maxThemeMult = Math.max(...TRIAL_THEMES.map((t) => t.rewardMult));
+        const maxStreakMult = 2.5; // streakMult 封顶（≥7 连胜）
+        const mult = maxThemeMult * maxStreakMult; // 理论最坏单局倍率 3.25
+        const doubleX = 2; // doubleReward 广告对灵石/灵材再补一份
+        // 档位产出（每日每档只发一次 → 全日上限 = 三档之和），取整逐档对齐实现
+        // （灵石 floor、灵材 ceil；碎片与机缘不吃倍率、不翻倍）
+        const tierLingshi = TRIAL_TIERS.reduce((a, t) => a + Math.floor(t.lingshi * mult), 0);
+        const tierMats = TRIAL_TIERS.reduce(
+            (a, t) => a + Object.keys(t.mats).reduce((x, k) => x + Math.ceil(t.mats[k] * mult), 0), 0,
+        );
+        const tierJiyuan = TRIAL_TIERS.reduce((a, t) => a + t.jiyuan, 0);
+        // 当前配置的理论最坏：灵石 3084 / 灵材 52 / 机缘 30——
+        // 常数即现配置包络，任何调参抬升都会在此爆掉，逼着同步重审护栏②
+        const worstLingshi = tierLingshi * doubleX;
+        const worstMats = tierMats * doubleX;
+        expect(worstLingshi).toBeLessThanOrEqual(3100);
+        expect(worstMats).toBeLessThanOrEqual(52);
+        expect(tierJiyuan).toBeLessThanOrEqual(30);
+        // 段位周奖：最高档（超凡）6000 灵石/周 → 日均摊 ≈858，已含在护栏②的 8000 余量内；
+        // 未来上调周奖须同步复核护栏②
+        const maxWeekly = Math.max(...RANK_TIERS.map((t) => t.lingshi));
+        expect(maxWeekly / 7).toBeLessThanOrEqual(900);
     });
 });
