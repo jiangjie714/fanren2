@@ -78,5 +78,11 @@ const score = await page.evaluate(() => {
 console.log('rewardedTier =', score);
 await shot(score > 0 ? 'result-tiered' : 'result-final');
 
+// 6. 再战一局 → 确认框（消耗 1 体力）截图，随后取消收尾
+await tap(-108, -470);
+await sleep(800);
+await shot('again-confirm');
+await tap(-93, -98); // 取消
+
 console.log(bad.length ? `异常:\n${bad.join('\n')}` : 'no page errors');
 await browser.close();

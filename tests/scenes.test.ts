@@ -802,6 +802,39 @@ describe('场景集成：结算页（ResultScene / IllusionResultScene）', () =
         pop.mockRestore();
     });
 
+    it('再战一局：点击弹确认框（不直接扣体力），确认后才消耗开局，取消不动存档', () => {
+        bootGame();
+        Game.save.trial.stamina = 5;
+        const { result } = mkRain(1, 'illusion', 42);
+        const fin = Game.illusion.finish(Game.save, result.goldCount, result.maxCombo, result.redCount);
+        const s = new IllusionResultScene({ result, rewards: fin.rewards });
+        s.onEnter();
+
+        const again = h.registry.buttons.find((b) => b.text === '再战一局');
+        expect(again, '缺「再战一局」按钮').toBeTruthy();
+        const push = vi.spyOn(Game.stack, 'push').mockImplementation(() => { });
+        again!.onClick();
+        // 弹框阶段：体力未扣、未压栈
+        expect(Game.save.trial.stamina, '弹框阶段就扣了体力').toBe(5);
+        expect(push, '弹框阶段就开局了').not.toHaveBeenCalled();
+
+        // 取消：弹框关闭，存档不动
+        const cancel = h.registry.buttons.find((b) => b.text === '取消');
+        expect(cancel, '确认框缺「取消」按钮').toBeTruthy();
+        cancel!.onClick();
+        expect(Game.save.trial.stamina, '取消后体力被动了').toBe(5);
+        expect(push).not.toHaveBeenCalled();
+
+        // 确认：扣 1 体力并压入新雨局
+        again!.onClick();
+        const confirm = h.registry.buttons.find((b) => b.text === '确认开战');
+        expect(confirm, '确认框缺「确认开战」按钮').toBeTruthy();
+        confirm!.onClick();
+        expect(Game.save.trial.stamina, '确认后未扣 1 体力').toBe(4);
+        expect(push).toHaveBeenCalledWith(expect.any(RainScene));
+        push.mockRestore();
+    });
+
     it('幻境未入档：rewards 为空走降级分支且不崩', () => {
         bootGame();
         const { result } = mkRain(0, 'illusion', 3);

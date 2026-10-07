@@ -8,8 +8,9 @@ import { RewardItem } from '../core/systems/BoxSystem';
 import { decodeIllusionWeek } from '../core/systems/SocialRank';
 import { DouyinSocial, SOCIAL_KEYS, encodeIllusionWeek } from '../infra/DouyinSocial';
 import { ILLUSION } from '../core/config/illusion';
-import { streakMult } from '../core/config/trial';
+import { STAMINA_MAX, streakMult } from '../core/config/trial';
 import { TEXTS } from '../core/config/texts';
+import { showDialog } from '../ui/dialog';
 import {
     ButtonHandle,
     DESIGN_H,
@@ -259,6 +260,27 @@ export class IllusionResultScene implements IScene {
     }
 
     private again() {
+        if (!Game.trial.canStart(Game.save)) {
+            this.againBtn?.setEnabled(false);
+            this.againBtn?.setText(TEXTS.illusionNone);
+            return;
+        }
+        // 体力是稀缺资源（15 分钟 1 点）：扣点前弹确认框防误触，确认后才消耗并开局
+        showDialog(this.node, {
+            title: TEXTS.illusionEnterAd,
+            lines: [
+                TEXTS.illusionAgainCost,
+                `${TEXTS.trialStaminaLine(Game.save.trial.stamina, STAMINA_MAX)}（15 分钟回复 1 点）`,
+            ],
+            buttons: [
+                { text: '取消' },
+                { text: '确认开战', primary: true, cb: () => this.startAgain() },
+            ],
+        });
+    }
+
+    private startAgain() {
+        // 弹框期间体力只会自然回复不会减少，但守卫统一收口，防后续改动破坏不变量
         if (!Game.trial.canStart(Game.save)) {
             this.againBtn?.setEnabled(false);
             this.againBtn?.setText(TEXTS.illusionNone);

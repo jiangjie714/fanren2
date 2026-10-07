@@ -83,8 +83,10 @@ await shot('02-trial-running-theme-bg');
 await sleep(14000);
 await shot('03-trial-result');
 
-// 5. 再战一局（消耗体力）→ 回到秘境（againBtn 位于设计系 (-108,-470)）
+// 5. 再战一局（消耗体力）→ 确认框（取消左/确认右，设计系 ±93,-98）→ 回到秘境（againBtn 位于设计系 (-108,-470)）
 await tap(-108, -470);
+await sleep(800);
+await tap(93, -98); // 确认开战
 await sleep(2000);
 const staminaAfterAgain = await page.evaluate(() => JSON.parse(localStorage.getItem('fanren_save_v1')).trial.stamina);
 console.log('stamina after again =', staminaAfterAgain, '(expect afterEnter-1)');
