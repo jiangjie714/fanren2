@@ -1,4 +1,4 @@
-import { Button, Color, Graphics, Layers, Node, UITransform } from 'cc';
+import { Button, Color, Graphics, Label, Layers, Node, UITransform } from 'cc';
 import { IScene } from '../infra/SceneStack';
 import { Game } from '../infra/Game';
 import { AudioMgr } from '../infra/AudioMgr';
@@ -233,11 +233,29 @@ export class SettingsScene implements IScene {
             label(body, t, 21, { color, align: 'left', width: 600 })
                 .setPosition(-290, 170 - i * 40, 0);
         });
-        const close = spriteButton(panel, 240, 72, '关闭', () => panel.destroy(), {
+        // 广告模拟直通状态行 + 切换按钮（#46 补充）：抖音未嵌广告位期间调试用，
+        // 开启后所有广告位立即按「已播完」发放；提审/上线前必须关闭
+        const simText = () => `广告模拟直通: ${Ads.simAutoSuccess ? '开（所有广告立即发放）' : '关'}｜点下方按钮切换`;
+        const simRow = label(body, simText(), 21, { color: THEME.goldLight, align: 'left', width: 600 });
+        simRow.setPosition(-290, 170 - lines.length * 40, 0);
+        const refreshSim = () => {
+            simRow.getComponent(Label)!.string = simText();
+        };
+        const simToggle = spriteButton(panel, 260, 72, `模拟直通·${Ads.simAutoSuccess ? '开' : '关'}`, () => {
+            Ads.setSimAuto(!Ads.simAutoSuccess);
+            refreshSim();
+            simToggle.setText(`模拟直通·${Ads.simAutoSuccess ? '开' : '关'}`);
+        }, {
+            fontSize: 24,
+            variant: 'secondary',
+            textColor: THEME.paper,
+        });
+        simToggle.node.setPosition(-160, -246, 0);
+        const close = spriteButton(panel, 220, 72, '关闭', () => panel.destroy(), {
             fontSize: 26,
             variant: 'secondary',
             textColor: THEME.paper,
         });
-        close.node.setPosition(0, -246, 0);
+        close.node.setPosition(165, -246, 0);
     }
 }

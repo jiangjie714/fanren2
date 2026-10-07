@@ -134,3 +134,51 @@ describe('Ads single-flight（#P0 防连点重复发奖，Web mock 与抖音端�
         expect(calls[0].host).toBe(host);
     });
 });
+
+describe('Ads 模拟直通（抖音未嵌广告位期间调试开关，提审前必须关闭）', () => {
+    beforeEach(() => {
+        // 用例隔离：确保开关回落到默认关闭（node 环境无 storage，setSimAuto(false) 幂等）
+        Ads.setSimAuto(false);
+    });
+
+    it('默认关闭：正常询问 provider', () => {
+        expect(Ads.simAutoSuccess).toBe(false);
+        Ads.show('dailyGift' as any, {} as any, { onSuccess: () => {} });
+        expect(calls).toHaveLength(1);
+    });
+
+    it('开启后不询问 provider，异步按已播完结算 onSuccess', async () => {
+        Ads.setSimAuto(true);
+        expect(Ads.simAutoSuccess).toBe(true);
+        const onSuccess = vi.fn();
+        const onSkip = vi.fn();
+        Ads.show('trialRevive' as any, {} as any, { onSuccess, onSkip });
+        // 同步阶段：provider 不被触碰（抖音端 ID 全空时本会走 onSkip 卡死流程）
+        expect(calls).toHaveLength(0);
+        expect(onSuccess).not.toHaveBeenCalled();
+        // 异步回调落地：视为已播完
+        await new Promise((r) => setTimeout(r, 0));
+        expect(onSuccess).toHaveBeenCalledTimes(1);
+        expect(onSkip).not.toHaveBeenCalled();
+        expect((Ads as any).inFlight, '直通结算后 inFlight 应解除').toBe(false);
+    });
+
+    it('直通同样受 single-flight 守卫：回调落地前连点不重复发奖', async () => {
+        Ads.setSimAuto(true);
+        const onSuccess = vi.fn();
+        Ads.show('doubleReward' as any, {} as any, { onSuccess });
+        Ads.show('doubleReward' as any, {} as any, { onSuccess });
+        await new Promise((r) => setTimeout(r, 0));
+        expect(onSuccess, '连点只发一次奖').toHaveBeenCalledTimes(1);
+    });
+
+    it('关闭后恢复询问 provider（提审口径回归）', async () => {
+        Ads.setSimAuto(true);
+        Ads.show('protect' as any, {} as any, { onSuccess: () => {} });
+        await new Promise((r) => setTimeout(r, 0));
+        Ads.setSimAuto(false);
+        Ads.show('protect' as any, {} as any, { onSuccess: () => {} });
+        expect(calls, '关闭后应回到真实 provider 路径').toHaveLength(1);
+        calls[0].cb.onSuccess();
+    });
+});

@@ -25,7 +25,8 @@ export class DouyinAdProvider implements AdProvider {
         const adUnitId = DOUYIN_AD_UNIT_IDS[place];
         if (typeof tt === 'undefined' || !adUnitId) {
             // 非抖音端或未配置广告位：视为跳过并发可见反馈（调用方 onSkip toast），
-            // 控制台留痕便于上线前发现漏配
+            // 控制台留痕便于上线前发现漏配。调试期可在 设置页长按 → 广告模拟直通
+            // 让所有广告位立即按已播完发放（提审前必须关闭）。
             console.warn(`[fanren] 广告位未配置或非抖音端，place=${place}`);
             cb.onSkip?.();
             return;
