@@ -5,6 +5,7 @@ import { enterIllusion } from '../infra/enterIllusion';
 import { AudioMgr } from '../infra/AudioMgr';
 import { ACTIVITY_CHESTS, ACTIVITY_MAX, QUESTS, QuestConfig } from '../core/config/quests';
 import { ILLUSION } from '../core/config/illusion';
+import { STAMINA_AD_PER_DAY } from '../core/config/trial';
 import { TEXTS } from '../core/config/texts';
 import { statusBar } from '../ui/StatusBar';
 import { showDialog } from '../ui/dialog';
@@ -165,11 +166,16 @@ export class QuestScene implements IScene {
         });
         // 秘境入口（M14 #42：体力制，1 局 1 点；主题按日轮换）
         const hasStamina = Game.trial.canStart(Game.save);
+        const canRefill = Game.save.trial.adRefillToday < STAMINA_AD_PER_DAY;
         this.illusionHint.string = `15 秒强化灵雨 · 无清雨 · 劫雨更疾 ｜ 今日最佳 ${Game.save.daily.illusionBest} 分`;
         if (this.illusionBtn) {
             if (hasStamina) {
                 this.illusionBtn.setEnabled(true);
                 this.illusionBtn.setText(TEXTS.illusionEnter);
+            } else if (canRefill) {
+                // M14-5：体力不足但补给有余 → 引导广告（enterIllusion 内接 trialStamina）
+                this.illusionBtn.setEnabled(true);
+                this.illusionBtn.setText(TEXTS.trialRefillBtn);
             } else {
                 this.illusionBtn.setEnabled(false);
                 this.illusionBtn.setText(TEXTS.illusionNone);

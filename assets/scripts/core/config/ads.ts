@@ -1,5 +1,7 @@
-/** 表 4：广告配置表（PRD 2.5 / 附件表4 + M8 历练召回/幻境加次 + M11 论武蓄力 + M14 道心护持） */
-export type AdPlace = 'dailyGift' | 'purify' | 'protect' | 'doubleXiuwei' | 'expeditionRecall' | 'illusionExtra' | 'pkCharge' | 'trialRevive';
+/** 表 4：广告配置表（PRD 2.5 / 附件表4 + M8 历练召回 + M11 论武蓄力 + M14 秘境三件套）
+ *  M14-5（#46）：移除 illusionExtra（幻境加次——次数经济已被体力制取代，无调用方），
+ *  新增 trialStamina / trialRevive / doubleReward，总数 7 → 9。 */
+export type AdPlace = 'dailyGift' | 'purify' | 'protect' | 'doubleXiuwei' | 'expeditionRecall' | 'pkCharge' | 'trialRevive' | 'trialStamina' | 'doubleReward';
 
 export interface AdPlaceConfig {
     place: AdPlace;
@@ -17,9 +19,10 @@ export const AD_PLACES: Record<AdPlace, AdPlaceConfig> = {
     protect:     { place: 'protect',     name: '渡劫护道', location: '突破失败结算页', dailyLimit: -1, reward: '修为仅损一成，道心 +2' },
     doubleXiuwei:{ place: 'doubleXiuwei',name: '修为加倍', location: '开箱结算页',  dailyLimit: -1, reward: '本次修为奖励 ×2' },
     expeditionRecall: { place: 'expeditionRecall', name: '历练召回', location: '历练页', dailyLimit: 1, reward: '立即结束历练并结算' },
-    illusionExtra:    { place: 'illusionExtra',    name: '幻境加次', location: '心魔幻境', dailyLimit: 1, reward: '额外 1 次幻境挑战' },
     pkCharge:         { place: 'pkCharge',         name: '论武蓄力', location: '论武切磋', dailyLimit: -1, reward: '本次论武攻防 +10%（单场最多 10 支）' },
     trialRevive:      { place: 'trialRevive',      name: '道心护持', location: '秘境试炼结算页', dailyLimit: -1, reward: '连胜中断时保留连胜层数（单次中断 1 支）' },
+    trialStamina:     { place: 'trialStamina',     name: '体力补给', location: '秘境入口',    dailyLimit: 3,  reward: '体力 +5 点' },
+    doubleReward:     { place: 'doubleReward',     name: '奖励翻倍', location: '秘境试炼结算页', dailyLimit: 3, reward: '本次秘境灵石与灵材奖励 ×2' },
 };
 
 /** 抖音激励广告位 ID（上线前在字节后台申请后填入） */
@@ -29,7 +32,8 @@ export const DOUYIN_AD_UNIT_IDS: Record<AdPlace, string> = {
     protect: '',
     doubleXiuwei: '',
     expeditionRecall: '',
-    illusionExtra: '',
     pkCharge: '',
     trialRevive: '',
+    trialStamina: '',
+    doubleReward: '',
 };

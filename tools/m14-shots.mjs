@@ -111,5 +111,36 @@ const streakAfter = await page.evaluate(() => {
 console.log('streak after 3rd run =', JSON.stringify(streakAfter), '(≥60 → 4 连；<60 → 0 + 护持面板)');
 await shot('05-trial-streak-or-revive');
 
+// 7. M14-5 trialStamina：注入体力 0 → 点秘境入口 → 广告自动成功补 5 点 → 扣 1 进局
+await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem('fanren_save_v1'));
+    s.trial.stamina = 0;
+    s.trial.staminaAt = Date.now();
+    s.trial.adRefillToday = 0;
+    localStorage.setItem('fanren_save_v1', JSON.stringify(s));
+});
+await page.reload({ waitUntil: 'domcontentloaded' });
+await boot();
+await tap(286, 396); // 任务页
+await sleep(900);
+await tap(214, 306); // 秘境入口（体力不足 → trialStamina 广告 3s 倒计时 → 补 5 → 进局扣 1）
+await sleep(6500);
+const staminaAfterRefill = await page.evaluate(() => JSON.parse(localStorage.getItem('fanren_save_v1')).trial.stamina);
+console.log('stamina after refill-enter =', staminaAfterRefill, '(expect 4 = 0 +5 -1)');
+await shot('06-trial-stamina-refill');
+
+// 8. M14-5 doubleReward：等本局结束，若有档位奖励 → 点「奖励翻倍」→ doubleRewardUsed=1
+await sleep(16000);
+const tiered = await page.evaluate(() => JSON.parse(localStorage.getItem('fanren_save_v1')).daily.illusionRewardedTier);
+if (tiered > 0) {
+    await tap(0, -198); // rewardPanel 内翻倍按钮（设计系）
+    await sleep(1200);
+    const used = await page.evaluate(() => JSON.parse(localStorage.getItem('fanren_save_v1')).daily.doubleRewardUsed);
+    console.log('doubleRewardUsed =', used, '(expect 1)');
+    await shot('07-trial-double-reward');
+} else {
+    console.log('本局未入档，跳过 doubleReward 实机断言（单测已覆盖）');
+}
+
 console.log(bad.length ? `异常:\n${bad.join('\n')}` : 'no page errors');
 await browser.close();

@@ -50,6 +50,9 @@ export class IllusionResultScene implements IScene {
     private reviveDesc: Label | null = null;
     private reviveBtn: ButtonHandle | null = null;
     private giveUpBtn: ButtonHandle | null = null;
+    private rewardLabel: Label | null = null;
+    private doubleBtn: ButtonHandle | null = null;
+    private doubled = false;
 
     constructor(params: IllusionResultParams) {
         this.node = new Node('IllusionResultScene');
@@ -107,8 +110,9 @@ export class IllusionResultScene implements IScene {
 
         // 档位奖励 / 道心护持（互斥复用同一面板）
         const isRevive = this.p.interrupted && this.p.streakBefore > 0;
-        const rewardPanel = spritePanel(n, 628, isRevive ? 220 : 150, undefined, THEME.tintPanel);
-        rewardPanel.setPosition(0, isRevive ? -148 : -130, 0);
+        const hasRewards = !isRevive && !!r.rating && this.p.rewards.length > 0;
+        const rewardPanel = spritePanel(n, 628, isRevive ? 220 : hasRewards ? 214 : 150, undefined, THEME.tintPanel);
+        rewardPanel.setPosition(0, isRevive ? -148 : hasRewards ? -142 : -130, 0);
         if (isRevive) {
             this.reviveTitle = label(rewardPanel, TEXTS.trialReviveTitle, 28, { bold: true, color: THEME.goldLight }).getComponent(Label);
             this.reviveTitle!.node.setPosition(0, 74, 0);
@@ -128,13 +132,23 @@ export class IllusionResultScene implements IScene {
                 textColor: THEME.inkSoft,
             });
             this.giveUpBtn.node.setPosition(150, -52, 0);
-        } else if (r.rating && this.p.rewards.length) {
+        } else if (hasRewards) {
             label(rewardPanel, TEXTS.illusionTierReward(String(r.rating)), 24, { bold: true, color: THEME.goldLight })
-                .setPosition(0, 44, 0);
-            label(rewardPanel, this.p.rewards.map((x) => x.label).join('　'), 25, {
+                .setPosition(0, 66, 0);
+            this.rewardLabel = label(rewardPanel, this.p.rewards.map((x) => x.label).join('　'), 25, {
                 bold: true, color: THEME.paper, width: 560, shrink: true,
-            }).setPosition(0, -8, 0);
+            }).getComponent(Label);
+            this.rewardLabel!.node.setPosition(0, 16, 0);
             AudioMgr.play('rare');
+            // M14-5 doubleReward（#46）：灵石与灵材再补一份（碎片/机缘不加倍），每日 3 次
+            if (Game.save.daily.doubleRewardUsed < 3) {
+                this.doubleBtn = spriteButton(rewardPanel, 300, 72, TEXTS.trialDoubleBtn, () => this.double(), {
+                    fontSize: 24,
+                    variant: 'secondary',
+                    textColor: THEME.goldLight,
+                });
+                this.doubleBtn.node.setPosition(0, -56, 0);
+            }
         } else {
             label(rewardPanel, TEXTS.illusionNoTier, 24, { bold: true, color: THEME.inkSoft, width: 560, shrink: true })
                 .setPosition(0, 0, 0);
@@ -216,6 +230,25 @@ export class IllusionResultScene implements IScene {
                 ? TEXTS.trialStreakLine(this.p.streakBefore, streakMult(this.p.streakBefore))
                 : TEXTS.trialStreakLine(0, 1);
         }
+    }
+
+    /** 奖励翻倍（doubleReward 位）：灵石与灵材再补一份，每日 3 次（存档计数） */
+    private double() {
+        if (this.doubled) return;
+        Ads.show('doubleReward', this.node, {
+            onSuccess: () => {
+                if (this.doubled) return;
+                this.doubled = true;
+                const extra = Game.illusion.applyDouble(Game.save, this.p.rewards);
+                Game.save.daily.doubleRewardUsed += 1;
+                Game.persist();
+                if (this.rewardLabel) {
+                    this.rewardLabel.string = [...this.p.rewards, ...extra].map((x) => x.label).join('　');
+                }
+                this.doubleBtn?.setEnabled(false);
+                this.doubleBtn?.setText(TEXTS.trialDoubled);
+            },
+        });
     }
 
     private again() {

@@ -51,7 +51,7 @@ afterEach(() => {
 describe('Ads.auditConfig（上线前广告位配置自检）', () => {
     it('总数与 AD_PLACES 对齐，configured + missing 自洽', () => {
         const a = Ads.auditConfig();
-        expect(a.total, '广告位总数应等于 AD_PLACES 键数（M14 增 trialRevive 后为 8）').toBe(8);
+        expect(a.total, '广告位总数应等于 AD_PLACES 键数（M14-5 移除 illusionExtra、增 trialStamina/doubleReward 后为 9）').toBe(9);
         expect(a.configured + a.missing.length).toBe(a.total);
         expect(a.names).toHaveLength(a.total);
     });
@@ -87,9 +87,9 @@ describe('Ads single-flight（#P0 防连点重复发奖，Web mock 与抖音端�
         Ads.show('dailyGift' as any, host, { onSuccess: () => {}, onSkip: () => {} });
         expect(calls).toHaveLength(1);
         calls[0].cb.onSuccess();
-        Ads.show('illusionExtra' as any, host, { onSuccess: () => {}, onSkip: () => {} });
+        Ads.show('doubleReward' as any, host, { onSuccess: () => {}, onSkip: () => {} });
         expect(calls).toHaveLength(2);
-        expect(calls[1].place).toBe('illusionExtra');
+        expect(calls[1].place).toBe('doubleReward');
     });
 
     it('onSkip 同样解除 inFlight', () => {

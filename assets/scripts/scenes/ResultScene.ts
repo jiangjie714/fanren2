@@ -236,32 +236,44 @@ export class ResultScene implements IScene {
             });
         }
 
+        // 底部双按钮排版：按「宽度 + 24px 间距」整体居中计算，避免手调坐标叠加
+        // （旧版成功分支 -102/112 使炫耀战绩与返回仙府横向叠了 36px）。
+        // y 取 -500：成功+化神时通关成就徽章底缘 -444，留出 11px 呼吸空隙。
+        const dualButtons = (
+            leftW: number, leftLabel: string, onLeft: () => void,
+            leftStyle: { fontSize: number; variant: 'primary' | 'secondary'; textColor: typeof THEME.void },
+            rightW: number, rightLabel: string, onRight: () => void,
+            rightStyle: { fontSize: number; variant: 'primary' | 'secondary'; textColor: typeof THEME.void },
+        ) => {
+            const GAP = 24;
+            const total = leftW + GAP + rightW;
+            const lx = -total / 2 + leftW / 2;
+            const rx = -total / 2 + leftW + GAP + rightW / 2;
+            spriteButton(n, leftW, 90, leftLabel, onLeft, leftStyle).node.setPosition(lx, -500, 0);
+            spriteButton(n, rightW, 90, rightLabel, onRight, rightStyle).node.setPosition(rx, -500, 0);
+        };
+
         if (!success) {
-            this.protectBtn = spriteButton(n, 330, 88, `${TEXTS.protectBtn} · 广告`, () => this.useProtect(), {
+            this.protectBtn = spriteButton(n, 330, 90, `${TEXTS.protectBtn} · 广告`, () => this.useProtect(), {
                 fontSize: 27,
                 variant: 'primary',
                 textColor: THEME.void,
             });
-            this.protectBtn.node.setPosition(-108, -480, 0);
-            const back = spriteButton(n, 206, 88, '返回仙府', () => Game.stack.popToRoot(), {
+            const back = spriteButton(n, 206, 90, '返回仙府', () => Game.stack.popToRoot(), {
                 fontSize: 26,
                 variant: 'secondary',
                 textColor: THEME.paper,
             });
-            back.node.setPosition(166, -480, 0);
+            const total = 330 + 24 + 206;
+            this.protectBtn.node.setPosition(-total / 2 + 165, -500, 0);
+            back.node.setPosition(-total / 2 + 330 + 24 + 103, -500, 0);
         } else {
-            const shareBtn = spriteButton(n, 200, 90, '炫耀战绩', () => this.shareScore(), {
-                fontSize: 26,
-                variant: 'secondary',
-                textColor: THEME.goldLight,
-            });
-            shareBtn.node.setPosition(-102, -480, 0);
-            const back = spriteButton(n, 300, 90, '返回仙府', () => Game.stack.popToRoot(), {
-                fontSize: 30,
-                variant: 'primary',
-                textColor: THEME.void,
-            });
-            back.node.setPosition(112, -480, 0);
+            dualButtons(
+                200, '炫耀战绩', () => this.shareScore(),
+                { fontSize: 26, variant: 'secondary', textColor: THEME.goldLight },
+                300, '返回仙府', () => Game.stack.popToRoot(),
+                { fontSize: 30, variant: 'primary', textColor: THEME.void },
+            );
         }
 
         // 成就扫描放在境界统计写入之后（realm.succeed/fail 在本页 onEnter 顶部），

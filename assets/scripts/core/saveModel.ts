@@ -31,6 +31,8 @@ export interface DailyState {
     illusionRewardedTier: number;
     /** 今日已进行的论武场次（M11 #36） */
     pkUsed: number;
+    /** 今日秘境结算奖励翻倍已用次数（M14-5 #46，上限 3） */
+    doubleRewardUsed: number;
 }
 
 export interface SettingsState {
@@ -216,6 +218,7 @@ export function defaultSave(): SaveData {
             illusionBest: 0,
             illusionRewardedTier: 0,
             pkUsed: 0,
+            doubleRewardUsed: 0,
         },
         monthlyCardExpire: 0,
         settings: { sound: true, bgm: true },

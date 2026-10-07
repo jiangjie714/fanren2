@@ -7,6 +7,8 @@ import { defaultSave, migrate, SaveData } from '../assets/scripts/core/saveModel
 import { TrialSystem } from '../assets/scripts/core/systems/TrialSystem';
 import { EconomySystem } from '../assets/scripts/core/systems/EconomySystem';
 import { AlchemySystem } from '../assets/scripts/core/systems/AlchemySystem';
+import { IllusionSystem } from '../assets/scripts/core/systems/IllusionSystem';
+import { RewardItem } from '../assets/scripts/core/systems/BoxSystem';
 import {
     STAMINA_AD_PER_DAY,
     STAMINA_MAX,
@@ -283,6 +285,37 @@ describe('M14 段位轨（#44，M14-3）', () => {
         const jiyuanBefore = save.jiyuan;
         trial.claimSeason(save);
         expect(save.jiyuan).toBe(jiyuanBefore + 20);
+    });
+});
+
+describe('M14 奖励翻倍（doubleReward，#46/M14-5）', () => {
+    it('灵石与灵材再补一份；碎片与机缘不加倍', () => {
+        const save = makeSave();
+        const eco = new EconomySystem(save);
+        const alch = new AlchemySystem(eco);
+        const illusion = new IllusionSystem(eco, alch);
+        save.fragments['jinmu'] = 0;
+        const before = save.lingshi;
+        const rewards: RewardItem[] = [
+            { kind: 'lingshi', amount: 150, label: '灵石 +150' },
+            { kind: 'material', amount: 2, materialId: 'lingcao', label: '灵草 ×2' },
+            { kind: 'fragment', amount: 1, lingengId: 'jinmu', label: '灵根碎片 ×1' },
+            { kind: 'jiyuan', amount: 10, label: '突破机缘 +10' },
+        ];
+        const extra = illusion.applyDouble(save, rewards);
+        // 只补灵石与灵材两项
+        expect(extra.map((r) => r.kind)).toEqual(['lingshi', 'material']);
+        expect(save.lingshi).toBe(before + 150);
+        expect(save.fortune.materials['lingcao']).toBe(2);
+        expect(save.fragments['jinmu']).toBe(0); // 碎片不加倍
+        expect(save.jiyuan).toBe(defaultSave().jiyuan); // 机缘不加倍
+    });
+
+    it('空奖励清单返回空（未入档局无翻倍效果）', () => {
+        const save = makeSave();
+        const eco = new EconomySystem(save);
+        const illusion = new IllusionSystem(eco);
+        expect(illusion.applyDouble(save, [])).toEqual([]);
     });
 });
 

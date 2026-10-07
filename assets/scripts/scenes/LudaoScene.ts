@@ -7,7 +7,7 @@ import { AudioMgr } from '../infra/AudioMgr';
 import { ACHIEVEMENTS, AchievementConfig } from '../core/config/achievements';
 import { REALMS } from '../core/config/realms';
 import { ILLUSION } from '../core/config/illusion';
-import { STAMINA_MAX, rankBadge, rankById, rankOf } from '../core/config/trial';
+import { STAMINA_AD_PER_DAY, STAMINA_MAX, rankBadge, rankById, rankOf } from '../core/config/trial';
 import { TEXTS } from '../core/config/texts';
 import { showDialog } from '../ui/dialog';
 import {
@@ -302,14 +302,16 @@ export class LudaoScene implements IScene {
         }).setPosition(0, -14, 0);
 
         const hasStamina = Game.trial.canStart(save);
+        const canRefill = save.trial.adRefillToday < STAMINA_AD_PER_DAY;
         this.illusionBtn = spriteButton(card, 300, 84, '', () => enterIllusion(this.node), {
             fontSize: 25,
             variant: 'primary',
             textColor: THEME.paper,
         });
         this.illusionBtn.node.setPosition(0, -96, 0);
-        this.illusionBtn.setText(hasStamina ? TEXTS.illusionEnter : TEXTS.illusionNone);
-        if (!hasStamina) this.illusionBtn.setEnabled(false);
+        // 体力不足但今日补给有余 → 保持可点引导广告（M14-5）；补给用尽才禁用
+        this.illusionBtn.setText(hasStamina ? TEXTS.illusionEnter : canRefill ? TEXTS.trialRefillBtn : TEXTS.illusionNone);
+        if (!hasStamina && !canRefill) this.illusionBtn.setEnabled(false);
 
         // 段位一览：填补旧版卡片下方的大块留白，同时把「目标分 → 奖励」讲清楚。
         const tierPanel = spritePanel(parent, 660, 340, undefined, THEME.tintPanel);

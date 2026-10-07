@@ -111,4 +111,24 @@ export class IllusionSystem {
             streakBefore: score < threshold ? streakBefore : 0,
         };
     }
+
+    /**
+     * 奖励翻倍（doubleReward 位，#46）：对本次已发放的灵石与灵材再补发一份
+     * （碎片与机缘不加倍，同 finish 的倍率口径）。返回追加清单；无可加倍项返回空。
+     * 每日 3 次频控由调用侧经 save.daily.doubleRewardUsed 计数（dailyReset 清零）。
+     */
+    applyDouble(save: SaveData, rewards: RewardItem[]): RewardItem[] {
+        const extra: RewardItem[] = [];
+        for (const r of rewards) {
+            if (r.kind === 'lingshi') {
+                const got = this.eco.addLingshi(r.amount);
+                extra.push({ kind: 'lingshi', amount: got, label: `灵石 +${got}` });
+            } else if (r.kind === 'material') {
+                const n = r.amount;
+                this.alch?.addMaterial(save, r.materialId!, n);
+                extra.push({ kind: 'material', amount: n, materialId: r.materialId, label: `${materialName(r.materialId!)} ×${n}` });
+            }
+        }
+        return extra;
+    }
 }
