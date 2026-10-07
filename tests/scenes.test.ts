@@ -403,7 +403,7 @@ vi.mock('cc', () => h.ccStub);
 vi.mock('../assets/scripts/ui/ThemeLib', () => h.themeStub);
 
 import { Game } from '../assets/scripts/infra/Game';
-import { Node } from 'cc';
+import { Node, UITransform } from 'cc';
 import { LINGENS } from '../assets/scripts/core/config/lingens';
 import { HomeScene } from '../assets/scripts/scenes/HomeScene';
 import { BoxScene } from '../assets/scripts/scenes/BoxScene';
@@ -423,7 +423,7 @@ import { PkBattleScene } from '../assets/scripts/scenes/PkBattleScene';
 import { TEXTS } from '../assets/scripts/core/config/texts';
 import { ResultScene } from '../assets/scripts/scenes/ResultScene';
 import { IllusionResultScene } from '../assets/scripts/scenes/IllusionResultScene';
-import { RainSystem, RainMode } from '../assets/scripts/core/systems/RainSystem';
+import { RainSystem, RainMode, RainResult } from '../assets/scripts/core/systems/RainSystem';
 import { Rng } from '../assets/scripts/core/rng';
 
 /** 装配一个可用的 Game（走真实 Game.init，顺带验证装配链在桩环境下不崩） */
@@ -836,5 +836,51 @@ describe('场景集成：结算页（ResultScene / IllusionResultScene）', () =
         const s = new IllusionResultScene({ result, rewards: [], interrupted: false, streakBefore: 0 });
         s.onEnter();
         expect(h.registry.buttons.some((b) => b.text === '道心护持 · 保留连胜'), '无连胜不应弹护持').toBe(false);
+    });
+
+    it('结算页面板几何：明细面板与奖励/护持面板零重叠（段位分行裁切回归）', () => {
+        bootGame();
+        // M14-3 加入「段位分」第 6 行后纵向预算未重排：明细面板底边与下方奖励面板
+        // 顶边重叠 59px，段位分行正好压在接缝上被裁切。此用例锁定三态布局不回归。
+        const worldY = (n: { getPosition(): { y: number } }) => {
+            let y = 0;
+            for (let p = n as unknown as { getPosition(): { y: number }; parent: unknown } | null; p; p = p.parent as never) {
+                y += p.getPosition().y;
+            }
+            return y;
+        };
+        const mkResult = (score: number, rating: RainResult['rating']): RainResult => ({
+            rating, mode: 'illusion' as RainMode, score, maxCombo: 3, comboBonus: 0,
+            goldBonus: 0, penalty: 0, mindDemon: false, extraXiuwei: 0,
+            goldCount: 17, blueCount: 2, redCount: 1,
+        });
+        /** 从场景根收集 628 宽面板的世界 Y 区间（明细 372 / 奖励态 150|214|220） */
+        const panelBounds = (scene: { node: InstanceType<typeof Node> }) =>
+            (scene.node.children as unknown as Array<{ getComponent(t: unknown): { contentSize: { width: number; height: number } } | null; getPosition(): { y: number } }>)
+                .map((c) => ({ ut: c.getComponent(UITransform as unknown as new () => unknown), y: c.getPosition().y }))
+                .filter(({ ut }) => ut && ut.contentSize.width === 628)
+                .map(({ ut, y }) => ({ top: y + ut.contentSize.height / 2, bottom: y - ut.contentSize.height / 2, h: ut.contentSize.height }))
+                .sort((a, b) => b.top - a.top);
+
+        const cases = [
+            { name: '未入档', result: mkResult(44, null), rewards: [] as never, extra: { rankName: '常徒', rankGained: 0, rankScore: 0 } },
+            { name: '有档', result: mkResult(72, '初入幻境'), rewards: [{ label: '灵石 ×75' }] as never, extra: { rankName: '常徒', rankGained: 12, rankScore: 12 } },
+            { name: '护持', result: mkResult(44, null), rewards: [] as never, extra: { interrupted: true, streakBefore: 4, rankName: '常徒', rankGained: 0, rankScore: 0 } },
+        ];
+        for (const c of cases) {
+            const s = new IllusionResultScene({ result: c.result, rewards: c.rewards, ...c.extra });
+            s.onEnter();
+            const [detail, reward] = panelBounds(s);
+            expect(detail, `${c.name}：未找到明细面板`).toBeTruthy();
+            expect(reward, `${c.name}：未找到奖励/护持面板`).toBeTruthy();
+            expect(detail.h, `${c.name}：明细面板高度应为 372`).toBe(372);
+            // 面板间距 ≥ 20（修复后 28），杜绝再次贴脸/重叠
+            expect(detail.bottom - reward.top, `${c.name}：明细面板底边与奖励面板顶边间距不足`).toBeGreaterThanOrEqual(20);
+            // 段位分行必须完整落在明细面板内（下缘 = 行世界Y − 半行高 26）
+            const rankLabel = h.registry.labels.find((l) => l.text.startsWith('段位分'));
+            expect(rankLabel, `${c.name}：未渲染段位分行`).toBeTruthy();
+            const ly = worldY(rankLabel!.node as never);
+            expect(ly - 26, `${c.name}：段位分行下缘跌破明细面板底边`).toBeGreaterThanOrEqual(detail.bottom);
+        }
     });
 });

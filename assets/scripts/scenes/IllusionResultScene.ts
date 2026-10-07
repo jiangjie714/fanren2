@@ -82,8 +82,11 @@ export class IllusionResultScene implements IScene {
             color: THEME.paper, width: 560, shrink: true,
         }).setPosition(0, 384, 0);
 
-        const detail = spritePanel(n, 628, 420);
-        detail.setPosition(0, 96, 0);
+        // M14-3 回归修复：加入「段位分」第 6 行后原 420 高面板装不下（行距 62 × 6 行
+        // 需要 372+），且底边(-114)与下方奖励面板顶边(-55)重叠 59px，段位分行正好
+        // 压在接缝上被裁切。重排纵向预算：行距 56、面板 372 高上移，6 行全部入面板。
+        const detail = spritePanel(n, 628, 372);
+        detail.setPosition(0, 154, 0);
         fadeIn(detail, 16, 0.05);
         const multText = this.p.mult > 0 ? `×${Math.round(this.p.mult * 10) / 10}` : '';
         const streakText = this.p.interrupted
@@ -102,17 +105,21 @@ export class IllusionResultScene implements IScene {
             streakText,
             rankText,
         ].filter(Boolean);
+        const LINE_STEP = 56;
+        const LINE_TOP = 138; // 面板局部坐标：首行距顶 48，末行距底 44（6 行时）
         lines.forEach((t, i) => {
             const ln = label(detail, t, 26, { color: THEME.paper, align: 'left', width: 440 });
-            ln.setPosition(0, 158 - i * 62, 0);
+            ln.setPosition(0, LINE_TOP - i * LINE_STEP, 0);
             if (t === streakText) this.streakLabel = ln.getComponent(Label);
         });
 
-        // 档位奖励 / 道心护持（互斥复用同一面板）
+        // 档位奖励 / 道心护持（互斥复用同一面板）：顶边统一 -60，
+        // 与明细面板底边(-32)留 28px 间隙；好友对比行、按钮区随之微调
         const isRevive = this.p.interrupted && this.p.streakBefore > 0;
         const hasRewards = !isRevive && !!r.rating && this.p.rewards.length > 0;
-        const rewardPanel = spritePanel(n, 628, isRevive ? 220 : hasRewards ? 214 : 150, undefined, THEME.tintPanel);
-        rewardPanel.setPosition(0, isRevive ? -148 : hasRewards ? -142 : -130, 0);
+        const rewardH = isRevive ? 220 : hasRewards ? 214 : 150;
+        const rewardPanel = spritePanel(n, 628, rewardH, undefined, THEME.tintPanel);
+        rewardPanel.setPosition(0, -60 - rewardH / 2, 0);
         if (isRevive) {
             this.reviveTitle = label(rewardPanel, TEXTS.trialReviveTitle, 28, { bold: true, color: THEME.goldLight }).getComponent(Label);
             this.reviveTitle!.node.setPosition(0, 74, 0);
@@ -165,7 +172,7 @@ export class IllusionResultScene implements IScene {
                     width: 580,
                     shrink: true,
                 });
-                line.setPosition(0, -300, 0);
+                line.setPosition(0, -316, 0);
                 fadeIn(line, 8);
             });
         }
