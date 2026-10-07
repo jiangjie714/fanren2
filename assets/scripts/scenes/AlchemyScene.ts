@@ -52,14 +52,14 @@ export class AlchemyScene implements IScene {
         this.body = uinode('body', n, 720, 1280);
         const save = Game.save;
 
-        // ── 四维本体资质卡（与丹药行等高 100，四维改 4 列横排）──
-        const statCard = spritePanel(this.body, 668, 100, undefined, THEME.tintPanel);
-        statCard.setPosition(0, 280, 0);
+        // ── 四维本体资质卡（高 116：24px 标题距上边框需 ≥10px，100 高只剩 2px 贴边）──
+        const statCard = spritePanel(this.body, 668, 116, undefined, THEME.tintPanel);
+        statCard.setPosition(0, 272, 0);
         fadeIn(statCard, 12);
-        labelL(statCard, '本体资质 · 四维', 24, { bold: true, color: THEME.goldLight }).setPosition(-306, 32, 0);
+        labelL(statCard, '本体资质 · 四维', 24, { bold: true, color: THEME.goldLight }).setPosition(-306, 28, 0);
         const cap = Game.alchemy.statCap(save);
         if (cap > 0) {
-            label(statCard, `当前封顶 ${cap}`, 15, { color: THEME.inkSoft }).setPosition(244, 32, 0);
+            label(statCard, `当前封顶 ${cap}`, 15, { color: THEME.inkSoft }).setPosition(244, 28, 0);
         }
         const rows: Array<[AlchemyStat, string]> = [
             ['wisdom', `${TEXTS.alchemyStatWisdomDesc}${(save.alchemy.wisdom * 0.1).toFixed(1)}%`],
@@ -69,8 +69,8 @@ export class AlchemyScene implements IScene {
         ];
         rows.forEach(([key, effect], i) => {
             const x = -216 + i * 148;
-            label(statCard, `${STAT_NAMES[key]} ${save.alchemy[key]}`, 21, { bold: true, color: THEME.paper }).setPosition(x, 0, 0);
-            label(statCard, effect, 14, { color: THEME.success, width: 140, shrink: true }).setPosition(x, -26, 0);
+            label(statCard, `${STAT_NAMES[key]} ${save.alchemy[key]}`, 21, { bold: true, color: THEME.paper }).setPosition(x, -6, 0);
+            label(statCard, effect, 14, { color: THEME.success, width: 140, shrink: true }).setPosition(x, -32, 0);
         });
 
         // ── 三品灵丹炼制（行距 108 = 行高 100 + 间隙 8，与资质/灵材卡同节奏）──

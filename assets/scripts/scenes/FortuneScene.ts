@@ -52,17 +52,17 @@ export class FortuneScene implements IScene {
         this.body = uinode('body', n, 720, 1280);
         const save = Game.save;
 
-        // ── 当前福禄总加成卡（与福禄行等高 100，三行紧凑排布）──
+        // ── 当前福禄总加成卡（高 116：24px 标题距上边框需 ≥10px，100 高只剩 2px 贴边）──
         const total = Game.alchemy.fortuneBonus(save);
-        const statCard = spritePanel(this.body, 668, 100, undefined, THEME.tintPanel);
-        statCard.setPosition(0, 280, 0);
+        const statCard = spritePanel(this.body, 668, 116, undefined, THEME.tintPanel);
+        statCard.setPosition(0, 272, 0);
         fadeIn(statCard, 12);
-        labelL(statCard, TEXTS.playerFortune, 24, { bold: true, color: THEME.goldLight }).setPosition(-306, 32, 0);
+        labelL(statCard, TEXTS.playerFortune, 24, { bold: true, color: THEME.goldLight }).setPosition(-306, 28, 0);
         labelL(statCard, `${TEXTS.statAtk} +${total.atk}  ·  ${TEXTS.statDef} +${total.def}`, 24, {
             bold: true, color: THEME.paper,
-        }).setPosition(-306, -4, 0);
+        }).setPosition(-306, -8, 0);
         const stats = Game.combat.deriveStats(save);
-        labelL(statCard, `${TEXTS.statPower} ${stats.power}`, 17, { color: THEME.paperDim }).setPosition(-306, -32, 0);
+        labelL(statCard, `${TEXTS.statPower} ${stats.power}`, 17, { color: THEME.paperDim }).setPosition(-306, -36, 0);
 
         // ── 三品福禄炼制（行距 108 = 行高 100 + 间隙 8，与福禄/灵材卡同节奏）──
         FORTUNES.forEach((f, i) => {

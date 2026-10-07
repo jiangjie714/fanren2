@@ -181,23 +181,25 @@ export class IllusionResultScene implements IScene {
         // 再战（消耗体力）与返回。返回按钮**无条件创建**：
         // 旧版只在可再战时创建，用完次数后页面只剩一个禁用按钮，无任何出口（P0-1 教训）。
         // M14（#42）：进入凭证由「广告加次」改为体力制，1 局 1 点。
+        // 双钮等宽 300（330+330 超出 720 设计宽度，300 为两侧留白最舒展的等宽值），
+        // 按「宽度 + 24px 间距」整体居中：±162。
         const canAgain = Game.trial.canStart(Game.save);
-        this.againBtn = spriteButton(n, 330, 88, TEXTS.illusionEnterAd, () => this.again(), {
+        this.againBtn = spriteButton(n, 300, 88, TEXTS.illusionEnterAd, () => this.again(), {
             fontSize: 25,
             variant: 'primary',
             textColor: THEME.void,
         });
-        this.againBtn.node.setPosition(-108, isRevive ? -520 : -470, 0);
+        this.againBtn.node.setPosition(-162, isRevive ? -520 : -470, 0);
         if (!canAgain) {
             this.againBtn.setEnabled(false);
             this.againBtn.setText(TEXTS.illusionNone);
         }
-        const back = spriteButton(n, 206, 88, '返回仙府', () => Game.stack.popToRoot(), {
+        const back = spriteButton(n, 300, 88, '返回仙府', () => Game.stack.popToRoot(), {
             fontSize: 26,
             variant: 'secondary',
             textColor: THEME.paper,
         });
-        back.node.setPosition(166, isRevive ? -520 : -470, 0);
+        back.node.setPosition(162, isRevive ? -520 : -470, 0);
     }
 
     /** 道心护持：看广告保留连胜（单次中断仅 1 支，跳过视同放弃） */
