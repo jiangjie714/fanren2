@@ -20,6 +20,11 @@ export type TrailPersonality = 'swift' | 'iron' | 'blood';
 /** 已可进入轮换的玩法引擎（随分期扩容；派生命中未接入类型时回退 battle） */
 export const AVAILABLE_GAMES: readonly TrailGameId[] = ['battle'];
 
+/** 玩法引擎是否已接入（indexOf 兼容项目 lib target，勿改 includes） */
+export function gameAvailable(g: TrailGameId): boolean {
+    return (AVAILABLE_GAMES as readonly string[]).indexOf(g) >= 0;
+}
+
 export interface TrailMonster {
     id: string;
     name: string;
@@ -165,7 +170,7 @@ export function deriveGame(layer: number): TrailGameId {
     if (lin === TRAIL_LAYERS_PER_CHAPTER) return 'battle';
     const ch = chapterConfig(chapterOf(layer));
     const raw = ch.typePlan[lin - 1];
-    return AVAILABLE_GAMES.includes(raw) ? raw : 'battle';
+    return gameAvailable(raw) ? raw : 'battle';
 }
 
 /** 确定性散列（层号 → 0..n-1；无外部随机源） */

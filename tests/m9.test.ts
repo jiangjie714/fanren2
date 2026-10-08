@@ -25,7 +25,7 @@ describe('M9a 存档 v3 迁移', () => {
             stats: { opens: 30, breakthroughWins: 1, breakthroughFails: 2 },
         };
         const s = migrate(v1);
-        expect(s.version).toBe(6); // M14 存档 v6：迁移后版本随当前模型
+        expect(s.version).toBe(7); // M15 存档 v7：迁移后版本随当前模型
         expect(s.lingshi).toBe(777);
         expect(s.stats.opens).toBe(30);
         expect(s.stats.bestTribScore).toBe(0);

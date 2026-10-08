@@ -142,8 +142,20 @@ export interface TrialState {
     weekRewardClaimed: boolean;
 }
 
+// ---------- v7（M15 妖径，#47） ----------
+
+/** 妖径爬关进度：线性层号单指针，首通状态由 curLayer 推导，零冗余 */
+export interface TrailState {
+    /** 当前可挑战层（= 已通关最高层 +1）；非法值迁移时钳制为 1 */
+    curLayer: number;
+    /** 已领章节大礼的章节号列表（每章一次） */
+    chapterGifts: number[];
+    /** 今日重刷产出计数（5 次护栏，#47；day = 日期键，跨日翻新） */
+    dailyRepeat: { day: string; count: number };
+}
+
 export interface SaveData {
-    version: 6;
+    version: 7;
     lingshi: number;
     xiuwei: number;
     jiyuan: number;
@@ -190,13 +202,16 @@ export interface SaveData {
     trial: TrialState;
     /** 道心层数（0..3），突破失败累积 +1（看 protect 广告 +2），突破成功清零（#45） */
     daoxin: number;
+    // ---------- v7（M15） ----------
+    /** 妖径爬关进度（历练重构，#47） */
+    trail: TrailState;
 }
 
 import { INITIAL_LINGSHI } from './config/economy';
 
 export function defaultSave(): SaveData {
     return {
-        version: 6,
+        version: 7,
         lingshi: INITIAL_LINGSHI,
         xiuwei: 0,
         jiyuan: 0,
@@ -255,6 +270,11 @@ export function defaultSave(): SaveData {
             weekRewardClaimed: false,
         },
         daoxin: 0,
+        trail: {
+            curLayer: 1,
+            chapterGifts: [],
+            dailyRepeat: { day: '', count: 0 },
+        },
     };
 }
 
@@ -267,7 +287,7 @@ export function migrate(raw: unknown): SaveData {
     const d = defaultSave();
     if (!raw || typeof raw !== 'object') return d;
     const r = raw as Record<string, unknown>;
-    if (r.version !== 1 && r.version !== 2 && r.version !== 3 && r.version !== 4 && r.version !== 5 && r.version !== 6) return d;
+    if (r.version !== 1 && r.version !== 2 && r.version !== 3 && r.version !== 4 && r.version !== 5 && r.version !== 6 && r.version !== 7) return d;
     const profile = { ...d.profile, ...(r.profile as object ?? {}) };
     const srcTrial = (r.trial as Partial<TrialState>) ?? {};
     return {
@@ -321,8 +341,30 @@ export function migrate(raw: unknown): SaveData {
             weekRewardClaimed: srcTrial.weekRewardClaimed === true,
         },
         daoxin: Math.min(3, clampIntOr(r.daoxin, 0)),
-        version: 6,
+        // v7：妖径爬关进度。curLayer 非法（0/负/非整数）钳制为 1；
+        // chapterGifts 只保留非负整数并去重有序（损坏数据清洗）；
+        // dailyRepeat.count 非负钳制、day 非字符串回退空串（跨日翻新时自然重置）。
+        trail: migrateTrail(r.trail),
+        version: 7,
     } as SaveData;
+}
+
+/** v7 妖径字段迁移（防手改注入，口径见各字段注释） */
+function migrateTrail(raw: unknown): TrailState {
+    const d = defaultSave().trail;
+    const t = (raw ?? {}) as Partial<TrailState>;
+    const gifts = Array.isArray(t.chapterGifts)
+        ? [...new Set(t.chapterGifts.filter((x): x is number => Number.isInteger(x) && x >= 0))].sort((a, b) => a - b)
+        : [];
+    const rep = (t.dailyRepeat ?? {}) as Partial<TrailState['dailyRepeat']>;
+    return {
+        curLayer: clampIntOr(t.curLayer, 1) < 1 ? 1 : clampIntOr(t.curLayer, 1),
+        chapterGifts: gifts,
+        dailyRepeat: {
+            day: typeof rep.day === 'string' ? rep.day : '',
+            count: clampIntOr(rep.count, 0),
+        },
+    };
 }
 
 function clampInt(v: unknown): number {

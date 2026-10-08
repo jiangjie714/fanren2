@@ -166,7 +166,7 @@ describe('M13 存档 v5 迁移', () => {
             pk: { wins: 5, losses: 2, streak: 1, bestStreak: 3 },
         };
         const d = migrate(v4);
-        expect(d.version).toBe(6);
+        expect(d.version).toBe(7);
         expect(d.lingshi).toBe(500);
         expect(d.profile.name).toBe('青云子');
         expect(d.combat.forging).toBe(3);

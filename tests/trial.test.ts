@@ -319,7 +319,7 @@ describe('M14 奖励翻倍（doubleReward，#46/M14-5）', () => {
     });
 });
 
-describe('M14 存档 v6 迁移', () => {
+describe('M14 存档 v6→v7 迁移', () => {
     it('v5 档升级：补 trial 默认与 daoxin=0，旧数据无损', () => {
         const v5 = { ...defaultSave(), version: 5 } as Record<string, unknown>;
         delete v5.trial;
@@ -327,7 +327,7 @@ describe('M14 存档 v6 迁移', () => {
         v5.lingshi = 4321;
         v5.realmIndex = 3;
         const s = migrate(v5);
-        expect(s.version).toBe(6);
+        expect(s.version).toBe(7);
         expect(s.lingshi).toBe(4321);
         expect(s.realmIndex).toBe(3);
         expect(s.trial.stamina).toBe(STAMINA_MAX);
@@ -351,7 +351,7 @@ describe('M14 存档 v6 迁移', () => {
     it('未知版本（高于当前）重置为新档', () => {
         const bad = { ...defaultSave(), version: 99 };
         const s = migrate(bad);
-        expect(s.version).toBe(6);
+        expect(s.version).toBe(7);
         expect(s.lingshi).not.toBe(999999);
     });
 });

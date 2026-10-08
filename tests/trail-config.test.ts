@@ -147,5 +147,5 @@ describe('M15-T1 奖励表（#47）', () => {
 
 /** M15 过滤口径：非 battle 一律回退 battle（与实现一致） */
 function eff(g: string): string {
-    return AVAILABLE_GAMES.includes(g as never) ? g : 'battle';
+    return (AVAILABLE_GAMES as readonly string[]).indexOf(g) >= 0 ? g : 'battle';
 }
