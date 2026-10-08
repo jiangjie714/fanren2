@@ -51,9 +51,9 @@ export class TrailScene implements IScene {
         pageHeader(n, TEXTS.trailPageTitle(ch.name), () => Game.stack.pop());
         this.bar = statusBar(n, 436);
 
-        // 章节信息卡
+        // 章节信息卡（顶部让位状态栏 y=436：卡顶 389 < 436 不重叠）
         const info = spritePanel(n, 628, 118, undefined, THEME.tintPanel);
-        info.setPosition(0, 474, 0);
+        info.setPosition(0, 330, 0);
         fadeIn(info, 12);
         label(info, `${chapter} 章 · ${ch.name}`, 30, { bold: true, color: THEME.goldLight }).setPosition(0, 32, 0);
         label(info, ch.blurb, 22, { color: THEME.paper, width: 560, shrink: true }).setPosition(0, -8, 0);
@@ -64,7 +64,7 @@ export class TrailScene implements IScene {
         const CELL_W = 300;
         const CELL_H = 96;
         const GAP = 16;
-        const top = 356;
+        const top = 236;
         for (let i = 0; i < TRAIL_LAYERS_PER_CHAPTER; i++) {
             const lin = i + 1;
             const layer = (chapter - 1) * TRAIL_LAYERS_PER_CHAPTER + lin;
