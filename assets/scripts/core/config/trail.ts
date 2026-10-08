@@ -63,7 +63,7 @@ export const TRAIL_CHAPTERS: readonly TrailChapter[] = [
         id: 'qianshan',
         name: '前山小径',
         blurb: '山道妖影初现，正好试剑',
-        bg: 'art/ui/bg_rain/spriteFrame',
+        bg: 'art/ui/bg_trail_qianshan/spriteFrame',
         monsters: [
             { id: 'yaoshu', name: '咬财妖鼠' },
             { id: 'shanyan', name: '山魈' },
@@ -93,7 +93,7 @@ export const TRAIL_CHAPTERS: readonly TrailChapter[] = [
         id: 'migu',
         name: '落霞秘谷',
         blurb: '雾谷深处，妖气渐浓',
-        bg: 'art/ui/bg_trial_jieyun/spriteFrame',
+        bg: 'art/ui/bg_trail_migu/spriteFrame',
         monsters: [
             { id: 'wulang2', name: '霜牙狼王' },
             { id: 'yanluo', name: '谷底妖蛾' },
@@ -121,7 +121,7 @@ export const TRAIL_CHAPTERS: readonly TrailChapter[] = [
         id: 'gudong',
         name: '荒古洞天',
         blurb: '上古遗府，机缘凶险并存',
-        bg: 'art/ui/bg_trial_huanxin/spriteFrame',
+        bg: 'art/ui/bg_trail_huanggu/spriteFrame',
         monsters: [
             { id: 'shiling', name: '石灵卫' },
             { id: 'moxi', name: '墨息蟒' },
