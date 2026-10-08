@@ -228,6 +228,34 @@ export const TRAIL_CHAPTERS: readonly TrailChapter[] = [
         bossSlay: { xiuwei: 3240, jiyuan: 74 },
         gift: { lingshi: 15600, mats: { lingcao: 9, lingshi_core: 7, yaodan_core: 5 }, fragments: 6 },
     },
+    {
+        id: 'fentian',
+        name: '焚天炎海',
+        blurb: '炎海滔天，焚天业火炼魂',
+        bg: 'art/ui/bg_trail_fentian/spriteFrame',
+        monsters: [
+            { id: 'ronggui', name: '熔岩玄龟' },
+            { id: 'huoxi', name: '烈焰火蜥' },
+            { id: 'yanhu', name: '焰尾妖狐' },
+            { id: 'yanxiang', name: '石焰魔像' },
+            { id: 'guiche', name: '九首鬼车' },
+            { id: 'huoya', name: '焚火鸦王' },
+        ],
+        boss: { id: 'zhulong', name: '焚天烛龙' },
+        typePlan: [
+            'battle', 'match3', 'puzzle', 'battle', 'match3',
+            'puzzle', 'battle', 'puzzle', 'battle',
+        ],
+        rewardSections: [
+            [2000, 2650],
+            [2360, 3100],
+            [2830, 3690],
+        ],
+        bossReward: [3010, 4130],
+        fragmentChance: [0.4, 0.6, 0.8],
+        bossSlay: { xiuwei: 4370, jiyuan: 100 },
+        gift: { lingshi: 21100, mats: { lingcao: 11, lingshi_core: 9, yaodan_core: 7 }, fragments: 7 },
+    },
 ];
 
 // ---------- 章节/层换算 ----------
@@ -304,9 +332,9 @@ export interface TrailPuzzleSpec {
     monsterName: string;
     /** 网格边长（第 1 章 3×3，第 2 章起 4×4） */
     size: number;
-    /** 限时秒（3×3=60 / 4×4=75） */
+    /** 限时秒（3×3=60；4×4 自第 2 章 75s 起每章 −4s，60s 触底） */
     timeLimitSec: number;
-    /** 打乱交换步数（size²×3） */
+    /** 打乱交换步数（3–4 章 size²×3，第 5 章起 size²×4） */
     shuffleSteps: number;
 }
 
@@ -316,14 +344,17 @@ export function derivePuzzle(layer: number): TrailPuzzleSpec {
     const ch = chapterConfig(chapter);
     const monster = ch.monsters[hash(layer, 7, ch.monsters.length)];
     const size = chapter <= 1 ? 3 : 4;
+    // 4×4 的时间梯度（M21）：第 2 章 75s 起每章 −4s，60s 触底——补上此前沿 6 章完全恒定的拼图纵深缺口
+    const timeLimitSec = size === 3 ? 60 : Math.max(60, 75 - (chapter - 2) * 4);
+    const shuffleSteps = size * size * (chapter >= 5 ? 4 : 3);
     return {
         chapter,
         layer,
         monsterId: monster.id,
         monsterName: monster.name,
         size,
-        timeLimitSec: size === 3 ? 60 : 75,
-        shuffleSteps: size * size * 3,
+        timeLimitSec,
+        shuffleSteps,
     };
 }
 

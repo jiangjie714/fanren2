@@ -48,6 +48,22 @@ describe('M16-T1 派生扩容', () => {
         expect(TRAIL_CHAPTERS[1].monsters.some((m) => m.id === p2.monsterId)).toBe(true);
     });
 
+    it('M21 拼图时间梯度：第 2 章 75s 起每章 −4s，60s 触底', () => {
+        expect(derivePuzzle(11).timeLimitSec).toBe(75); // ch2
+        expect(derivePuzzle(21).timeLimitSec).toBe(71); // ch3
+        expect(derivePuzzle(31).timeLimitSec).toBe(67); // ch4
+        expect(derivePuzzle(41).timeLimitSec).toBe(63); // ch5
+        expect(derivePuzzle(51).timeLimitSec).toBe(60); // ch6 触底
+        expect(derivePuzzle(61).timeLimitSec).toBe(60); // ch7 仍 60（不再更难）
+    });
+
+    it('M21 打乱步数：第 5 章起由 size²×3 加码至 size²×4', () => {
+        expect(derivePuzzle(31).shuffleSteps).toBe(48); // ch4：16×3
+        expect(derivePuzzle(41).shuffleSteps).toBe(64); // ch5：16×4
+        expect(derivePuzzle(61).shuffleSteps).toBe(64); // ch7
+        expect(derivePuzzle(2).shuffleSteps).toBe(27);  // ch1 3×3：9×3
+    });
+
     it('Boss 关（第 10 层）不派生拼图', () => {
         expect(deriveGame(10)).toBe('battle');
         expect(() => derivePuzzle(10)).not.toThrow();

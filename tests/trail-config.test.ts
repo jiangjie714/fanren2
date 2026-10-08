@@ -182,7 +182,8 @@ describe('M15-T1 奖励表（#47）', () => {
     });
 
     it('M20 第 6 章九霄雷泽：配比 5:3:2 且奖励继续爬升', () => {
-        expect(TRAIL_CHAPTERS.length).toBe(6);
+        // 章节总数用下界断言——新增章节时不必回改历史用例（基线统一见 M21 用例）
+        expect(TRAIL_CHAPTERS.length).toBeGreaterThanOrEqual(6);
         const ch6 = TRAIL_CHAPTERS[5];
         expect(ch6.id).toBe('leize');
         expect(ch6.monsters.length).toBe(6);
@@ -200,6 +201,30 @@ describe('M15-T1 奖励表（#47）', () => {
         expect(chapterScale(6)).toBeLessThan(1.8);
         expect(chapterOf(51)).toBe(6);
         expect(deriveMatch3(51).hp).toBe(38);
+    });
+
+    it('M21 第 7 章焚天炎海：配比 5:3:2 且奖励继续爬升', () => {
+        expect(TRAIL_CHAPTERS.length).toBe(7); // ← 章节总数基线：新增第 8 章时改这里
+        const ch7 = TRAIL_CHAPTERS[6];
+        expect(ch7.id).toBe('fentian');
+        expect(ch7.monsters.length).toBe(6);
+        const count = (g: string) => ch7.typePlan.filter((x) => x === g).length;
+        expect(count('battle')).toBe(4);
+        expect(count('puzzle')).toBe(3);
+        expect(count('match3')).toBe(2);
+        const ch6 = TRAIL_CHAPTERS[5];
+        expect(ch7.rewardSections[2][1]).toBeGreaterThan(ch6.rewardSections[2][1]);
+        expect(ch7.bossReward[1]).toBeGreaterThan(ch6.bossReward[1]);
+        expect(ch7.bossSlay.xiuwei).toBeGreaterThan(ch6.bossSlay.xiuwei);
+        expect(ch7.fragmentChance[2]).toBeGreaterThan(ch6.fragmentChance[2]);
+    });
+
+    it('第 7 章难度触及 1.8 封顶；三消 HP 仍封顶 38 不再加码', () => {
+        expect(chapterScale(7)).toBeCloseTo(1.8);
+        expect(chapterScale(8)).toBeCloseTo(1.8);
+        expect(chapterOf(61)).toBe(7);
+        expect(deriveMatch3(61).hp).toBe(38);
+        expect(deriveMatch3(70).hp).toBe(38);
     });
 
     it('chapterScale：线性 0.15/章，1.8 封顶（M19 由 1.6 抬高，给第 5 章纵深）', () => {
