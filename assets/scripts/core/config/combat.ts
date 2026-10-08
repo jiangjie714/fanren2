@@ -99,6 +99,33 @@ export const SLAY_PLAYER_HP_RATIO = 1.8;
 /** 斩妖胜利后的「战意」：同一事件的灵石产出 ×1.15 */
 export const SLAY_MORALE_BONUS = 0.15;
 
+// ---------- M15 妖径闯关（#47）：SLAY 内核 + 破绽 QTE + 妖怪性格 + Boss 二阶段 ----------
+
+import { TrailPersonality } from './trail';
+
+/** 破绽窗口时长与每阶段窗口数（妖怪血量被打掉 25%/50%/75% 时各开一次；击杀瞬间不设窗） */
+export const TRAIL_QTE_WINDOW_MS = 1500;
+export const TRAIL_QTE_HITS_PER_PHASE = 3;
+/** Boss 二阶段：全参数倍率（满血变身） */
+export const TRAIL_BOSS_PHASE2_MULT = 1.2;
+/** 妖怪性格修正表（层号派生，见 config/trail.deriveBattle） */
+export const TRAIL_PERSONALITY_MODS: Record<TrailPersonality, {
+    /** 反扑间隔倍率 */
+    strikeIntervalMult: number;
+    /** 反扑伤害倍率 */
+    strikeDmgMult: number;
+    /** 血量倍率 */
+    hpMult: number;
+    /** 额外反扑所需斩击数（替代 SLAY_STRIKE_EVERY_TAPS） */
+    strikeEveryTaps: number;
+    /** 噬血狂化：血量低于该比例时反扑间隔再 ×0.5（0 = 无狂化） */
+    frenzyBelow: number;
+}> = {
+    swift: { strikeIntervalMult: 0.7, strikeDmgMult: 0.8, hpMult: 1.0, strikeEveryTaps: 8, frenzyBelow: 0 },
+    iron:  { strikeIntervalMult: 1.0, strikeDmgMult: 1.0, hpMult: 1.3, strikeEveryTaps: 12, frenzyBelow: 0 },
+    blood: { strikeIntervalMult: 1.0, strikeDmgMult: 1.0, hpMult: 1.0, strikeEveryTaps: 8, frenzyBelow: 0.3 },
+};
+
 // ---------- #36 论武（PK）：随机切磋 / 约人切磋 ----------
 
 export const PK_DAILY_LIMIT = 5;
