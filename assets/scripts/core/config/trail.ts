@@ -200,6 +200,34 @@ export const TRAIL_CHAPTERS: readonly TrailChapter[] = [
         bossSlay: { xiuwei: 2400, jiyuan: 55 },
         gift: { lingshi: 11600, mats: { lingcao: 7, lingshi_core: 5, yaodan_core: 4 }, fragments: 5 },
     },
+    {
+        id: 'leize',
+        name: '九霄雷泽',
+        blurb: '九霄雷落，雷泽紫电裂空',
+        bg: 'art/ui/bg_trail_leize/spriteFrame',
+        monsters: [
+            { id: 'zidian', name: '紫电貂' },
+            { id: 'leie', name: '雷泽巨鳄' },
+            { id: 'leixi', name: '雷纹犀' },
+            { id: 'mingying', name: '鸣雷鹰' },
+            { id: 'leijia', name: '雷甲尸将' },
+            { id: 'leiteng', name: '雷泽藤妖' },
+        ],
+        boss: { id: 'leizun', name: '九霄雷尊' },
+        typePlan: [
+            'battle', 'puzzle', 'match3', 'battle', 'puzzle',
+            'match3', 'battle', 'puzzle', 'battle',
+        ],
+        rewardSections: [
+            [1480, 1960],
+            [1750, 2300],
+            [2100, 2730],
+        ],
+        bossReward: [2230, 3060],
+        fragmentChance: [0.35, 0.55, 0.75],
+        bossSlay: { xiuwei: 3240, jiyuan: 74 },
+        gift: { lingshi: 15600, mats: { lingcao: 9, lingshi_core: 7, yaodan_core: 5 }, fragments: 6 },
+    },
 ];
 
 // ---------- 章节/层换算 ----------

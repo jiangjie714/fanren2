@@ -169,7 +169,6 @@ describe('M15-T1 奖励表（#47）', () => {
     });
 
     it('M19 第 5 章玄冥冰原：配比 5:3:2 且奖励继续爬升', () => {
-        expect(TRAIL_CHAPTERS.length).toBe(5);
         const ch5 = TRAIL_CHAPTERS[4];
         expect(ch5.id).toBe('xuanming');
         expect(ch5.monsters.length).toBe(6);
@@ -180,6 +179,27 @@ describe('M15-T1 奖励表（#47）', () => {
         const ch4 = TRAIL_CHAPTERS[3];
         expect(ch5.rewardSections[2][1]).toBeGreaterThan(ch4.rewardSections[2][1]);
         expect(ch5.bossReward[1]).toBeGreaterThan(ch4.bossReward[1]);
+    });
+
+    it('M20 第 6 章九霄雷泽：配比 5:3:2 且奖励继续爬升', () => {
+        expect(TRAIL_CHAPTERS.length).toBe(6);
+        const ch6 = TRAIL_CHAPTERS[5];
+        expect(ch6.id).toBe('leize');
+        expect(ch6.monsters.length).toBe(6);
+        const count = (g: string) => ch6.typePlan.filter((x) => x === g).length;
+        expect(count('battle')).toBe(4);
+        expect(count('puzzle')).toBe(3);
+        expect(count('match3')).toBe(2);
+        const ch5 = TRAIL_CHAPTERS[4];
+        expect(ch6.rewardSections[2][1]).toBeGreaterThan(ch5.rewardSections[2][1]);
+        expect(ch6.bossReward[1]).toBeGreaterThan(ch5.bossReward[1]);
+        expect(ch6.fragmentChance[2]).toBeGreaterThan(ch5.fragmentChance[2]);
+    });
+
+    it('第 6 章难度系数 1.75 未触 1.8 封顶，仍有纵深', () => {
+        expect(chapterScale(6)).toBeLessThan(1.8);
+        expect(chapterOf(51)).toBe(6);
+        expect(deriveMatch3(51).hp).toBe(38);
     });
 
     it('chapterScale：线性 0.15/章，1.8 封顶（M19 由 1.6 抬高，给第 5 章纵深）', () => {
