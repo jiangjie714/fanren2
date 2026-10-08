@@ -11,7 +11,7 @@ export interface QuestConfig {
 export const QUESTS: QuestConfig[] = [
     { id: 'openBoxes',   name: '淬体', desc: '开启宝箱 3 次', target: 3 },
     { id: 'tribulation', name: '问心', desc: '完成 1 场灵气雨（渡劫或幻境）', target: 1 },
-    { id: 'expedition',  name: '行走', desc: '历练归来 1 次', target: 1 },
+    { id: 'expedition',  name: '行走', desc: '妖径通关 1 层', target: 1 },
     { id: 'goldRain',    name: '接引', desc: '累计拾取 15 片金雨', target: 15 },
 ];
 

@@ -117,3 +117,24 @@ describe('M15-T3 依赖降级', () => {
         expect(r!.items.length).toBe(0);
     });
 });
+
+describe('M15-T7 结算奖励翻倍（doubleReward 复用，#46）', () => {
+    it('灵石/灵材再入账一份，碎片/修为/机缘不加倍', () => {
+        const { sys, save, eco } = makeSystem(9);
+        const r = sys.settleWin(save, 1, { morale: false, now: DAY1 })!;
+        const before = eco.lingshi;
+        const extra = sys.applyDouble(save, r.items);
+        expect(extra.length).toBeGreaterThan(0);
+        expect(extra.every((x) => x.kind === 'lingshi' || x.kind === 'material')).toBe(true);
+        expect(eco.lingshi).toBe(before + extra.find((x) => x.kind === 'lingshi')!.amount);
+        // 首通含 xiuwei（Boss 层）也不会翻倍——items 里只应回灵石/灵材
+        const frag = extra.find((x) => x.kind === 'fragment');
+        expect(frag).toBeUndefined();
+    });
+
+    it('未注入 eco 时 applyDouble 返回空', () => {
+        const save = makeSave();
+        const sys = new TrailSystem(undefined, undefined, new Rng(3));
+        expect(sys.applyDouble(save, [{ kind: 'lingshi', amount: 10, label: '' }])).toEqual([]);
+    });
+});

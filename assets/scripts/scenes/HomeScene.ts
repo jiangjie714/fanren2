@@ -30,7 +30,7 @@ import {
 } from '../ui/ThemeLib';
 import { BoxScene } from './BoxScene';
 import { CollectionScene } from './CollectionScene';
-import { ExpeditionScene } from './ExpeditionScene';
+import { TrailScene } from './TrailScene';
 import { LudaoScene } from './LudaoScene';
 import { QuestScene } from './QuestScene';
 import { RainScene } from './RainScene';
@@ -65,9 +65,8 @@ export class HomeScene implements IScene {
     private breakBtn!: ButtonHandle;
     private giftBtn!: ButtonHandle;
     private questBtn!: ButtonHandle;
-    private expeditionBtn!: ButtonHandle;
+    private trailBtn!: ButtonHandle;
     private questDot!: Node;
-    private expeditionDot!: Node;
     private ludaoBtn!: ButtonHandle;
     private ludaoDot!: Node;
     private weaponBtn!: ButtonHandle;
@@ -232,10 +231,9 @@ export class HomeScene implements IScene {
         railLabel('修行', 318);
         this.questDot = makeRedDot(n, 310, 394);
 
-        this.expeditionBtn = iconButton(n, 'art/ui/icons/icon_expedition/spriteFrame', () => Game.stack.push(new ExpeditionScene()), 72, 72);
-        this.expeditionBtn.node.setPosition(286, 240, 0);
-        railLabel('历练', 188);
-        this.expeditionDot = makeRedDot(n, 310, 264);
+        this.trailBtn = iconButton(n, 'art/ui/icons/icon_expedition/spriteFrame', () => Game.stack.push(new TrailScene()), 72, 72);
+        this.trailBtn.node.setPosition(286, 240, 0);
+        railLabel('妖径', 188);
 
         // M9a 论道入口：排行（降级版）/ 论武 / 幻境 / 成就
         this.ludaoBtn = iconButton(n, 'art/ui/icons/icon_ludao/spriteFrame', () => Game.stack.push(new LudaoScene()), 72, 72);
@@ -304,11 +302,9 @@ export class HomeScene implements IScene {
         this.breakBtn.setText(can ? `冲击境界 · ${next!.name}` : '机缘未满 · 持续修行');
         this.giftBtn.node.active = !Game.save.daily.dailyGiftUsed;
 
-        // M8 红点：修行 = 有可领的活跃度宝箱；历练 = 已归来待抉择
+        // M8 红点：修行 = 有可领的活跃度宝箱
         const chestClaimable = ACTIVITY_CHESTS.some((c) => Game.quests.canClaimChest(Game.save, c.at));
         this.questDot.active = chestClaimable;
-        const expState = Game.expedition.stateOf(Game.save, Date.now());
-        this.expeditionDot.active = expState === 'complete';
         this.ludaoDot.active = Game.ach.claimableCount(Game.save) > 0;
 
         // A11：图鉴收集进度。合成灵根后从图鉴页返回会走 onResume → 这里刷新。

@@ -81,11 +81,9 @@ export class EconomySystem {
         this.save.daily.dailyGiftUsed = false;
         this.save.daily.monthlyClaimed = false;
         this.save.daily.lingshiAidCount = 0;
-        // v2（M8）：任务/活跃度/历练/幻境的每日状态一并重置（数值假设 #27–#29）
+        // v2（M8）：任务/活跃度/幻境的每日状态一并重置（数值假设 #27–#29）
         this.save.daily.questProgress = {};
         this.save.daily.activityClaimed = [];
-        this.save.daily.expeditionUsed = 0;
-        this.save.daily.expeditionRecallUsed = false;
         this.save.daily.illusionFreeUsed = false;
         this.save.daily.illusionAdUsed = false;
         this.save.daily.illusionBest = 0;

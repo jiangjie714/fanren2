@@ -135,6 +135,25 @@ export class TrailSystem {
         return { kind: 'repeat', items, chapterGiftItems: [] };
     }
 
+    /**
+     * 结算奖励翻倍（doubleReward 位复用，#46）：灵石与灵材再入账一份，
+     * 碎片/修为/机缘不加倍。依赖未注入时返回空清单。
+     */
+    applyDouble(save: SaveData, items: RewardItem[]): RewardItem[] {
+        if (!this.eco) return [];
+        const extra: RewardItem[] = [];
+        for (const it of items) {
+            if (it.kind === 'lingshi') {
+                const got = this.eco.addLingshi(it.amount);
+                extra.push({ kind: 'lingshi', amount: got, label: `灵石 +${got}` });
+            } else if (it.kind === 'material') {
+                this.alch?.addMaterial(save, it.materialId!, it.amount);
+                extra.push({ kind: 'material', amount: it.amount, materialId: it.materialId, label: it.label });
+            }
+        }
+        return extra;
+    }
+
     /** 跨日翻新重刷计数（本地日期键，同 daily 重置口径） */
     private flipRepeatDay(save: SaveData, now: Date): void {
         const key = todayString(now);

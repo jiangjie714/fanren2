@@ -4,7 +4,6 @@ import { SaveData } from '../saveModel';
 import { AlchemySystem } from './AlchemySystem';
 import {
     FORGING_MAX_LEVEL,
-    MONSTERS,
     NAME_PREFIXES,
     NAME_SUFFIXES,
     PK_DAILY_LIMIT,
@@ -17,20 +16,11 @@ import {
     PK_WIN_LINGSHI,
     PK_WIN_XIUWEI_RATIO,
     REALM_COMBAT,
-    SLAY_HP_ATK_RATIO,
-    SLAY_PLAYER_HP_BASE,
-    SLAY_PLAYER_HP_RATIO,
-    SLAY_STRIKE_ATK_RATIO,
-    SLAY_STRIKE_DEF_RATIO,
-    SLAY_TAP_ATK_RATIO,
     WEAPONS,
     forgingCost,
     forgingFactor,
     pkChargeFactor,
 } from '../config/combat';
-import { DestId } from '../config/expeditions';
-import { materialName } from '../config/alchemy';
-import { fragmentPool } from '../config/lingens';
 import { EconomySystem } from './EconomySystem';
 import { RewardItem } from './BoxSystem';
 
@@ -135,70 +125,7 @@ export class CombatSystem {
         return true;
     }
 
-    // ---------- #35 斩妖 ----------
-
-    monsterOf(dest: DestId) {
-        return MONSTERS[dest];
-    }
-
-    slayMonsterMaxHp(save: SaveData): number {
-        return Math.max(10, Math.round(this.deriveStats(save).atk * SLAY_HP_ATK_RATIO));
-    }
-
-    slayPlayerMaxHp(save: SaveData): number {
-        const s = this.deriveStats(save);
-        return Math.max(30, Math.round(SLAY_PLAYER_HP_BASE + (s.atk + s.def) * SLAY_PLAYER_HP_RATIO));
-    }
-
-    /** 单次斩击伤害 */
-    slayTapDamage(save: SaveData): number {
-        return Math.max(1, Math.round(this.deriveStats(save).atk * SLAY_TAP_ATK_RATIO * this.rng.range(0.85, 1.15)));
-    }
-
-    /** 妖兽反扑伤害（防御减伤后，保底 1） */
-    slayStrikeDamage(save: SaveData): number {
-        const s = this.deriveStats(save);
-        const raw = s.atk * SLAY_STRIKE_ATK_RATIO - s.def * SLAY_STRIKE_DEF_RATIO;
-        return Math.max(1, Math.round(raw * this.rng.range(0.9, 1.1)));
-    }
-
-    /**
-     * 斩妖胜利结算：按目的地发奖并入账。失败不调用、无惩罚。
-     * fragmentChance 命中时发 1 枚凡俗池碎片。
-     * M13：斩妖另掉落灵材（妖兽丹/灵石髓），供炼丹/福禄炼制使用（#41）。
-     */
-    slayRewards(save: SaveData, dest: DestId): RewardItem[] {
-        const cfg = MONSTERS[dest];
-        const items: RewardItem[] = [];
-        const got = this.eco.addLingshi(this.rng.int(cfg.reward.lingshi[0], cfg.reward.lingshi[1]));
-        items.push({ kind: 'lingshi', amount: got, label: `灵石 +${got}` });
-        const xw = this.eco.addXiuwei(cfg.reward.xiuwei);
-        items.push({ kind: 'xiuwei', amount: xw, label: `修为 +${xw}` });
-        if (cfg.reward.jiyuan) {
-            this.eco.addJiyuan(cfg.reward.jiyuan);
-            items.push({ kind: 'jiyuan', amount: cfg.reward.jiyuan, label: `突破机缘 +${cfg.reward.jiyuan}` });
-        }
-        if (this.rng.chance(cfg.reward.fragmentChance)) {
-            const pool = fragmentPool('fansu');
-            const id = pool[this.rng.int(0, pool.length - 1)];
-            save.fragments[id] = (save.fragments[id] ?? 0) + 1;
-            items.push({ kind: 'fragment', amount: 1, lingengId: id, label: '灵根碎片 ×1' });
-        }
-        // 灵材掉落：妖兽必掉妖兽丹（高品炼材），中高目的地另掉灵石髓
-        const mat = this.slayMaterials(dest);
-        if (mat) {
-            this.alch?.addMaterial(save, mat, 1);
-            items.push({ kind: 'material', amount: 1, materialId: mat, label: `灵材 · ${materialName(mat)} ×1` });
-        }
-        return items;
-    }
-
-    /** 斩妖掉落的灵材（按目的地档次） */
-    private slayMaterials(dest: DestId): string | null {
-        if (dest === 'qianshan') return this.rng.chance(0.5) ? 'lingcao' : null;
-        if (dest === 'migu') return this.rng.chance(0.8) ? 'lingshi_core' : null;
-        return 'yaodan_core'; // 荒古洞天：必掉妖兽丹
-    }
+    // ---------- #35 斩妖（M15 起由妖径 TrailBattleSystem 承接，SLAY 公式常量保留于 config/combat） ----------
 
     // ---------- #36 论武（PK） ----------
 

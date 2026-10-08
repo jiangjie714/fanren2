@@ -1,5 +1,4 @@
-/** 存档模型 v6：v5 字段 + M14 秘境试炼（体力/连胜/段位）与道心，字段与 docs/数值假设.md 对齐 */
-import { DestId } from './config/expeditions';
+/** 存档模型 v7：v6 字段 + M15 妖径爬关（trail），移除旧历练挂机态（M15 历练重构，#47） */
 import { STAMINA_MAX, STAMINA_AD_PER_DAY } from './config/trial';
 import { weekKeyOf } from './config/illusion';
 
@@ -17,10 +16,6 @@ export interface DailyState {
     questProgress: Record<string, number>;
     /** 已领取的活跃度宝箱档位（[30, 60, 100] 的子集） */
     activityClaimed: number[];
-    /** 今日已出发历练次数 */
-    expeditionUsed: number;
-    /** 今日历练广告召回是否已用 */
-    expeditionRecallUsed: boolean;
     /** 今日心魔幻境免费次数是否已用 */
     illusionFreeUsed: boolean;
     /** 今日心魔幻境广告加次是否已用 */
@@ -60,13 +55,6 @@ export interface AchievementState {
     reached: string[];
     /** 已领取奖励的成就 id */
     claimed: string[];
-}
-
-export interface ExpeditionState {
-    /** 进行中的目的地；null = 空闲 */
-    dest: DestId | null;
-    /** 出发时间（epoch ms） */
-    startedAt: number;
 }
 
 // ---------- v4（M11 捏人 / 战斗属性 / 论武） ----------
@@ -174,8 +162,6 @@ export interface SaveData {
     stats: SaveStats;
     /** 修真宝盒券（活跃度宝箱获得，免费开 1 次修真宝盒；不入每日重置） */
     xiuzhenTickets: number;
-    /** 进行中的历练 */
-    expedition: ExpeditionState;
     /** 幻境本周最佳分（周榜上报用，M9b） */
     illusionWeekBest: number;
     /** 幻境周键（本周一日期，跨周清零） */
@@ -226,8 +212,6 @@ export function defaultSave(): SaveData {
             lingshiAidCount: 0,
             questProgress: {},
             activityClaimed: [],
-            expeditionUsed: 0,
-            expeditionRecallUsed: false,
             illusionFreeUsed: false,
             illusionAdUsed: false,
             illusionBest: 0,
@@ -247,7 +231,6 @@ export function defaultSave(): SaveData {
             lingshiEarned: 0,
         },
         xiuzhenTickets: 0,
-        expedition: { dest: null, startedAt: 0 },
         illusionWeekBest: 0,
         illusionWeekKey: '',
         illusionBestEver: 0,
@@ -297,7 +280,6 @@ export function migrate(raw: unknown): SaveData {
         settings: { ...d.settings, ...(r.settings as object ?? {}) },
         stats: { ...d.stats, ...(r.stats as object ?? {}) },
         achievements: { ...d.achievements, ...(r.achievements as object ?? {}) },
-        expedition: { ...d.expedition, ...(r.expedition as object ?? {}) },
         fragments: { ...(r.fragments as object ?? {}) },
         unlocked: Array.isArray(r.unlocked) ? (r.unlocked as string[]) : [],
         profile: {

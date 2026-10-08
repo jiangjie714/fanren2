@@ -1,5 +1,4 @@
-/** M11 战斗玩法配置：攻防属性 / 锻体 / 法器 / 斩妖 / 论武（数值假设 #32–#37） */
-import { DestId } from './expeditions';
+/** M11 战斗玩法配置：攻防属性 / 锻体 / 法器 / 斩妖公式 / 论武（数值假设 #32–#37） */
 
 // ---------- #33 攻防属性：境界基础 + 锻体系数 + 法器加值 ----------
 
@@ -51,37 +50,7 @@ export const WEAPONS: WeaponConfig[] = [
     { tier: 5, name: '诛仙古剑',   atk: 4_600, def: 2_300, cost: 130_000 },
 ];
 
-// ---------- #35 斩妖：历练归来拦路妖兽（点按斩击） ----------
-
-export interface SlayReward {
-    lingshi: [number, number];
-    xiuwei: number;
-    jiyuan?: number;
-    /** 灵根碎片（凡俗池 ×1）出现概率 */
-    fragmentChance: number;
-}
-
-export interface MonsterConfig {
-    dest: DestId;
-    name: string;
-    intro: string;
-    reward: SlayReward;
-}
-
-export const MONSTERS: Record<DestId, MonsterConfig> = {
-    qianshan: {
-        dest: 'qianshan', name: '咬财妖鼠', intro: '一只妖鼠拦在山道中央，盯着你的储物袋吱吱作响。',
-        reward: { lingshi: [40, 80], xiuwei: 25, fragmentChance: 0.1 },
-    },
-    migu: {
-        dest: 'migu', name: '落霞雾狼', intro: '雾气里窜出一头灰狼，双目泛着幽光，封住了去路。',
-        reward: { lingshi: [120, 200], xiuwei: 80, fragmentChance: 0.3 },
-    },
-    gudong: {
-        dest: 'gudong', name: '荒古石魔', intro: '洞府深处的石像轰然转身，掌风裹着上古煞气压来。',
-        reward: { lingshi: [280, 420], xiuwei: 200, jiyuan: 5, fragmentChance: 0.5 },
-    },
-};
+// ---------- #35 斩妖公式（旧历练拦路妖兽 → M15 起由妖径 TrailBattleSystem 复用） ----------
 
 /** 斩妖血量 = 攻击 ×4.5（约 15 次斩击） */
 export const SLAY_HP_ATK_RATIO = 4.5;

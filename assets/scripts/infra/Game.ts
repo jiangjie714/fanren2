@@ -7,10 +7,10 @@ import { BoxSystem } from '../core/systems/BoxSystem';
 import { CollectionSystem } from '../core/systems/CollectionSystem';
 import { CombatSystem } from '../core/systems/CombatSystem';
 import { EconomySystem } from '../core/systems/EconomySystem';
-import { ExpeditionSystem } from '../core/systems/ExpeditionSystem';
 import { IllusionSystem } from '../core/systems/IllusionSystem';
 import { QuestSystem } from '../core/systems/QuestSystem';
 import { RainSystem } from '../core/systems/RainSystem';
+import { TrailSystem } from '../core/systems/TrailSystem';
 import { TrialSystem } from '../core/systems/TrialSystem';
 import { RealmSystem } from '../core/systems/RealmSystem';
 import { TEXTS } from '../core/config/texts';
@@ -38,7 +38,8 @@ export class Game {
     static rain: RainSystem;
     static col: CollectionSystem;
     static quests: QuestSystem;
-    static expedition: ExpeditionSystem;
+    /** M15 妖径（历练重构）：爬关进度/结算/重刷护栏 */
+    static trail: TrailSystem;
     static illusion: IllusionSystem;
     static trial: TrialSystem;
     static ach: AchievementSystem;
@@ -71,8 +72,7 @@ export class Game {
         this.box = new BoxSystem(this.save, this.eco, this.rng);
         this.rain = new RainSystem(this.rng);
         this.quests = new QuestSystem(this.eco);
-        this.expedition = new ExpeditionSystem(this.eco, this.rng);
-        this.expedition.attachAlchemy(this.alchemy);
+        this.trail = new TrailSystem(this.eco, this.alchemy, this.rng);
         this.illusion = new IllusionSystem(this.eco, this.alchemy);
         this.trial = new TrialSystem(this.eco, this.alchemy);
         this.ach = new AchievementSystem(this.eco);

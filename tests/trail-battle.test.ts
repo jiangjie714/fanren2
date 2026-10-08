@@ -169,3 +169,28 @@ describe('M15-T4 Boss 二阶段', () => {
         expect(doomed.status).toBe('lose');
     });
 });
+
+describe('M15-T7 失败回魂（广告续命）', () => {
+    it('lose 后 revive 回复 50% 气血并恢复 ongoing；ongoing 时 revive 无效', () => {
+        const doomed = new TrailBattleSession(
+            { atk: 10, def: 0, scale: 50, personality: 'swift', isBoss: false },
+            new Rng(7),
+        );
+        let t = 0;
+        while (doomed.status === 'ongoing' && t < 600_000) {
+            t += 100;
+            doomed.advance(t);
+        }
+        expect(doomed.status).toBe('lose');
+        // 进行中调用无效
+        const winExp = new TrailBattleSession({ atk: 9999, def: 999, scale: 1, personality: 'iron', isBoss: false }, new Rng(1));
+        expect(winExp.revive()).toBe(false);
+        expect(doomed.revive(0.5)).toBe(true);
+        expect(doomed.status).toBe('ongoing');
+        expect(doomed.playerHp).toBe(Math.ceil(doomed.playerHpMax * 0.5));
+        // 回魂后仍可正常斩击
+        expect(doomed.tap(t + 100)).toBeGreaterThan(0);
+        // 二次 revive：已回 ongoing，无效
+        expect(doomed.revive()).toBe(false);
+    });
+});

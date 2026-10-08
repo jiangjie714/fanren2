@@ -109,6 +109,18 @@ export class TrailBattleSession {
         return dmg;
     }
 
+    /**
+     * 失败回魂（广告续命，trailRevive 位）：气血回复至 ratio 比例并恢复战斗。
+     * 仅 lose 态有效；Boss 二阶段进度保留。回魂后的反扑时刻由调用方重排
+     * （nextStrikeAt = 当前时刻 + effectiveStrikeInterval）。
+     */
+    revive(ratio = 0.5): boolean {
+        if (this.status !== 'lose') return false;
+        this.playerHp = Math.max(1, Math.round(this.playerHpMax * ratio));
+        this.status = 'ongoing';
+        return true;
+    }
+
     /** 推进时间：妖怪定时反扑与 QTE 超时（每帧调用） */
     advance(t: number): void {
         if (this.status !== 'ongoing') return;
