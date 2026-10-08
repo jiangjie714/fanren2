@@ -172,6 +172,34 @@ export const TRAIL_CHAPTERS: readonly TrailChapter[] = [
         bossSlay: { xiuwei: 1500, jiyuan: 35 },
         gift: { lingshi: 8600, mats: { lingcao: 6, lingshi_core: 4, yaodan_core: 3 }, fragments: 4 },
     },
+    {
+        id: 'xuanming',
+        name: '玄冥冰原',
+        blurb: '千里冰封，玄冥寒煞蚀骨',
+        bg: 'art/ui/bg_trail_xuanming/spriteFrame',
+        monsters: [
+            { id: 'bingcan', name: '冰蚕蛊' },
+            { id: 'binggui', name: '冰原鬼叟' },
+            { id: 'hanyi', name: '寒翼魔蝠' },
+            { id: 'bingyuan', name: '玄冰巨猿' },
+            { id: 'bingling', name: '玄冰傀儡' },
+            { id: 'xuepo', name: '雪魄妖蝶' },
+        ],
+        boss: { id: 'bingzu', name: '玄冥冰主' },
+        typePlan: [
+            'puzzle', 'battle', 'match3', 'battle', 'puzzle',
+            'battle', 'puzzle', 'match3', 'battle',
+        ],
+        rewardSections: [
+            [1100, 1450],
+            [1300, 1700],
+            [1560, 2020],
+        ],
+        bossReward: [1650, 2270],
+        fragmentChance: [0.3, 0.5, 0.7],
+        bossSlay: { xiuwei: 2400, jiyuan: 55 },
+        gift: { lingshi: 11600, mats: { lingcao: 7, lingshi_core: 5, yaodan_core: 4 }, fragments: 5 },
+    },
 ];
 
 // ---------- 章节/层换算 ----------
@@ -344,9 +372,10 @@ export function chapterGift(chapter: number): TrailChapter['gift'] {
 }
 
 /**
- * 章节难度系数：妖怪面板随章节线性爬升 1 → 1.6 封顶（#47）。
+ * 章节难度系数：妖怪面板随章节线性爬升 1 → 1.8 封顶（#47，M19 修订：
+ * 原 1.6 封顶在第 5 章即触顶，失去纵深空间，故抬封顶、斜率不变）。
  * 血量 = 玩家攻 × 4.5 × 系数——玩家成长不改变通关率，难度只随章节推进。
  */
 export function chapterScale(chapter: number): number {
-    return Math.min(1.6, 1 + (chapter - 1) * 0.15);
+    return Math.min(1.8, 1 + (chapter - 1) * 0.15);
 }

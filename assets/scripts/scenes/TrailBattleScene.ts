@@ -74,6 +74,13 @@ const MONSTER_ART: Record<string, string> = {
     shizhu: 'art/ui/trail/monsters/trail_shizhu/spriteFrame',
     xuetan: 'art/ui/trail/monsters/trail_xuetan/spriteFrame',
     xuezu: 'art/ui/trail/monsters/trail_xuezu/spriteFrame',
+    bingcan: 'art/ui/trail/monsters/trail_bingcan/spriteFrame',
+    binggui: 'art/ui/trail/monsters/trail_binggui/spriteFrame',
+    hanyi: 'art/ui/trail/monsters/trail_hanyi/spriteFrame',
+    bingyuan: 'art/ui/trail/monsters/trail_bingyuan/spriteFrame',
+    bingling: 'art/ui/trail/monsters/trail_bingling/spriteFrame',
+    xuepo: 'art/ui/trail/monsters/trail_xuepo/spriteFrame',
+    bingzu: 'art/ui/trail/monsters/trail_bingzu/spriteFrame',
 };
 
 export class TrailBattleScene implements IScene {
