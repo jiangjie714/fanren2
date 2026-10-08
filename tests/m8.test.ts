@@ -4,14 +4,12 @@ import { defaultSave, migrate, SaveData } from '../assets/scripts/core/saveModel
 import { EconomySystem } from '../assets/scripts/core/systems/EconomySystem';
 import { BoxSystem } from '../assets/scripts/core/systems/BoxSystem';
 import { QuestSystem } from '../assets/scripts/core/systems/QuestSystem';
-import { ExpeditionSystem } from '../assets/scripts/core/systems/ExpeditionSystem';
 import { IllusionSystem } from '../assets/scripts/core/systems/IllusionSystem';
 import { AlchemySystem } from '../assets/scripts/core/systems/AlchemySystem';
 import { TrialSystem } from '../assets/scripts/core/systems/TrialSystem';
 import { STAMINA_MAX } from '../assets/scripts/core/config/trial';
 import { RainSystem } from '../assets/scripts/core/systems/RainSystem';
 import { ACTIVITY_CHESTS } from '../assets/scripts/core/config/quests';
-import { EXPEDITION_DAILY_LIMIT } from '../assets/scripts/core/config/expeditions';
 import { ILLUSION, judgeIllusionScore, judgeIllusionTier, weekKeyOf } from '../assets/scripts/core/config/illusion';
 import { TRIAL_THEMES } from '../assets/scripts/core/config/trial';
 
@@ -52,7 +50,6 @@ describe('M9a 存档 v3 迁移（v1/v2 无损升级）', () => {
         expect(s.daily.questProgress).toEqual({});
         expect(s.daily.activityClaimed).toEqual([]);
         expect(s.xiuzhenTickets).toBe(0);
-        expect(s.expedition.dest).toBeNull();
         expect(s.illusionWeekBest).toBe(0);
     });
 
@@ -136,74 +133,6 @@ describe('M8 修真宝盒券', () => {
         const box2 = new BoxSystem(save2, makeEco(save2), new Rng(8));
         expect(box2.canOpen('xiuzhen').ok).toBe(false);
         expect(box2.canOpen('fansu').ok).toBe(false);
-    });
-});
-
-// ---------- 历练 ----------
-
-describe('M8 历练系统（数值假设 #28）', () => {
-    const DUR = 20 * 60_000;
-
-    it('出发占用每日次数；20 分钟后 complete；次数用尽 exhausted', () => {
-        const save = makeSave();
-        const sys = new ExpeditionSystem(makeEco(save), new Rng(1));
-        expect(sys.start(save, 'qianshan', NOW)).toBe(true);
-        expect(sys.stateOf(save, NOW + 1000)).toBe('running');
-        expect(sys.start(save, 'migu', NOW + 2000)).toBe(false); // 途中不可再出发
-        const r = sys.resolve(save, 0, NOW + 1000);
-        expect(r).toBeNull(); // 未归来不可结算
-        expect(sys.stateOf(save, NOW + DUR)).toBe('complete');
-        sys.resolve(save, 1, NOW + DUR);
-        expect(save.expedition.dest).toBeNull();
-        expect(sys.stateOf(save, NOW + DUR)).toBe('idle'); // 还剩 1 次
-        expect(sys.start(save, 'gudong', NOW + DUR)).toBe(true);
-        save.expedition.dest = null;
-        expect(sys.stateOf(save, NOW + DUR)).toBe('exhausted'); // 2 次用尽
-        expect(EXPEDITION_DAILY_LIMIT).toBe(2);
-    });
-
-    it('召回：5 分钟后可用、每日 1 次；召回后立即 complete', () => {
-        const save = makeSave();
-        const sys = new ExpeditionSystem(makeEco(save), new Rng(1));
-        sys.start(save, 'migu', NOW);
-        expect(sys.recallable(save, NOW + 4 * 60_000)).toBe(false);
-        expect(sys.recallable(save, NOW + 5 * 60_000)).toBe(true);
-        expect(sys.recall(save, NOW + 5 * 60_000)).toBe(true);
-        expect(sys.stateOf(save, NOW + 5 * 60_000)).toBe('complete');
-        // 第二次历练：召回次数已用尽
-        sys.resolve(save, 0, NOW + 5 * 60_000);
-        sys.start(save, 'gudong', NOW + 5 * 60_000);
-        expect(sys.recallable(save, NOW + 10 * 60_000)).toBe(false);
-    });
-
-    it('归来结算：按选项入账，劫难扣修为，无事不扣', () => {
-        // 固定 float：事件由出发时间派生；权重/区间走确定性路径
-        const rng = new Rng(1);
-        (rng as unknown as { float: () => number }).float = () => 0.0; // 恒取首个结果/区间下限
-        const save = makeSave();
-        save.xiuwei = 1000;
-        const sys = new ExpeditionSystem(makeEco(save), rng);
-        sys.start(save, 'migu', NOW);
-        const ev = sys.previewEvent(save);
-        const [lo, hi] = ev.options[0].outcomes[0].effect.lingshiRange!;
-        const r = sys.resolve(save, 0, NOW + DUR); // 进取项 → 权重最高的好结果
-        expect(r).not.toBeNull();
-        expect(r!.disaster).toBe(false);
-        expect(save.lingshi).toBeGreaterThanOrEqual(200 + lo);  // 初始 200 + 产出
-        expect(save.lingshi).toBeLessThanOrEqual(200 + hi);
-        expect(save.xiuwei).toBe(1000);
-
-        // 权重 1 的劫难结果：float 阈值推到 0.95
-        const rng2 = new Rng(1);
-        (rng2 as unknown as { float: () => number }).float = () => 0.95;
-        const save2 = makeSave();
-        save2.xiuwei = 1000;
-        const sys2 = new ExpeditionSystem(makeEco(save2), rng2);
-        sys2.start(save2, 'gudong', NOW);
-        const r2 = sys2.resolve(save2, 0, NOW + DUR);
-        expect(r2!.disaster).toBe(true);
-        expect(save2.xiuwei).toBe(920); // -8%
-        expect(save2.lingshi).toBe(200);
     });
 });
 
@@ -317,13 +246,11 @@ describe('M8 幻境模式（RainSystem）', () => {
 
 // ---------- 每日重置覆盖 v2 字段 ----------
 
-describe('M8 跨天重置覆盖任务/历练/幻境', () => {
+describe('M8 跨天重置覆盖任务/幻境', () => {
     it('dailyReset 重置 v2 每日字段但保留券与周最佳', () => {
         const save = makeSave();
         save.daily.questProgress = { openBoxes: 3 };
         save.daily.activityClaimed = [30];
-        save.daily.expeditionUsed = 2;
-        save.daily.expeditionRecallUsed = true;
         save.daily.illusionFreeUsed = true;
         save.daily.illusionAdUsed = true;
         save.daily.illusionBest = 99;
@@ -335,7 +262,6 @@ describe('M8 跨天重置覆盖任务/历练/幻境', () => {
         eco.dailyReset(new Date('2026-10-06T08:00:00'));
         expect(save.daily.questProgress).toEqual({});
         expect(save.daily.activityClaimed).toEqual([]);
-        expect(save.daily.expeditionUsed).toBe(0);
         expect(save.daily.illusionFreeUsed).toBe(false);
         expect(save.daily.illusionBest).toBe(0);
         expect(save.daily.illusionRewardedTier).toBe(0);

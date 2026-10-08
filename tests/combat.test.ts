@@ -1,6 +1,6 @@
 /**
  * M11 战斗玩法单测（docs/数值假设.md #32–#37）：
- * 攻防派生、锻体、法器、斩妖结算、论武模拟/蓄力/限次、存档 v4 迁移。
+ * 攻防派生、锻体、法器、论武模拟/蓄力/限次、存档 v4 迁移。（斩妖公式已由妖径 trail-battle.test 承接）
  */
 import { describe, expect, it } from 'vitest';
 import { Rng } from '../assets/scripts/core/rng';
@@ -98,51 +98,6 @@ describe('M11 法器购入（#34）', () => {
         const { save, combat } = make();
         save.realmIndex = 2;
         expect(combat.weaponBuyState(save, 1)).toBe('poor');
-    });
-});
-
-describe('M11 斩妖（#35）', () => {
-    it('妖兽血量 = 攻×4.5，我方气血含攻防加成', () => {
-        const { save, combat } = make();
-        expect(combat.slayMonsterMaxHp(save)).toBe(Math.round(REALM_COMBAT[0].atk * 4.5));
-        save.combat.forging = 5;
-        const s = combat.deriveStats(save);
-        expect(combat.slayPlayerMaxHp(save)).toBe(100 + Math.round((s.atk + s.def) * 1.8));
-    });
-
-    it('斩击/反扑伤害落在公式区间（atk×0.3 与 atk×0.5 − def×0.18）', () => {
-        const { save, combat } = make(7);
-        const s0 = combat.deriveStats(save);
-        const tap = combat.slayTapDamage(save);
-        expect(tap).toBeGreaterThanOrEqual(Math.round(s0.atk * 0.3 * 0.85));
-        expect(tap).toBeLessThanOrEqual(Math.round(s0.atk * 0.3 * 1.15) + 1);
-        const strike = combat.slayStrikeDamage(save);
-        const raw = s0.atk * 0.5 - s0.def * 0.18;
-        expect(strike).toBeGreaterThanOrEqual(Math.max(1, Math.round(raw * 0.9)));
-        expect(strike).toBeLessThanOrEqual(Math.round(raw * 1.1) + 1);
-        // 攻击成长带动斩击伤害增长
-        save.realmIndex = 4;
-        expect(combat.slayTapDamage(save)).toBeGreaterThan(tap * 10);
-    });
-
-    it('斩妖奖励落在目的地区间内且入账', () => {
-        const { save, eco, combat } = make(11);
-        const items = combat.slayRewards(save, 'migu');
-        const lingshi = items.find((i) => i.kind === 'lingshi')!;
-        expect(lingshi.amount).toBeGreaterThanOrEqual(120);
-        expect(lingshi.amount).toBeLessThanOrEqual(200);
-        // 入账 = 初始灵石 + 斩妖所得
-        expect(eco.lingshi).toBe(200 + lingshi.amount);
-        expect(items.some((i) => i.kind === 'xiuwei' && i.amount === 80)).toBe(true);
-    });
-
-    it('gudong 碎片概率 0.5：多种子采样能观察到掉与不掉两种结果', () => {
-        const seen = new Set<number>();
-        for (let s = 0; s < 20; s++) {
-            const { save, combat } = make(1000 + s);
-            seen.add(combat.slayRewards(save, 'gudong').some((i) => i.kind === 'fragment') ? 1 : 0);
-        }
-        expect(seen.size).toBe(2);
     });
 });
 

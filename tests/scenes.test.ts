@@ -413,7 +413,7 @@ import { FortuneScene } from '../assets/scripts/scenes/FortuneScene';
 import { ShopScene } from '../assets/scripts/scenes/ShopScene';
 import { SettingsScene } from '../assets/scripts/scenes/SettingsScene';
 import { QuestScene } from '../assets/scripts/scenes/QuestScene';
-import { ExpeditionScene } from '../assets/scripts/scenes/ExpeditionScene';
+import { TrailScene } from '../assets/scripts/scenes/TrailScene';
 import { LudaoScene } from '../assets/scripts/scenes/LudaoScene';
 import { WeaponScene } from '../assets/scripts/scenes/WeaponScene';
 import { PlayerScene } from '../assets/scripts/scenes/PlayerScene';
@@ -478,7 +478,7 @@ describe('场景集成：HomeScene 入口接线（导航错乱回归）', () => 
         expect(push).toHaveBeenLastCalledWith(expect.any(QuestScene));
 
         icon('expedition').onClick();
-        expect(push).toHaveBeenLastCalledWith(expect.any(ExpeditionScene));
+        expect(push).toHaveBeenLastCalledWith(expect.any(TrailScene));
 
         icon('ludao').onClick();
         expect(push).toHaveBeenLastCalledWith(expect.any(LudaoScene));
@@ -582,7 +582,7 @@ const sceneCases: Array<[string, () => { onEnter(): void; onExit?(): void }]> = 
     ['AlchemyScene', () => new AlchemyScene()],
     ['BoxScene', () => new BoxScene()],
     ['CollectionScene', () => new CollectionScene()],
-    ['ExpeditionScene', () => new ExpeditionScene()],
+    ['TrailScene', () => new TrailScene()],
     ['FortuneScene', () => new FortuneScene()],
     ['LudaoScene', () => new LudaoScene()],
     ['PlayerScene', () => new PlayerScene()],

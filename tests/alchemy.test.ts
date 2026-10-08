@@ -8,7 +8,6 @@ import { EconomySystem } from '../assets/scripts/core/systems/EconomySystem';
 import { AlchemySystem } from '../assets/scripts/core/systems/AlchemySystem';
 import { CombatSystem } from '../assets/scripts/core/systems/CombatSystem';
 import { Rng } from '../assets/scripts/core/rng';
-import { ExpeditionSystem } from '../assets/scripts/core/systems/ExpeditionSystem';
 import {
     ALCHEMY_FATE_RATE,
     ALCHEMY_FORGING_DEF_RATIO,
@@ -186,81 +185,3 @@ describe('M13 存档 v5 迁移', () => {
     });
 });
 
-describe('M13 斩妖掉落灵材（#41）', () => {
-    it('荒古洞天斩妖必掉妖兽丹；前山概率掉灵草', () => {
-        const { save, combat } = make(0);
-        // 荒古洞天：必掉 yaodan_core
-        const items = combat.slayRewards(save, 'gudong');
-        const mat = items.find((i) => i.kind === 'material');
-        expect(mat).toBeTruthy();
-        expect(mat!.materialId).toBe('yaodan_core');
-        expect(save.fortune.materials.yaodan_core).toBe(1);
-    });
-});
-
-describe('M13 历练事件掉落灵材（#41）', () => {
-    function makeExpedition(realmIndex = 0, seed = 20261006) {
-        const save: SaveData = defaultSave();
-        save.realmIndex = realmIndex;
-        const eco = new EconomySystem(save);
-        const alch = new AlchemySystem(eco);
-        const exp = new ExpeditionSystem(eco, new Rng(seed));
-        exp.attachAlchemy(alch);
-        return { save, eco, alch, exp };
-    }
-
-    function runExpedition(save: SaveData, exp: ExpeditionSystem, dest: 'qianshan' | 'migu' | 'gudong') {
-        exp.start(save, dest, 0);
-        save.expedition.startedAt = -20 * 60_000; // 20 分钟前出发 → 已归来
-        return exp.resolve(save, 1, 0);
-    }
-
-    it('未注入炼丹系统时 resolve 不崩溃（降级静默）', () => {
-        const save: SaveData = defaultSave();
-        const exp = new ExpeditionSystem(new EconomySystem(save), new Rng(1));
-        exp.start(save, 'qianshan', 0);
-        save.expedition.startedAt = -20 * 60_000;
-        expect(exp.resolve(save, 1, 0)).not.toBeNull();
-    });
-
-    it('前山历练归来按 0.7 概率掉落灵草并写入灵材库存', () => {
-        const { save, exp } = makeExpedition(0, 99);
-        const r = runExpedition(save, exp, 'qianshan');
-        expect(r).not.toBeNull();
-        expect(save.fortune.materials.lingcao ?? 0).toBe(1);
-        const matItem = r!.items.find((i) => i.kind === 'material');
-        expect(matItem?.materialId).toBe('lingcao');
-        expect(matItem?.label).toContain('灵草');
-    });
-
-    it('前山批量掉落率接近 0.7（统计校验，防概率回退）', () => {
-        let dropped = 0;
-        const N = 100;
-        for (let seed = 1; seed <= N; seed++) {
-            const { save, exp } = makeExpedition(0, seed);
-            runExpedition(save, exp, 'qianshan');
-            if ((save.fortune.materials.lingcao ?? 0) > 0) dropped++;
-        }
-        expect(dropped).toBeGreaterThan(40); // 0.7×100=70，宽松下限
-        expect(dropped).toBeLessThan(100);
-    });
-
-    it('荒古历练灵草掉落率低（0.2），且仅掉灵草不掉高阶炼材', () => {
-        let dropped = 0;
-        const N = 100;
-        for (let seed = 1; seed <= N; seed++) {
-            const { save, exp } = makeExpedition(3, seed);
-            runExpedition(save, exp, 'gudong');
-            if ((save.fortune.materials.lingcao ?? 0) > 0) dropped++;
-        }
-        expect(dropped).toBeGreaterThan(5); // 0.2×100=20，宽松下限
-        expect(dropped).toBeLessThan(45);
-        // 历练不掉灵石髓/妖兽丹（高阶炼材仅由斩妖产出）
-        for (let seed = 1; seed <= 20; seed++) {
-            const { save, exp } = makeExpedition(3, seed);
-            runExpedition(save, exp, 'gudong');
-            expect(save.fortune.materials.lingshi_core ?? 0).toBe(0);
-            expect(save.fortune.materials.yaodan_core ?? 0).toBe(0);
-        }
-    });
-});

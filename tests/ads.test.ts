@@ -51,7 +51,7 @@ afterEach(() => {
 describe('Ads.auditConfig（上线前广告位配置自检）', () => {
     it('总数与 AD_PLACES 对齐，configured + missing 自洽', () => {
         const a = Ads.auditConfig();
-        expect(a.total, '广告位总数应等于 AD_PLACES 键数（M14-5 移除 illusionExtra、增 trialStamina/doubleReward 后为 9）').toBe(9);
+        expect(a.total, '广告位总数应等于 AD_PLACES 键数（M15 移除 expeditionRecall、增 trailRevive/trailHint 后为 10）').toBe(10);
         expect(a.configured + a.missing.length).toBe(a.total);
         expect(a.names).toHaveLength(a.total);
     });

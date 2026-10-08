@@ -1,7 +1,7 @@
 /**
  * 数值平衡模拟（docs/数值假设.md #10/#11 的量化验证）。
  * 蒙特卡洛统计打印报告 + 宽松区间断言，防止后续调参把经济曲线改崩。
- * M9a 扩展："典型一日"模拟覆盖任务/历练/幻境/活跃度收入（玩法深化设计.md 八节风险表）。
+ * M9a 扩展："典型一日"模拟覆盖任务/妖径/秘境/活跃度收入（M15 起历练=妖径爬关）（玩法深化设计.md 八节风险表）。
  */
 import { describe, expect, it } from 'vitest';
 import { Rng } from '../assets/scripts/core/rng';
@@ -9,9 +9,9 @@ import { defaultSave, SaveData } from '../assets/scripts/core/saveModel';
 import { EconomySystem } from '../assets/scripts/core/systems/EconomySystem';
 import { BoxSystem } from '../assets/scripts/core/systems/BoxSystem';
 import { QuestSystem } from '../assets/scripts/core/systems/QuestSystem';
-import { ExpeditionSystem } from '../assets/scripts/core/systems/ExpeditionSystem';
 import { IllusionSystem } from '../assets/scripts/core/systems/IllusionSystem';
 import { TrialSystem } from '../assets/scripts/core/systems/TrialSystem';
+import { TrailSystem } from '../assets/scripts/core/systems/TrailSystem';
 import { TRIAL_THEMES, TRIAL_TIERS, RANK_TIERS } from '../assets/scripts/core/config/trial';
 import { CombatSystem } from '../assets/scripts/core/systems/CombatSystem';
 import { AlchemySystem } from '../assets/scripts/core/systems/AlchemySystem';
@@ -104,9 +104,10 @@ describe('数值平衡模拟（打印报告，宽松断言防崩坏）', () => {
             const eco = new EconomySystem(save);
             const box = new BoxSystem(save, eco, rng);
             const quests = new QuestSystem(eco);
-            const expedition = new ExpeditionSystem(eco, rng);
-            // 炼丹淬体系统（M13）：接入战斗/历练/秘境的灵材产出与四维/福禄加值（#39–#42）
+            // 炼丹淬体系统（M13）：接入战斗/妖径/秘境的灵材产出与四维/福禄加值（#39–#42）
             const alch = new AlchemySystem(eco);
+            // 妖径（M15 #47）：历练重构后的爬关产出系统
+            const trail = new TrailSystem(eco, alch, rng);
             const illusion = new IllusionSystem(eco, alch);
             const combat = new CombatSystem(eco, rng);
 
@@ -114,7 +115,6 @@ describe('数值平衡模拟（打印报告，宽松断言防崩坏）', () => {
             eco.addLingshi(START, false);
 
             combat.attachAlchemy(alch);
-            expedition.attachAlchemy(alch);
             const matAtStart = sumMaterials(save);
 
             // 开箱 12 次（典型投入时长），三连层数随机（0~3，均值 1.5）
@@ -130,12 +130,10 @@ describe('数值平衡模拟（打印报告，宽松断言防崩坏）', () => {
             quests.progress(save, 'tribulation');
             quests.progress(save, 'goldRain', 15);
             quests.progress(save, 'expedition');
-            // 历练 2 次（秘谷/荒古各一，稳健选项），归来斩妖均胜利（斩妖掉落灵石髓/妖兽丹）
-            for (const dest of ['migu', 'gudong'] as const) {
-                expedition.start(save, dest, 0);
-                combat.slayRewards(save, dest); // 斩妖胜利结算
-                expedition.resolve(save, 1, 20 * 60_000); // 历练另按目的地概率掉灵草
-            }
+            // 妖径重刷 5 次（日护栏打满，#47）：中期玩家（第 1 章第 8 层待攻克）重刷第 5 层，
+            // 灵石 = repeatLingshi(5)×5 ≈ 305、灵草 60%×5 期望 3 株
+            save.trail.curLayer = 8;
+            for (let i = 0; i < 5; i++) trail.settleWin(save, 5, { morale: false, now: new Date(0) });
             // 秘境 4 局（M14 体力制重度口径，#42–#46 终审）：体力 10 点充裕；
             // 主题取劫云（×1.3 最坏系数）作为护栏包络；评分爬档 60→120→180
             // （每日每档只发一次，第 4 局同档无产出）；连胜 1→4（×1.0/1.2/1.5/1.5）；
