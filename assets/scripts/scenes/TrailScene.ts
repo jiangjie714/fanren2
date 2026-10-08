@@ -29,6 +29,7 @@ import {
 } from '../core/config/trail';
 import { TrailBattleScene } from './TrailBattleScene';
 import { TrailPuzzleScene } from './TrailPuzzleScene';
+import { TrailMatch3Scene } from './TrailMatch3Scene';
 
 /** 妖径页：章节地图 + 关卡格（每格 300×96，两列五行的呼吸布局）。 */
 export class TrailScene implements IScene {
@@ -154,7 +155,10 @@ export class TrailScene implements IScene {
     }
 }
 
-/** 妖径玩法分流工厂（M16：battle/puzzle；match3 派生已回退 battle，M17 扩容） */
+/** 妖径玩法分流工厂（M17：battle/puzzle/match3 三玩法全接入） */
 export function newTrailGameScene(layer: number): IScene {
-    return deriveGame(layer) === 'puzzle' ? new TrailPuzzleScene(layer) : new TrailBattleScene(layer);
+    const g = deriveGame(layer);
+    if (g === 'puzzle') return new TrailPuzzleScene(layer);
+    if (g === 'match3') return new TrailMatch3Scene(layer);
+    return new TrailBattleScene(layer);
 }

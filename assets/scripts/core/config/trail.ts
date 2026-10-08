@@ -18,7 +18,7 @@ export type TrailGameId = 'battle' | 'puzzle' | 'match3';
 export type TrailPersonality = 'swift' | 'iron' | 'blood';
 
 /** 已可进入轮换的玩法引擎（随分期扩容；派生命中未接入类型时回退 battle） */
-export const AVAILABLE_GAMES: readonly TrailGameId[] = ['battle', 'puzzle'];
+export const AVAILABLE_GAMES: readonly TrailGameId[] = ['battle', 'puzzle', 'match3'];
 
 /** 玩法引擎是否已接入（indexOf 兼容项目 lib target，勿改 includes） */
 export function gameAvailable(g: TrailGameId): boolean {
@@ -240,6 +240,40 @@ export function derivePuzzle(layer: number): TrailPuzzleSpec {
         size,
         timeLimitSec: size === 3 ? 60 : 75,
         shuffleSteps: size * size * 3,
+    };
+}
+
+// ---------- M17 妖影三消派生 ----------
+
+export interface TrailMatch3Spec {
+    chapter: number;
+    layer: number;
+    monsterId: string;
+    monsterName: string;
+    /** 棋盘边长（恒 6） */
+    size: number;
+    /** 棋子种类数（章内妖怪池前 5 只；spec 4–6 种防死局，5 种为标定甜点） */
+    pieceKinds: number;
+    /** 步数上限（恒 20） */
+    steps: number;
+    /** 妖怪 HP（3 消=1 点口径；28/32/36，随机模拟标定 0.85/0.63/0.44 通关率） */
+    hp: number;
+}
+
+/** 层号 → 三消局参数（确定性：同层恒同目标与棋子集；D4 HP 标定） */
+export function deriveMatch3(layer: number): TrailMatch3Spec {
+    const chapter = chapterOf(layer);
+    const ch = chapterConfig(chapter);
+    const monster = ch.monsters[hash(layer, 7, ch.monsters.length)];
+    return {
+        chapter,
+        layer,
+        monsterId: monster.id,
+        monsterName: monster.name,
+        size: 6,
+        pieceKinds: Math.min(5, ch.monsters.length),
+        steps: 20,
+        hp: 24 + chapter * 4,
     };
 }
 

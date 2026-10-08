@@ -13,10 +13,10 @@ import {
 import { TrailPuzzleEngine } from '../assets/scripts/core/systems/TrailPuzzleEngine';
 
 describe('M16-T1 派生扩容', () => {
-    it('puzzle 入轮换白名单，match3 仍回退 battle（M17 接入）', () => {
+    it('puzzle 入轮换白名单（M17 起 match3 亦接入）', () => {
         expect(AVAILABLE_GAMES).toContain('battle');
         expect(AVAILABLE_GAMES).toContain('puzzle');
-        expect(AVAILABLE_GAMES).not.toContain('match3');
+        expect(AVAILABLE_GAMES).toContain('match3');
     });
 
     it('第 1 章第 2 层派生为 puzzle（typePlan 配比 5:3:2 落地）', () => {

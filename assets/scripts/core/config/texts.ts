@@ -145,6 +145,17 @@ export const TEXTS = {
     trailPuzzleReviveLine: '时限已尽！看广告凝神续时（+15 秒，继续封印）',
     trailPuzzleWinFx: '封！',
     trailPuzzleSwapLocked: '此块已归位封死',
+    // M17 妖影三消
+    trailMatch3Page: (name: string) => `妖影三消 · ${name}`,
+    trailMatch3HintLine: '交换相邻妖影凑三连 · 连锁破妖',
+    trailMatch3Hp: '妖 血',
+    trailMatch3Steps: (n: number) => `步数 ${n}`,
+    trailMatch3Shuffle: '妖风洗牌 · 广告',
+    trailMatch3Shuffled: '妖风骤起，妖影重排！',
+    trailMatch3ReviveTitle: '步数用尽',
+    trailMatch3ReviveLine: '未能破妖！看广告续步（+5 步，继续挑战）',
+    trailMatch3WinFx: '破！',
+    trailMatch3Quit: '继续破妖',
     boxTicketBtn: '券 开 启',
     // M9a 论道与成就
     ludaoPageTitle: '论 道',
