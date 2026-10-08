@@ -38,12 +38,25 @@ import { statusBar, StatusBarHandle } from '../ui/StatusBar';
 import { TrailResultScene } from './TrailResultScene';
 
 const PERSONALITY_NAMES: Record<string, string> = { swift: '疾风型', iron: '铁壁型', blood: '噬血型' };
-/** 章节妖怪立绘（T9 批量美术落地前的过渡映射：按章复用三张旧妖兽图） */
+/** 章节妖怪立绘兜底：尚未配专属立绘的妖怪按章复用三张旧妖兽图 */
 const CHAPTER_MONSTER_ART = [
     'art/monsters/monster_qianshan/spriteFrame',
     'art/monsters/monster_migu/spriteFrame',
     'art/monsters/monster_gudong/spriteFrame',
 ];
+/** 妖怪专属立绘（M15-T9 首批 8 只；wulang2 复用雾狼、shimo_boss 复用石魔） */
+const MONSTER_ART: Record<string, string> = {
+    yaoshu: 'art/ui/trail/monsters/trail_yaoshu/spriteFrame',
+    shanyan: 'art/ui/trail/monsters/trail_shanyan/spriteFrame',
+    duyao: 'art/ui/trail/monsters/trail_duyao/spriteFrame',
+    yeyuan: 'art/ui/trail/monsters/trail_yeyuan/spriteFrame',
+    wulang: 'art/ui/trail/monsters/trail_wulang/spriteFrame',
+    wulang2: 'art/ui/trail/monsters/trail_wulang/spriteFrame',
+    yanluo: 'art/ui/trail/monsters/trail_yanluo/spriteFrame',
+    huwan: 'art/ui/trail/monsters/trail_huwan/spriteFrame',
+    shimo: 'art/ui/trail/monsters/trail_shimo/spriteFrame',
+    shimo_boss: 'art/ui/trail/monsters/trail_shimo/spriteFrame',
+};
 
 export class TrailBattleScene implements IScene {
     node: Node;
@@ -109,7 +122,7 @@ export class TrailBattleScene implements IScene {
         this.monsterNode = uinode('monster', stage, 230, 230);
         this.monsterNode.setPosition(0, 40, 0);
         const artIdx = Math.min(CHAPTER_MONSTER_ART.length - 1, spec.chapter - 1);
-        image(this.monsterNode, CHAPTER_MONSTER_ART[artIdx], 210, 210, {
+        image(this.monsterNode, MONSTER_ART[spec.monsterId] ?? CHAPTER_MONSTER_ART[artIdx], 210, 210, {
             fallbackPath: 'art/ui/icons/icon_expedition/spriteFrame',
         });
         tween(this.monsterNode).repeatForever(
