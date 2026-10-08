@@ -44,7 +44,7 @@ const CHAPTER_MONSTER_ART = [
     'art/monsters/monster_migu/spriteFrame',
     'art/monsters/monster_gudong/spriteFrame',
 ];
-/** 妖怪专属立绘（M15-T9 首批 8 只；wulang2 复用雾狼、shimo_boss 复用石魔） */
+/** 妖怪专属立绘（M15-T9 两批共 18 只全覆盖；wulang2 复用雾狼、shimo_boss 复用石魔） */
 const MONSTER_ART: Record<string, string> = {
     yaoshu: 'art/ui/trail/monsters/trail_yaoshu/spriteFrame',
     shanyan: 'art/ui/trail/monsters/trail_shanyan/spriteFrame',
@@ -52,10 +52,21 @@ const MONSTER_ART: Record<string, string> = {
     yeyuan: 'art/ui/trail/monsters/trail_yeyuan/spriteFrame',
     wulang: 'art/ui/trail/monsters/trail_wulang/spriteFrame',
     wulang2: 'art/ui/trail/monsters/trail_wulang/spriteFrame',
-    yanluo: 'art/ui/trail/monsters/trail_yanluo/spriteFrame',
-    huwan: 'art/ui/trail/monsters/trail_huwan/spriteFrame',
+    wuying: 'art/ui/trail/monsters/trail_wuying/spriteFrame',
     shimo: 'art/ui/trail/monsters/trail_shimo/spriteFrame',
     shimo_boss: 'art/ui/trail/monsters/trail_shimo/spriteFrame',
+    yanluo: 'art/ui/trail/monsters/trail_yanluo/spriteFrame',
+    shigan: 'art/ui/trail/monsters/trail_shigan/spriteFrame',
+    huwan: 'art/ui/trail/monsters/trail_huwan/spriteFrame',
+    xuehou: 'art/ui/trail/monsters/trail_xuehou/spriteFrame',
+    guwan: 'art/ui/trail/monsters/trail_guwan/spriteFrame',
+    xiagu: 'art/ui/trail/monsters/trail_xiagu/spriteFrame',
+    shiling: 'art/ui/trail/monsters/trail_shiling/spriteFrame',
+    moxi: 'art/ui/trail/monsters/trail_moxi/spriteFrame',
+    leiying: 'art/ui/trail/monsters/trail_leiying/spriteFrame',
+    guhuo: 'art/ui/trail/monsters/trail_guhuo/spriteFrame',
+    tiekui: 'art/ui/trail/monsters/trail_tiekui/spriteFrame',
+    mozun: 'art/ui/trail/monsters/trail_mozun/spriteFrame',
 };
 
 export class TrailBattleScene implements IScene {
