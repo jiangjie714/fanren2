@@ -11,6 +11,7 @@ import { IllusionSystem } from '../core/systems/IllusionSystem';
 import { QuestSystem } from '../core/systems/QuestSystem';
 import { RainSystem } from '../core/systems/RainSystem';
 import { TrailSystem } from '../core/systems/TrailSystem';
+import { TowerSystem } from '../core/systems/TowerSystem';
 import { TrialSystem } from '../core/systems/TrialSystem';
 import { RealmSystem } from '../core/systems/RealmSystem';
 import { TEXTS } from '../core/config/texts';
@@ -40,6 +41,8 @@ export class Game {
     static quests: QuestSystem;
     /** M15 妖径（历练重构）：爬关进度/结算/重刷护栏 */
     static trail: TrailSystem;
+    /** M22 剑冢试炼：淬剑经济 / 局状态机 / 主线回灌日封顶（塔内独立数值，不外溢主线程） */
+    static tower: TowerSystem;
     static illusion: IllusionSystem;
     static trial: TrialSystem;
     static ach: AchievementSystem;
@@ -73,6 +76,7 @@ export class Game {
         this.rain = new RainSystem(this.rng);
         this.quests = new QuestSystem(this.eco);
         this.trail = new TrailSystem(this.eco, this.alchemy, this.rng);
+        this.tower = new TowerSystem(this.eco, this.alchemy);
         this.illusion = new IllusionSystem(this.eco, this.alchemy);
         this.trial = new TrialSystem(this.eco, this.alchemy);
         this.ach = new AchievementSystem(this.eco);

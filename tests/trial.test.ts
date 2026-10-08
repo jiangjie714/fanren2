@@ -327,7 +327,7 @@ describe('M14 存档 v6→v7 迁移', () => {
         v5.lingshi = 4321;
         v5.realmIndex = 3;
         const s = migrate(v5);
-        expect(s.version).toBe(7);
+        expect(s.version).toBe(8);
         expect(s.lingshi).toBe(4321);
         expect(s.realmIndex).toBe(3);
         expect(s.trial.stamina).toBe(STAMINA_MAX);
@@ -351,7 +351,7 @@ describe('M14 存档 v6→v7 迁移', () => {
     it('未知版本（高于当前）重置为新档', () => {
         const bad = { ...defaultSave(), version: 99 };
         const s = migrate(bad);
-        expect(s.version).toBe(7);
+        expect(s.version).toBe(8);
         expect(s.lingshi).not.toBe(999999);
     });
 });

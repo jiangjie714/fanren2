@@ -3,8 +3,9 @@
  *  新增 trialStamina / trialRevive / doubleReward，总数 7 → 9。
  *  M15（#47）：移除 expeditionRecall（旧历练挂机召回——挂机玩法退役，无调用方），
  *  新增 trailRevive（妖径失败回魂，单局限 1 次）/ trailHint（妖径凝神一瞥/洗牌，
- *  M16/M17 玩法接入后启用），总数 9 → 10。 */
-export type AdPlace = 'dailyGift' | 'purify' | 'protect' | 'doubleXiuwei' | 'pkCharge' | 'trialRevive' | 'trialStamina' | 'doubleReward' | 'trailRevive' | 'trailHint';
+ *  M16/M17 玩法接入后启用），总数 9 → 10。
+ *  M22（#48）：新增 towerRevive（剑冢回魂再战，每局 3 次），总数 10 → 11。 */
+export type AdPlace = 'dailyGift' | 'purify' | 'protect' | 'doubleXiuwei' | 'pkCharge' | 'trialRevive' | 'trialStamina' | 'doubleReward' | 'trailRevive' | 'trailHint' | 'towerRevive';
 
 export interface AdPlaceConfig {
     place: AdPlace;
@@ -27,6 +28,7 @@ export const AD_PLACES: Record<AdPlace, AdPlaceConfig> = {
     doubleReward:     { place: 'doubleReward',     name: '奖励翻倍', location: '秘境/妖径结算页', dailyLimit: 3, reward: '本次灵石与灵材奖励 ×2' },
     trailRevive:      { place: 'trailRevive',      name: '回魂再战', location: '妖径战斗页', dailyLimit: -1, reward: '气血回复五成，继续本层（单局 1 次）' },
     trailHint:        { place: 'trailHint',        name: '凝神一瞥', location: '妖径拼图/三消关', dailyLimit: 3, reward: '看完整原图 1 秒 / 洗牌重排（M16/M17 接入）' },
+    towerRevive:      { place: 'towerRevive',      name: '剑冢回魂', location: '剑冢战斗页', dailyLimit: -1, reward: '剑罡回满重打本层，本局剑气 ×1.25（每局 3 次）' },
 };
 
 /** 抖音激励广告位 ID（上线前在字节后台申请后填入） */
@@ -41,4 +43,5 @@ export const DOUYIN_AD_UNIT_IDS: Record<AdPlace, string> = {
     doubleReward: '',
     trailRevive: '',
     trailHint: '',
+    towerRevive: '',
 };

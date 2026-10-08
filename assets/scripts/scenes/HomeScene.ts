@@ -31,6 +31,8 @@ import {
 import { BoxScene } from './BoxScene';
 import { CollectionScene } from './CollectionScene';
 import { TrailScene } from './TrailScene';
+import { TowerScene } from './TowerScene';
+import { formatCompact } from '../core/bignum';
 import { LudaoScene } from './LudaoScene';
 import { QuestScene } from './QuestScene';
 import { RainScene } from './RainScene';
@@ -66,6 +68,8 @@ export class HomeScene implements IScene {
     private giftBtn!: ButtonHandle;
     private questBtn!: ButtonHandle;
     private trailBtn!: ButtonHandle;
+    private towerBtn!: ButtonHandle;
+    private towerSubLabel!: Label;
     private questDot!: Node;
     private ludaoBtn!: ButtonHandle;
     private ludaoDot!: Node;
@@ -177,16 +181,30 @@ export class HomeScene implements IScene {
         });
         this.breakBtn.node.setPosition(0, -68, 0);
 
+        // ── M22 剑冢试炼横幅入口（方案 C）：主 CTA 下方宽横幅，Secondary 权重 ──
+        // 全页唯一的宽横幅，填的正是当前最空的那条带子；CTA 下缘（-119）留 16px 间隙。
+        this.towerBtn = spriteButton(n, 660, 88, '', () => Game.stack.push(new TowerScene()), {
+            fontSize: 24,
+            variant: 'secondary',
+            textColor: THEME.goldLight,
+        });
+        this.towerBtn.node.setPosition(0, -179, 0);
+        image(this.towerBtn.node, 'art/ui/icons/icon_tower/spriteFrame', 56, 56).setPosition(-278, 0, 0);
+        label(this.towerBtn.node, TEXTS.towerTitle, 28, { bold: true, color: THEME.goldLight }).setPosition(-96, 0, 0);
+        this.towerSubLabel = label(this.towerBtn.node, '', 18, { color: THEME.paper, align: 'left', width: 320 }).getComponent(Label);
+        this.towerSubLabel!.node.setPosition(78, 0, 0);
+
         // ── M12 五入口环形（梅花布局）：四钮围环 + 中央圆形仙府商店 ──
         // 旧版 2×2 表格四入口（含设置）改为：设置独立成左上角齿轮圆钮，
         // 炼丹淬体/福禄炼制为 M13 新功能入口。
+        // M22：为剑冢横幅让位，整环下移 99px（spec §5.1，五条水平间隙均 ≥12px）。
         const ringEntries: Array<[string, string, number, number, number, () => void]> = [
             // [名称, 图标, x, y, 圆盘直径, 回调]
-            ['仙缘宝盒', 'box', -130, -188, 96, () => Game.stack.push(new BoxScene())],
-            ['灵根图鉴', 'collection', 130, -188, 96, () => Game.stack.push(new CollectionScene())],
-            ['炼丹淬体', 'alchemy', -130, -352, 96, () => Game.stack.push(new AlchemyScene())],
-            ['福禄炼制', 'fortune', 130, -352, 96, () => Game.stack.push(new FortuneScene())],
-            ['仙府商店', 'shop', 0, -268, 124, () => Game.stack.push(new ShopScene())],
+            ['仙缘宝盒', 'box', -130, -287, 96, () => Game.stack.push(new BoxScene())],
+            ['灵根图鉴', 'collection', 130, -287, 96, () => Game.stack.push(new CollectionScene())],
+            ['炼丹淬体', 'alchemy', -130, -451, 96, () => Game.stack.push(new AlchemyScene())],
+            ['福禄炼制', 'fortune', 130, -451, 96, () => Game.stack.push(new FortuneScene())],
+            ['仙府商店', 'shop', 0, -367, 124, () => Game.stack.push(new ShopScene())],
         ];
         ringEntries.forEach(([title, icon, x, y, size, cb]) => {
             iconButton(n, `art/ui/icons/icon_${icon}/spriteFrame`, cb, size, size).node.setPosition(x, y, 0);
@@ -208,7 +226,9 @@ export class HomeScene implements IScene {
             variant: 'secondary',
             textColor: THEME.goldLight,
         });
-        this.giftBtn.node.setPosition(0, -482, 0);
+        // M22：随环形一并下移（spec §5.1 给 -572，实测标签底缘 -527 与礼包顶缘间隙仅 6px，
+        // 不满足「≥12px」硬约束，故再下移 10px 到 -582：间隙 16px、底边留白 19px）
+        this.giftBtn.node.setPosition(0, -582, 0);
         image(this.giftBtn.node, 'art/ui/icons/icon_ad/spriteFrame', 50, 50).setPosition(-170, 0, 0);
         label(this.giftBtn.node, `${TEXTS.dailyGiftBtn} · 免费凡俗宝盒`, 23, {
             bold: true,
@@ -295,6 +315,9 @@ export class HomeScene implements IScene {
         }
         const stats = Game.combat.deriveStats(save);
         this.statLabel.string = `${TEXTS.statAtk} ${stats.atk} · ${TEXTS.statDef} ${stats.def} · ${TEXTS.statPower} ${stats.power}`;
+
+        // M22：剑冢横幅副行（最高层 + 塔内剑气；塔内数值不外溢主页 atk/def/power）
+        this.towerSubLabel.string = TEXTS.towerBannerSub(save.tower.best, formatCompact(Game.tower.atk(save)));
 
         const can = Game.realm.canBreakthrough();
         const next = Game.realm.next;

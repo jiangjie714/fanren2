@@ -12,6 +12,8 @@ import { QuestSystem } from '../assets/scripts/core/systems/QuestSystem';
 import { IllusionSystem } from '../assets/scripts/core/systems/IllusionSystem';
 import { TrialSystem } from '../assets/scripts/core/systems/TrialSystem';
 import { TrailSystem } from '../assets/scripts/core/systems/TrailSystem';
+import { TowerSystem } from '../assets/scripts/core/systems/TowerSystem';
+import { MAINLINE } from '../assets/scripts/core/config/tower';
 import { TRIAL_THEMES, TRIAL_TIERS, RANK_TIERS } from '../assets/scripts/core/config/trial';
 import { CombatSystem } from '../assets/scripts/core/systems/CombatSystem';
 import { AlchemySystem } from '../assets/scripts/core/systems/AlchemySystem';
@@ -163,6 +165,26 @@ describe('数值平衡模拟（打印报告，宽松断言防崩坏）', () => {
                 const streak = combat.recordPkResult(save, outcome.win);
                 if (outcome.win) combat.pkWinRewards(save, streak);
             }
+            // 剑冢 3 局（M22 #48）：中层玩家连续收兵口径。日回灌受 1500/5/600 封顶，
+            // 单局（最深层 40 上下）远够不到上限 —— 这里刻意让 3 局都撞上限，测封顶本身生效。
+            const tower = new TowerSystem(eco, alch);
+            const towerLingshiBefore = save.lingshi;
+            const towerMatsBefore = sumMaterials(save);
+            for (let i = 0; i < 3; i++) {
+                const run = tower.startRun(save);
+                run.deepest = 500; // 单局 500 层 → 灵石 want 2000 必撞 1500 上限
+                tower.settle(save, run, new Date(0));
+            }
+            const towerLingshi = save.lingshi - towerLingshiBefore;
+            const towerMats = sumMaterials(save) - towerMatsBefore;
+            // 三条日上限必须精确截断（不是「大概不超过」）。
+            // 灵石上限按**名义值**截断，实收再叠加玩家自身加成（灵石收益加成 = 1+等级×2%，
+            // 典型一日口径下约 ×1.48），故断言为「≥名义上限且 ≤上限×1.6」；灵材无加成，精确等于上限。
+            expect(towerLingshi).toBeGreaterThanOrEqual(MAINLINE.lingshiCap);
+            expect(towerLingshi).toBeLessThanOrEqual(Math.ceil(MAINLINE.lingshiCap * 1.6));
+            expect(towerMats).toBe(MAINLINE.matsCap);
+            expect(tower.dailyLeft(save, new Date(0)).lingshi).toBe(0);
+
             // 活跃度三箱全领
             for (const at of [30, 60, 100]) {
                 if (quests.canClaimChest(save, at)) quests.claimChest(save, at, rng);
@@ -175,16 +197,17 @@ describe('数值平衡模拟（打印报告，宽松断言防崩坏）', () => {
             expect(net).toBeGreaterThanOrEqual(0);
             // #38 终审（M14 后重定基线）：旧口径实测 2620–5137（上限 6000）；
             // 纳入秘境重度口径（三档爬升×劫云1.3×连胜1.5 + 翻倍广告）+1561 后
-            // 实测 4181–6410，上限重定 8000（含段位周奖日均摊前余量）
-            expect(net).toBeLessThanOrEqual(8000);
+            // 实测 4181–6410，上限重定 8000（含段位周奖日均摊前余量）；
+            // M22 纳入剑冢日回灌（+1500 封顶，#48）→ 上限重定 9500。
+            expect(net).toBeLessThanOrEqual(9500);
             expect(jiyuanGranted).toBeLessThanOrEqual(120);
 
             // #38 纳入灵材/丹药消耗口径：当日产出的灵石+灵材投入炼丹/福禄（纯 SINK），
             // 验证封顶机制使投入有界、余额不为负、双资源循环不构成印钞机。
             const matGained = sumMaterials(save) - matAtStart;
-            // 灵材按日有界（#42/#46 终审：秘境重度口径爬三档+翻倍 ≈28，斩妖/历练 ≈3），
-            // 不构成无限炼材来源
-            expect(matGained).toBeLessThanOrEqual(32);
+            // 灵材按日有界（#42/#46 终审：秘境重度口径爬三档+翻倍 ≈28，斩妖/历练 ≈3；
+            // M22 剑冢日封顶 +5，#48）→ 上限 37，不构成无限炼材来源
+            expect(matGained).toBeLessThanOrEqual(37);
             let pills = 0;
             while (alch.canCraft(save, 'chu') === null && pills < 100) {
                 alch.craft(save, 'chu');

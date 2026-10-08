@@ -1,4 +1,4 @@
-/** 存档模型 v7：v6 字段 + M15 妖径爬关（trail），移除旧历练挂机态（M15 历练重构，#47） */
+/** 存档模型 v8：v7 字段 + M22 剑冢爬塔（tower，#48）；塔内只存整数淬剑等级，剑气按需派生 */
 import { STAMINA_MAX, STAMINA_AD_PER_DAY } from './config/trial';
 import { weekKeyOf } from './config/illusion';
 
@@ -142,8 +142,22 @@ export interface TrailState {
     dailyRepeat: { day: string; count: number };
 }
 
+// ---------- v8（M22 剑冢试炼，#48） ----------
+
+/** 剑冢爬塔进度：只存整数淬剑等级，剑气/成本一律运行时派生（规避浮点累积与溢出） */
+export interface TowerState {
+    /** 历史最深层（只升不降，起点 1） */
+    best: number;
+    /** 淬剑等级（整数 ≥0）；剑气 = 10 × 1.05^n */
+    swordLevel: number;
+    /** 煞晶余额（塔内专属货币，跨局跨日累积） */
+    crystal: number;
+    /** 今日主线回灌进度（day = 日期键，跨日翻新） */
+    daily: { day: string; lingshi: number; mats: number; xiuwei: number };
+}
+
 export interface SaveData {
-    version: 7;
+    version: 8;
     lingshi: number;
     xiuwei: number;
     jiyuan: number;
@@ -191,13 +205,16 @@ export interface SaveData {
     // ---------- v7（M15） ----------
     /** 妖径爬关进度（历练重构，#47） */
     trail: TrailState;
+    // ---------- v8（M22） ----------
+    /** 剑冢爬塔进度（#48） */
+    tower: TowerState;
 }
 
 import { INITIAL_LINGSHI } from './config/economy';
 
 export function defaultSave(): SaveData {
     return {
-        version: 7,
+        version: 8,
         lingshi: INITIAL_LINGSHI,
         xiuwei: 0,
         jiyuan: 0,
@@ -258,6 +275,12 @@ export function defaultSave(): SaveData {
             chapterGifts: [],
             dailyRepeat: { day: '', count: 0 },
         },
+        tower: {
+            best: 1,
+            swordLevel: 0,
+            crystal: 0,
+            daily: { day: '', lingshi: 0, mats: 0, xiuwei: 0 },
+        },
     };
 }
 
@@ -270,7 +293,7 @@ export function migrate(raw: unknown): SaveData {
     const d = defaultSave();
     if (!raw || typeof raw !== 'object') return d;
     const r = raw as Record<string, unknown>;
-    if (r.version !== 1 && r.version !== 2 && r.version !== 3 && r.version !== 4 && r.version !== 5 && r.version !== 6 && r.version !== 7) return d;
+    if (r.version !== 1 && r.version !== 2 && r.version !== 3 && r.version !== 4 && r.version !== 5 && r.version !== 6 && r.version !== 7 && r.version !== 8) return d;
     const profile = { ...d.profile, ...(r.profile as object ?? {}) };
     const srcTrial = (r.trial as Partial<TrialState>) ?? {};
     return {
@@ -327,8 +350,33 @@ export function migrate(raw: unknown): SaveData {
         // chapterGifts 只保留非负整数并去重有序（损坏数据清洗）；
         // dailyRepeat.count 非负钳制、day 非字符串回退空串（跨日翻新时自然重置）。
         trail: migrateTrail(r.trail),
-        version: 7,
+        // v8：剑冢爬塔进度（v7 老档无此字段 → 缺省补齐；非法值钳制，防手改存档注入）
+        tower: migrateTower(r.tower),
+        version: 8,
     } as SaveData;
+}
+
+/** v8 剑冢字段迁移：best ≥1、swordLevel/crystal ≥0，非数字一律填缺省（剑气/成本由等级派生，不存浮点） */
+function migrateTower(raw: unknown): TowerState {
+    const d = defaultSave().tower;
+    const t = (raw ?? {}) as Partial<TowerState>;
+    const day = (t.daily ?? {}) as Partial<TowerState['daily']>;
+    return {
+        best: Math.max(1, clampIntOr(t.best, d.best)),
+        swordLevel: clampIntOr(t.swordLevel, 0),
+        crystal: numOr(t.crystal, 0),
+        daily: {
+            day: typeof day.day === 'string' ? day.day : '',
+            lingshi: clampIntOr(day.lingshi, 0),
+            mats: clampIntOr(day.mats, 0),
+            xiuwei: clampIntOr(day.xiuwei, 0),
+        },
+    };
+}
+
+/** 非负有限数钳制（煞晶允许浮点余额，但不接受 NaN/负数/Infinity） */
+function numOr(v: unknown, fallback: number): number {
+    return typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : fallback;
 }
 
 /** v7 妖径字段迁移（防手改注入，口径见各字段注释） */

@@ -9,7 +9,7 @@ import { defaultSave, migrate, SaveData, TrailState } from '../assets/scripts/co
 describe('M15-T2 存档 v7', () => {
     it('defaultSave：version=7，trail 字段默认值齐全', () => {
         const s = defaultSave();
-        expect(s.version).toBe(7);
+        expect(s.version).toBe(8);
         expect(s.trail).toEqual({
             curLayer: 1,
             chapterGifts: [],
@@ -22,7 +22,7 @@ describe('M15-T2 存档 v7', () => {
         v6.version = 6;
         delete v6.trail;
         const m = migrate(v6);
-        expect(m.version).toBe(7);
+        expect(m.version).toBe(8);
         expect(m.trail.curLayer).toBe(1);
         expect(m.lingshi).toBe((v6.lingshi as number));
     });
@@ -59,13 +59,13 @@ describe('M15-T2 存档 v7', () => {
         for (const v of [1, 2, 3, 4, 5, 6, 7]) {
             const raw = { version: v, lingshi: 100 };
             expect(() => migrate(raw)).not.toThrow();
-            expect(migrate(raw).version).toBe(7);
+            expect(migrate(raw).version).toBe(8);
         }
     });
 
     it('未知版本（高于当前/损坏）重置为默认档', () => {
         expect(migrate({ version: 8 }).trail.curLayer).toBe(1);
-        expect(migrate('garbage').version).toBe(7);
+        expect(migrate('garbage').version).toBe(8);
     });
 });
 

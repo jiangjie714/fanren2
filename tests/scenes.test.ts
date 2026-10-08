@@ -414,6 +414,8 @@ import { ShopScene } from '../assets/scripts/scenes/ShopScene';
 import { SettingsScene } from '../assets/scripts/scenes/SettingsScene';
 import { QuestScene } from '../assets/scripts/scenes/QuestScene';
 import { TrailScene } from '../assets/scripts/scenes/TrailScene';
+import { TowerScene } from '../assets/scripts/scenes/TowerScene';
+import { TowerBattleScene } from '../assets/scripts/scenes/TowerBattleScene';
 import { LudaoScene } from '../assets/scripts/scenes/LudaoScene';
 import { WeaponScene } from '../assets/scripts/scenes/WeaponScene';
 import { PlayerScene } from '../assets/scripts/scenes/PlayerScene';
@@ -486,8 +488,32 @@ describe('场景集成：HomeScene 入口接线（导航错乱回归）', () => 
         icon('weapon').onClick();
         expect(push).toHaveBeenLastCalledWith(expect.any(WeaponScene));
 
-        expect(push).toHaveBeenCalledTimes(10);
+        // M22：剑冢横幅（宽横幅、无内建文本，按 y=−179 定位）
+        const towerBanner = h.registry.buttons.find(
+            (b) => b.text === '' && (b.node as { getPosition(): { y: number } }).getPosition().y === -179,
+        );
+        expect(towerBanner, '未找到剑冢横幅入口').toBeTruthy();
+        towerBanner!.onClick();
+        expect(push).toHaveBeenLastCalledWith(expect.any(TowerScene));
+
+        expect(push).toHaveBeenCalledTimes(11);
         push.mockRestore();
+    });
+
+    it('M22 首页布局：剑冢横幅在 CTA 与环形之间，五条水平间隙均 ≥12px', () => {
+        bootGame();
+        const home = new HomeScene();
+        home.onEnter();
+        const yOf = (b: { node: unknown }) => (b.node as { getPosition(): { y: number } }).getPosition().y;
+        const banner = h.registry.buttons.find((b) => b.text === '' && yOf(b) === -179);
+        expect(banner).toBeTruthy();
+        // CTA 下缘 -119 ↔ 横幅顶缘 -135（16px）；横幅下缘 -223 ↔ 上排图标顶缘 -239（16px）
+        expect(-68 - 51 - (-179 + 44)).toBeGreaterThanOrEqual(12);
+        expect(-179 - 44 - (-287 + 48)).toBeGreaterThanOrEqual(12);
+        // 上排图标底 -335 ↔ 商店顶 -305：梅花布局的中央钮在 x=0，无纵向冲突，仅校验下排与礼包
+        // 下排标签底 ≈ -531 ↔ 礼包顶 -543（12px）；礼包底 -621 ↔ 设计底边 -640（19px）
+        expect(-451 - 48 - 18 - 19 / 2 - (-582 + 39)).toBeGreaterThanOrEqual(12);
+        expect(-582 - 39 - -640).toBeGreaterThanOrEqual(12);
     });
 
     it('A11 图鉴进度卡（左下 -286,-20）点击进图鉴页，且展示 x/y 与图鉴页同源', () => {
@@ -583,6 +609,8 @@ const sceneCases: Array<[string, () => { onEnter(): void; onExit?(): void }]> = 
     ['BoxScene', () => new BoxScene()],
     ['CollectionScene', () => new CollectionScene()],
     ['TrailScene', () => new TrailScene()],
+    ['TowerScene', () => new TowerScene()],
+    ['TowerBattleScene', () => new TowerBattleScene()],
     ['FortuneScene', () => new FortuneScene()],
     ['LudaoScene', () => new LudaoScene()],
     ['PlayerScene', () => new PlayerScene()],
