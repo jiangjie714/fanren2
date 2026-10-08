@@ -13,6 +13,7 @@ import {
     chapterOf,
     deriveBattle,
     deriveGame,
+    deriveMatch3,
     firstClearReward,
     layerInChapter,
     repeatLingshi,
@@ -25,6 +26,7 @@ describe('M15-T1 章节/层换算', () => {
         expect(chapterOf(11)).toBe(2);
         expect(chapterOf(20)).toBe(2);
         expect(chapterOf(21)).toBe(3);
+        expect(chapterOf(31)).toBe(4);
     });
 
     it('layerInChapter 边界：10 → 10、11 → 1', () => {
@@ -143,6 +145,26 @@ describe('M15-T1 奖励表（#47）', () => {
     it('重刷护栏常量：每日 5 次、灵草概率 60%', () => {
         expect(TRAIL_REPEAT_PER_DAY).toBe(5);
         expect(TRAIL_MAT_CHANCE).toBe(0.6);
+    });
+
+    it('第 4 章幽冥血渊：配比 5:3:2 且奖励跨章爬升', () => {
+        const ch4 = TRAIL_CHAPTERS[3];
+        expect(ch4.id).toBe('yuanxue');
+        expect(ch4.monsters.length).toBe(6);
+        // 9 格 plan 内 battle=4，加 Boss 恒 battle 凑 5:3:2 总口径
+        const count = (g: string) => ch4.typePlan.filter((x) => x === g).length;
+        expect(count('battle')).toBe(4);
+        expect(count('puzzle')).toBe(3);
+        expect(count('match3')).toBe(2);
+        // 奖励跨章爬升：整体量级高于第 3 章（章首回低为既有节奏，如 ch2 首段 < ch1 末段）
+        const ch3 = TRAIL_CHAPTERS[2];
+        expect(ch4.rewardSections[2][1]).toBeGreaterThan(ch3.rewardSections[2][1]);
+        expect(ch4.bossReward[1]).toBeGreaterThan(ch3.bossReward[1]);
+    });
+
+    it('deriveMatch3 HP 封顶 38：第 4 章不再线性抬升（36 已 0.44 通关率）', () => {
+        expect(deriveMatch3(31).hp).toBe(38);
+        expect(deriveMatch3(40).hp).toBe(38);
     });
 });
 

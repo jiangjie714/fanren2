@@ -144,6 +144,34 @@ export const TRAIL_CHAPTERS: readonly TrailChapter[] = [
         bossSlay: { xiuwei: 900, jiyuan: 20 },
         gift: { lingshi: 5200, mats: { lingcao: 5, lingshi_core: 3, yaodan_core: 2 }, fragments: 3 },
     },
+    {
+        id: 'yuanxue',
+        name: '幽冥血渊',
+        blurb: '血雾封渊，幽冥妖物蠢动',
+        bg: 'art/ui/bg_trail_yuanxue/spriteFrame',
+        monsters: [
+            { id: 'xueying', name: '血影鬼婴' },
+            { id: 'huangou', name: '玄火蜈妖' },
+            { id: 'xiuluo', name: '白骨修罗' },
+            { id: 'guijiao', name: '冥河鬼鲛' },
+            { id: 'shizhu', name: '九幽蚀骨蛛' },
+            { id: 'xuetan', name: '幽泉血蟾' },
+        ],
+        boss: { id: 'xuezu', name: '幽冥血祖' },
+        typePlan: [
+            'match3', 'battle', 'puzzle', 'battle', 'battle',
+            'match3', 'puzzle', 'battle', 'puzzle',
+        ],
+        rewardSections: [
+            [820, 1080],
+            [980, 1260],
+            [1160, 1500],
+        ],
+        bossReward: [1220, 1680],
+        fragmentChance: [0.25, 0.45, 0.65],
+        bossSlay: { xiuwei: 1500, jiyuan: 35 },
+        gift: { lingshi: 8600, mats: { lingcao: 6, lingshi_core: 4, yaodan_core: 3 }, fragments: 4 },
+    },
 ];
 
 // ---------- 章节/层换算 ----------
@@ -256,7 +284,7 @@ export interface TrailMatch3Spec {
     pieceKinds: number;
     /** 步数上限（恒 20） */
     steps: number;
-    /** 妖怪 HP（3 消=1 点口径；28/32/36，随机模拟标定 0.85/0.63/0.44 通关率） */
+    /** 妖怪 HP（3 消=1 点口径；28/32/36，随机模拟标定 0.85/0.63/0.44 通关率；38 封顶防第 4 章过难） */
     hp: number;
 }
 
@@ -273,7 +301,7 @@ export function deriveMatch3(layer: number): TrailMatch3Spec {
         size: 6,
         pieceKinds: Math.min(5, ch.monsters.length),
         steps: 20,
-        hp: 24 + chapter * 4,
+        hp: Math.min(38, 24 + chapter * 4),
     };
 }
 
