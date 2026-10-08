@@ -72,10 +72,11 @@ describe('M15-T1 玩法派生', () => {
         }
     });
 
-    it('M15 仅 battle 可玩：非 battle 派生回退 battle', () => {
-        expect(AVAILABLE_GAMES).toEqual(['battle']);
+    it('M16 puzzle 可玩：match3 派生回退 battle（M17 接入后生效）', () => {
+        expect((AVAILABLE_GAMES as readonly string[]).indexOf('puzzle')).toBeGreaterThanOrEqual(0);
+        expect((AVAILABLE_GAMES as readonly string[]).indexOf('match3')).toBe(-1);
         const ch1 = TRAIL_CHAPTERS[0];
-        const idx = ch1.typePlan.findIndex((g) => g !== 'battle');
+        const idx = ch1.typePlan.indexOf('match3');
         if (idx >= 0) expect(deriveGame(idx + 1)).toBe('battle');
     });
 

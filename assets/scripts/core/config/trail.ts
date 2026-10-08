@@ -1,7 +1,7 @@
 /**
  * M15 妖径配置：章节外壳 + 层内确定性派生 + 奖励表（数值假设 #47）。
  * 纯函数、无渲染、无外部随机源——同层号任何时刻派生结果一致（防退出重进刷局）。
- * 玩法引擎分期接入：M15 仅 battle，AVAILABLE_GAMES 扩容于 M16（puzzle）/M17（match3）。
+ * 玩法引擎分期接入：M15 battle；M16 puzzle（妖像拼图）；M17 match3（妖影三消）。
  */
 
 export const TRAIL_LAYERS_PER_CHAPTER = 10;
@@ -18,7 +18,7 @@ export type TrailGameId = 'battle' | 'puzzle' | 'match3';
 export type TrailPersonality = 'swift' | 'iron' | 'blood';
 
 /** 已可进入轮换的玩法引擎（随分期扩容；派生命中未接入类型时回退 battle） */
-export const AVAILABLE_GAMES: readonly TrailGameId[] = ['battle'];
+export const AVAILABLE_GAMES: readonly TrailGameId[] = ['battle', 'puzzle'];
 
 /** 玩法引擎是否已接入（indexOf 兼容项目 lib target，勿改 includes） */
 export function gameAvailable(g: TrailGameId): boolean {
@@ -208,6 +208,38 @@ export function deriveBattle(layer: number): TrailBattleSpec {
         monsterId: monster.id,
         monsterName: monster.name,
         personality: PERSONALITIES[hash(layer, 11, PERSONALITIES.length)],
+    };
+}
+
+// ---------- M16 妖像拼图派生 ----------
+
+export interface TrailPuzzleSpec {
+    chapter: number;
+    layer: number;
+    monsterId: string;
+    monsterName: string;
+    /** 网格边长（第 1 章 3×3，第 2 章起 4×4） */
+    size: number;
+    /** 限时秒（3×3=60 / 4×4=75） */
+    timeLimitSec: number;
+    /** 打乱交换步数（size²×3） */
+    shuffleSteps: number;
+}
+
+/** 层号 → 拼图局参数（确定性：同层恒同谜面；D3 难度旋钮） */
+export function derivePuzzle(layer: number): TrailPuzzleSpec {
+    const chapter = chapterOf(layer);
+    const ch = chapterConfig(chapter);
+    const monster = ch.monsters[hash(layer, 7, ch.monsters.length)];
+    const size = chapter <= 1 ? 3 : 4;
+    return {
+        chapter,
+        layer,
+        monsterId: monster.id,
+        monsterName: monster.name,
+        size,
+        timeLimitSec: size === 3 ? 60 : 75,
+        shuffleSteps: size * size * 3,
     };
 }
 

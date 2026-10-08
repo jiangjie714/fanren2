@@ -11,8 +11,7 @@ import { Ads } from '../infra/Ads';
 import { RewardItem } from '../core/systems/BoxSystem';
 import { TEXTS } from '../core/config/texts';
 import { THEME, ButtonHandle, fadeIn, label, pageBackground, spriteButton, spritePanel } from '../ui/ThemeLib';
-import { TrailScene } from './TrailScene';
-import { TrailBattleScene } from './TrailBattleScene';
+import { TrailScene, newTrailGameScene } from './TrailScene';
 
 export interface TrailResultParams {
     layer: number;
@@ -119,7 +118,8 @@ export class TrailResultScene implements IScene {
         const primaryText = !win || isRepeatLike ? TEXTS.trailRetry : TEXTS.trailNextLayer;
         const nextLayer = this.p.layer + 1;
         const primary = spriteButton(n, 300, 88, primaryText, () => {
-            Game.stack.swap(new TrailBattleScene(!win || isRepeatLike ? this.p.layer : nextLayer));
+            const target = !win || isRepeatLike ? this.p.layer : nextLayer;
+            Game.stack.swap(newTrailGameScene(target));
         }, {
             fontSize: 26,
             variant: 'primary',

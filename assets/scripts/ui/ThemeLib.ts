@@ -234,6 +234,14 @@ function loadSpriteFrame(path: string, cb: (frame: SpriteFrame | null) => void):
         });
 }
 
+/**
+ * 导出：加载 art bundle 内的原始 SpriteFrame（M16 拼图 UV 切块用）。
+ * 调用方拿到后自行 clone/rect 处理，不影响 setSprite 的共享引用。
+ */
+export function loadArtFrame(path: string, cb: (frame: SpriteFrame | null) => void): void {
+    loadSpriteFrame(path, cb);
+}
+
 function setSprite(node: Node, path: string, sliced = false, tint?: Color, fallbackPath?: string): Sprite {
     const sp = node.addComponent(Sprite);
     sp.type = sliced ? Sprite.Type.SLICED : Sprite.Type.SIMPLE;
