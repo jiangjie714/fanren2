@@ -36,6 +36,8 @@ export const INTERRUPT_STUN = 1.0;
 export const CHARGE_HIT_GANG = 20;
 /** 未打断：妖物回复（maxHp 口径，见文件末注释） */
 export const CHARGE_HEAL_RATIO = 0.12;
+/** 凝神一击的点击冷却（秒）：窗口外仍可点，但 0.3s 内只反馈一次，防连点刷提示（spec §5.3） */
+export const CHARGE_TAP_CD = 0.3;
 /** 妖血 = req(f) × 本系数 */
 export const MONSTER_HP_RATIO = 15;
 /** 战斗模拟步长（秒）；足够细以对齐 spec 门槛表，又不至于拖慢单测 */
@@ -99,6 +101,32 @@ export function startFloor(best: number): number {
 export function reviveMult(revives: number): number {
     return Math.pow(REVIVE_BOOST, Math.max(0, Math.min(REVIVE_MAX, revives)));
 }
+
+// ---------- 教学（spec §10 R5） ----------
+
+/**
+ * 首次入冢判定：从未通过任何一层（best ≤ 1 且煞晶为 0）且从未淬剑（swordLevel ≤ 0）。
+ *
+ * 为什么必须带 `crystal`：只通过第 1 层就力竭收兵时 `best` 仍是 1，光看 best/swordLevel
+ * 会把「已经打过一次」误判成首次，教学就会反复弹。煞晶一旦通关就有进账（且收兵全额保留、
+ * 淬剑会消耗但那时 swordLevel > 0），所以 `crystal ≤ 0` 恰好等价于「一层都没打通过」。
+ *
+ * 刻意**不落存档字段** —— 教学是一次性演出，可由既有状态完全派生，
+ * 不为它再升一次档（存档只落整数 swordLevel / best 的原则见 §4.4）。
+ */
+export function isFirstRun(best: number, swordLevel: number, crystal: number): boolean {
+    return best <= 1 && swordLevel <= 0 && crystal <= 0;
+}
+
+/**
+ * 教学层是否天然必胜（R5 的「保证这段必胜」由数值本身成立，不靠特判）。
+ *
+ * 依据：首次入冢时剑气 = swordAtk(0) = 10，起点层 = 1，req(1) = 8 → x = 1.25。
+ * 门槛表（§4.2）里 x ≥ 1.00 时「打断 1 次」即可通过；实测 x = 1.25 时**零打断也胜**
+ * （t≈13.5s 击破，剑罡尚余 20）。`tests/tower.test.ts` 用本函数对应的断言把这条锁死：
+ * 任何改动四条链导致教学层不再必胜，都会在单测里爆掉。
+ */
+export const TUTORIAL_FLOOR = 1;
 
 // ---------- 主线回灌（日封顶，spec §4.5） ----------
 

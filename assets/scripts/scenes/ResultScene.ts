@@ -133,6 +133,9 @@ export class ResultScene implements IScene {
         // #45 道心加成行：显示突破判定时的层数加成（成功后已清零/失败后已 +1 均不影响对账）
         const daoUsed = this.p.daoxin ?? 0;
         if (daoUsed > 0) rows.push({ k: '道心加成', v: `+${daoUsed * 5}%` });
+        // #49 A3 首战（天道庇佑）：明确标注「首战必成」——把它讲成设定而非漏洞（spec §7 R3）。
+        // 判定读会话上的 firstBattle（与 RealmSystem / RainSystem 同源），不重复推断。
+        if (this.p.session.firstBattle) rows.push({ k: '天道庇佑', v: '首战必成' });
         rows.push({ k: '最终突破率', v: `${Math.round(this.p.rate * 100)}%`, final: true });
         const PITCH = 56;
         const firstRowY = ((rows.length - 1) * PITCH) / 2;

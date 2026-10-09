@@ -466,6 +466,13 @@ export function labelL(parent: Node, text: string, fontSize: number, opts: Label
     return label(parent, text, fontSize, { ...opts, align: 'left', anchorLeft: true });
 }
 
+/**
+ * 最小可点击边长（设计单位）。抖音小游戏主流机型屏宽 1080 物理px，
+ * 设计宽 720 → 1 设计单位 = 1.5 物理px。iOS 44pt@3x ≈ 132px → 88 设计单位。
+ * 低于此值在真机上就是「点不中」，尤��是单手竖屏拇指区。
+ */
+export const MIN_TOUCH = 88;
+
 const BUTTON_VARIANTS: Record<ButtonVariant, { frame: string; disabled: Color }> = {
     // 禁用态统一压到「沉墨」——比玄墨面板更沉、比背景略亮，形状仍可辨但明显不可用。
     primary: { frame: 'art/ui/btn_primary_gold_9s/spriteFrame', disabled: new Color(26, 21, 46, 235) },
@@ -473,6 +480,18 @@ const BUTTON_VARIANTS: Record<ButtonVariant, { frame: string; disabled: Color }>
     ghost: { frame: 'art/ui/btn_ghost_dark_9s/spriteFrame', disabled: new Color(26, 21, 46, 190) },
 };
 
+/**
+ * 文字按钮。
+ *
+ * **点击区与视觉尺寸解耦**（与 iconButton 同规）：外层 `button` 节点按
+ * `hitW × hitH` 接 Button（可点），不足 MIN_TOUCH 的一边自动撑到 MIN_TOUCH；
+ * 内层 `body` 按传入的 `w × h` 画底图与文字，视觉尺寸不变。
+ *
+ * 为什么：文案按钮 76 高看着够用，但换算到真机只有 114 物理px（1 设计单位
+ * = 1.5px），低于 iOS 44pt@3x = 132px 的可点下限 —— 表现就是「看得见、
+ * 点不准」，长屏下缘与拇指弧度区尤其明显。把底图一起放大又会挤掉周边标签，
+ * 所以只扩点击区。
+ */
 export function spriteButton(
     parent: Node,
     w: number,
@@ -487,18 +506,22 @@ export function spriteButton(
     const defaultTextColor = resolvedVariant === 'primary' ? THEME.void : THEME.paper;
     const fontSize = opts.fontSize ?? 30;
     const textColor = opts.textColor ?? defaultTextColor;
-    const n = uinode('button', parent, w, h);
-    const sp = n.addComponent(Sprite);
+    const hitW = Math.max(w, MIN_TOUCH);
+    const hitH = Math.max(h, MIN_TOUCH);
+    const n = uinode('button', parent, hitW, hitH);
+    // 视觉层：底图与文字都挂在 body 上，body 与 hit 同心，setPosition 对齐不变
+    const body = uinode('body', n, w, h);
+    const sp = body.addComponent(Sprite);
     sp.type = Sprite.Type.SLICED;
     sp.sizeMode = Sprite.SizeMode.CUSTOM;
     sp.trim = false;
     const normalColor = new Color(255, 255, 255, 255);
     sp.color = normalColor;
     loadSpriteFrame(BUTTON_VARIANTS[resolvedVariant].frame, (frame) => {
-        if (frame && n.isValid) sp.spriteFrame = frame;
+        if (frame && body.isValid) sp.spriteFrame = frame;
     });
 
-    const lNode = label(n, text, fontSize, {
+    const lNode = label(body, text, fontSize, {
         color: textColor,
         bold: true,
         width: Math.max(0, w - 16),
@@ -512,7 +535,8 @@ export function spriteButton(
     const btn = n.addComponent(Button);
     btn.transition = Button.Transition.SCALE;
     btn.zoomScale = 0.95;
-    btn.target = n;
+    // 缩放打在视觉层，按下时看到的形变才与手指位置一致
+    btn.target = body;
     const handle: ButtonHandle = {
         node: n,
         labelNode: lNode,
@@ -535,18 +559,37 @@ export function spriteButton(
     return handle;
 }
 
+/**
+ * 图标圆钮。
+ *
+ * **点击区与视觉尺寸解耦**：外层节点按 `w × h` 接 Button（可点），
+ * 内层按 `visualW × visualH` 画实际图形。任何一边不足 MIN_TOUCH 时，
+ * 点击区自动撑到 MIN_TOUCH，视觉尺寸保持调用方传入的值不变。
+ *
+ * 为什么必须这么做：玉牌圆盘 / 返回键这类图标钮，视觉上做大了会挤掉
+ * 周围的标签与面板，但**点不中**的代价比「看起来小一点」大得多
+ * （手汗、拇指弧度、长屏边缘）。所以扩点击区、不动视觉。
+ */
 export function iconButton(
     parent: Node,
     iconPath: string,
     onClick: () => void,
     w = 88,
     h = 88,
+    opts: { visualW?: number; visualH?: number } = {},
 ): ButtonHandle {
-    const handle = spriteButton(parent, w, h, '', onClick, { variant: 'ghost', textColor: THEME.paper });
-    // 图标按按钮尺寸的 0.68 摆放：玉牌圆盘自带深墨外圈 + 赤金内环，本身就是「按钮面」，
+    const visualW = opts.visualW ?? w;
+    const visualH = opts.visualH ?? h;
+    const hitW = Math.max(w, MIN_TOUCH);
+    const hitH = Math.max(h, MIN_TOUCH);
+    // 外层只做点击区（透明），视觉件按 visualW/H 居中摆放
+    const hit = uinode('iconHit', parent, hitW, hitH);
+    const handle = spriteButton(hit, visualW, visualH, '', onClick, { variant: 'ghost', textColor: THEME.paper });
+    // 图标按视觉尺寸的 0.68 摆放：玉牌圆盘自带深墨外圈 + 赤金内环，本身就是「按钮面」，
     // 缩到 0.45 时字形只剩 ~19px，小屏上认不出画的是什么。
-    image(handle.node, iconPath, Math.round(w * 0.68), Math.round(h * 0.68));
-    return handle;
+    image(handle.node, iconPath, Math.round(visualW * 0.68), Math.round(visualH * 0.68));
+    // 调用方拿到的 node 是外层（定位按它算，与旧行为一致 —— 旧版 node 就是按钮本体）
+    return { node: hit, labelNode: handle.labelNode, setText: handle.setText, setEnabled: handle.setEnabled };
 }
 
 export interface ProgressBarHandle {

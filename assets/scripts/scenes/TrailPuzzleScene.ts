@@ -316,18 +316,21 @@ export class TrailPuzzleScene implements IScene {
         fadeIn(panel, 14);
         label(panel, TEXTS.trailPuzzleReviveTitle, 32, { bold: true, color: THEME.cinnabar }).setPosition(0, 100, 0);
         label(panel, TEXTS.trailPuzzleReviveLine, 23, { color: THEME.paper, width: 520 }).setPosition(0, 48, 0);
+        // 双按钮按包围盒分栏：面板 596 宽（半宽 298），内留白 24 → 可用 548。
+        // 300 + 200 = 500，剩 48 作中间间隙 → 左右钮心 -124 / 174。
+        // 旧值 -92 / 140 会让两钮重叠 18px（-92+150=58 > 140-100=40），手机上互相抢点击。
         const go = spriteButton(panel, 300, 76, TEXTS.trailReviveBtn, () => this.revive(overlay), {
             fontSize: 24,
             variant: 'primary',
             textColor: THEME.void,
         });
-        go.node.setPosition(-92, -100, 0);
+        go.node.setPosition(-124, -100, 0);
         const quit = spriteButton(panel, 200, 76, TEXTS.trailGiveUpBtn, () => this.giveUp(), {
             fontSize: 23,
             variant: 'ghost',
             textColor: THEME.inkSoft,
         });
-        quit.node.setPosition(140, -100, 0);
+        quit.node.setPosition(174, -100, 0);
         return overlay;
     }
 

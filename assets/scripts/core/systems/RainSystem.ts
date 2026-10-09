@@ -79,6 +79,12 @@ export interface RainSession {
     extraXiuwei: number;
     /** 月卡：劫雨权重降低 */
     monthCard: boolean;
+    /**
+     * 首战庇佑（#49 §4.A A3）：仅「首次冲击练气」为 true。
+     * 效果 = 雨滴权重改「金 80 / 清 20 / 劫 0」（不出劫雨）→ 首战必然拿到高评分。
+     * 与 `RealmSystem.firstBreakthroughProtect` 同源判定，由 RainScene 传入。
+     */
+    firstBattle: boolean;
     /** 角色跟随手指的惯性系数（默认 RAIN_FIELD.followLerp，炼丹「速度」四维放大） */
     followLerp: number;
     /** 秘境主题（illusion 模式专用；M14 #42，主题决定权重/速率/落速/成排与视觉） */
@@ -131,7 +137,7 @@ export class RainSystem {
         this.currentWave = waveAt(0);
     }
 
-    createSession(targetIndex: number, monthCard: boolean, mode: RainMode = 'tribulation', theme?: TrialTheme): RainSession {
+    createSession(targetIndex: number, monthCard: boolean, mode: RainMode = 'tribulation', theme?: TrialTheme, firstBattle = false): RainSession {
         const duration = mode === 'illusion' ? ILLUSION.duration : 8;
         // 秘境主题：调用方可显式指定（测试/回放），缺省按今日日序轮换（#42）
         const resolvedTheme = mode === 'illusion' ? (theme ?? themeOf()) : null;
@@ -160,6 +166,7 @@ export class RainSystem {
             finished: false,
             extraXiuwei: 0,
             monthCard,
+            firstBattle,
             followLerp: RAIN_FIELD.followLerp,
             theme: resolvedTheme,
         };
@@ -270,9 +277,12 @@ export class RainSystem {
             return;
         }
         let type: DropType;
-        if (s.purifyTimeLeft > 0) {
-            // 净化期间仅金雨/蓝雨，按原权重比例折算（50:35）
-            type = this.rng.pickWeighted([50, 35]) === 0 ? 'gold' : 'blue';
+        if (s.purifyTimeLeft > 0 || s.firstBattle) {
+            // 净化期间 / 首战庇佑（#49 A3）：仅金雨/蓝雨，无劫雨。
+            // 首战刻意取金 80 / 清 20（偏向金雨）→ 首次必然高评分（可能触发「完美接引」三星），
+            // 是刻意的强正向情绪设计；不是「削弱考验」而是把首战讲成「天道庇佑」设定。
+            const w = s.firstBattle ? [80, 20] : [50, 35];
+            type = this.rng.pickWeighted(w) === 0 ? 'gold' : 'blue';
         } else {
             const redWeight = Math.max(0, wave.weights[2] - (s.monthCard ? MONTH_CARD_RED_WEIGHT_REDUCE : 0)
                 + (wave.redRow[1] > 0 ? WAVE3_RED_WEIGHT_PER_REALM * (s.targetIndex - 1) : 0));

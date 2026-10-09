@@ -182,9 +182,18 @@ export const TEXTS = {
     towerChargeHint: '红环亮起时点击「凝神一击」打断蓄力',
     towerChargeMiss: '错失时机！',
     towerChargeHit: '凝神一击！',
+    towerTutorialTitle: '剑冢初探',
+    towerTutorialLines: [
+        '此冢无底：淬剑愈深，剑气愈盛，层数永无上限。',
+        '下妖蓄力时红环亮起 —— 点「凝神一击」打断它，',
+        '既重创妖物，也回一口剑罡。第一层，放手去试。',
+    ],
+    towerTutorialBtn: '入冢',
+    towerChargePrompt: '红环亮了 · 点它！',
     towerQuit: '收兵',
     towerQuitTitle: '收兵回山',
     towerQuitLine: '已赚煞晶全部保留，退出后可再次入冢，确定收兵？',
+    towerQuitBack: '继续战斗',
     towerReviveTitle: '剑罡溃散',
     towerReviveLine: '剑罡耗尽！看广告回魂（剑罡回满，本局剑气 ×1.25）',
     towerReviveBtn: '回魂再战 · 广告',
@@ -323,4 +332,26 @@ export const TEXTS = {
     materialTitle: '灵材',
     materialNone: '暂无灵材',
     materialCount: (n: number) => `灵材 ×${n}`,
+
+    // ---------- #49 首日体验：首战保护（天道庇佑） ----------
+    /** 首战横幅（渡劫页顶部常驻）+ 引导条主文案（进入渡劫前就已可见） */
+    firstBattleBanner: '首次渡劫 · 天道庇佑',
+    /** 结算页标注（首战必成） */
+    firstBattleResult: '天道庇佑 · 首战必成',
+
+    // ---------- #49 首日体验：首页「今日引导条」（语境 CTA 四态） ----------
+    // 优先级 1：机缘够 → 渡劫（最高情绪）
+    homeGuideBreak: (realm: string) => `冲击境界 · ${realm}`,
+    homeGuideBreakSub: (cur: number, need: number) => `机缘 ${cur}/${need} · 渡劫在即`,
+    // 优先级 1'：首战（同去渡劫，但讲成「天道庇佑」设定，见 #49 A3）
+    homeGuideFirstSub: (cur: number, need: number) => `机缘 ${cur}/${need} · 首战必成`,
+    // 优先级 2：秘境体力有剩余 → 15 秒短局（首日唯一「立刻能玩」的内容）
+    homeGuideTrial: '秘境试炼 · 15 秒',
+    homeGuideTrialSub: (stamina: number, theme: string) => `体力 ${stamina} · 今日【${theme}】`,
+    // 优先级 3：灵石够开箱 → 攒机缘
+    homeGuideBox: '开仙缘宝盒',
+    homeGuideBoxSub: (lingshi: number, cur: number, need: number) => `灵石 ${lingshi} · 机缘 ${cur}/${need}`,
+    // 优先级 4：都不满足 → 领机遇（复用每日仙缘）
+    homeGuideGift: '领取机遇',
+    homeGuideGiftSub: '灵石不足，看广告得 300',
 } as const;

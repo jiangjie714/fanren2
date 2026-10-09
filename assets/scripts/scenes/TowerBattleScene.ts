@@ -15,10 +15,11 @@ import { Ads } from '../infra/Ads';
 import { AudioMgr } from '../infra/AudioMgr';
 import { TEXTS } from '../core/config/texts';
 import { formatCompact } from '../core/bignum';
-import { GANG_MAX, REVIVE_MAX, TowerBattleSession, reviveMult } from '../core/config/tower';
+import { CHARGE_TAP_CD, GANG_MAX, REVIVE_MAX, TUTORIAL_FLOOR, TowerBattleSession, isFirstRun, reviveMult } from '../core/config/tower';
 import { TRAIL_CHAPTERS } from '../core/config/trail';
 import { TowerRun } from '../core/systems/TowerSystem';
 import { statusBar, StatusBarHandle } from '../ui/StatusBar';
+import { showDialog } from '../ui/dialog';
 import {
     ButtonHandle,
     ProgressBarHandle,
@@ -77,10 +78,25 @@ export class TowerBattleScene implements IScene {
     private gangBar!: ProgressBarHandle;
     private hpBar!: ProgressBarHandle;
     private atkLabel: Label | null = null;
-    private crystalLabel: Label | null = null;
+    /** 底部淬剑条首行：「淬剑 · N 煞晶」 */
+    private forgeLabel: Label | null = null;
     private chargeNode: Node | null = null;
     private chargeG: Graphics | null = null;
     private chargeBtn: ButtonHandle | null = null;
+    /** 凝神一击按钮的透明度句柄：窗口外「置灰但仍可点」（spec §5.3） */
+    private chargeBtnOpacity: UIOpacity | null = null;
+    /** 凝神一击防连点剩余冷却（秒） */
+    private chargeCd = 0;
+    /** 教学局（首次入冢）：仅第 1 层，保证必胜并演示「红环亮起点它」（spec §10 R5） */
+    private tutorial = false;
+    private tutorialShown = false;
+    /** 教学层里「红环亮了」的强提示：**随蓄力窗口常驻**，不是一闪而过的 floatText */
+    private tutorialHint: Node | null = null;
+    private tutorialHintOpacity: UIOpacity | null = null;
+    /** 教学层首次蓄力窗口是否已发过脉冲（脉冲只发一次，提示本身每窗口都显示） */
+    private promptShown = false;
+    /** 教学弹窗/确认弹窗期间暂停推进（避免玩家读字时被打死） */
+    private paused = false;
     private monsterNode: Node | null = null;
     private overlay: Node | null = null;
     private forgeBtns: ButtonHandle[] = [];
@@ -92,6 +108,9 @@ export class TowerBattleScene implements IScene {
 
     onEnter() {
         const n = this.node;
+        // 首次入冢（best ≤ 1 且未通关过、未淬剑）走教学：
+        // 演示「红环亮起点它」+ 该层必胜（spec §10 R5）
+        this.tutorial = isFirstRun(Game.save.tower.best, Game.save.tower.swordLevel, Game.save.tower.crystal);
         this.run = Game.tower.startRun(Game.save);
         pageBackground(n, 'art/ui/bg_tower/spriteFrame');
         this.bar = statusBar(n, 436);
@@ -105,11 +124,12 @@ export class TowerBattleScene implements IScene {
         const ringNode = uinode('timeRing', hud, 72, 72);
         ringNode.setPosition(196, 0, 0);
         this.timeRing = ringNode.addComponent(Graphics);
+        // 收兵钮贴hud 左缘但留 8px 内缩：-276 + 60 = -336，越出 332 安全线 4px。
         spriteButton(hud, 120, 60, TEXTS.towerQuit, () => this.confirmQuit(), {
             fontSize: 22,
             variant: 'secondary',
             textColor: THEME.paper,
-        }).node.setPosition(-276, 0, 0);
+        }).node.setPosition(-264, 0, 0);
 
         // 妖物舞台（复用妖径立绘）
         const stage = uinode('stage', n, 720, 380);
@@ -158,7 +178,10 @@ export class TowerBattleScene implements IScene {
             textColor: THEME.goldLight,
         });
         this.chargeBtn.node.setPosition(0, -78, 0);
-        this.chargeBtn.setEnabled(false);
+        // 注意：这里**不能**用 setEnabled(false) —— 窗口外置灰但仍要能被点（spec §5.3），
+        // 否则 towerChargeMiss（「错失时机！」）那个分支永远不可达，玩家也分不清
+        // 「按钮坏了」还是「时机没到」。置灰改由 UIOpacity 承担。
+        this.chargeBtnOpacity = this.chargeBtn.node.addComponent(UIOpacity);
 
         label(n, TEXTS.towerChargeHint, 19, {
             color: THEME.paper,
@@ -168,11 +191,27 @@ export class TowerBattleScene implements IScene {
             outlineWidth: 3,
         }).setPosition(0, -470, 0);
 
+        // 教学层的「红环亮了 · 点它！」提示条。
+        // 关键：**必须随蓄力窗口常驻**（窗口 2.0s 内一直可见），
+        // 用 floatText 那种 0.56s 的生命周期对首次玩家等于没提示 —— 实测会在
+        // 玩家抬眼之前就消失。默认隐藏，由 sync() 跟随 chargeOpen 开关。
+        this.tutorialHint = label(n, TEXTS.towerChargePrompt, 32, {
+            bold: true,
+            color: THEME.goldLight,
+            width: 640,
+            shrink: true,
+            outline: faded(THEME.void, 235),
+            outlineWidth: 4,
+        });
+        this.tutorialHint.setPosition(0, -228, 0);
+        this.tutorialHint.active = false;
+        this.tutorialHintOpacity = this.tutorialHint.addComponent(UIOpacity);
+
         // 底部淬剑条（常驻：边打边淬剑是本作核心快感，不可打断）
         const forge = spritePanel(n, 628, 92, undefined, THEME.tintDeep);
         forge.setPosition(0, -556, 0);
-        this.crystalLabel = label(forge, '', 22, { bold: true, color: THEME.success, align: 'left', width: 300 }).getComponent(Label);
-        this.crystalLabel!.node.setPosition(-150, 18, 0);
+        this.forgeLabel = label(forge, '', 20, { bold: true, color: THEME.success, align: 'left', width: 300 }).getComponent(Label);
+        this.forgeLabel!.node.setPosition(-150, 18, 0);
         this.atkLabel = label(forge, '', 22, { bold: true, color: THEME.goldLight, align: 'left', width: 300 }).getComponent(Label);
         this.atkLabel!.node.setPosition(-150, -18, 0);
         const f1 = spriteButton(forge, 150, 62, TEXTS.towerForge1, () => this.forge(1), { fontSize: 22, variant: 'primary', textColor: THEME.void });
@@ -182,10 +221,38 @@ export class TowerBattleScene implements IScene {
         this.forgeBtns = [f1, f10];
 
         this.beginFloor();
+
+        // 首次入冢：先讲清「红环亮起点它」，再放行（spec §10 R5）。
+        // 本层必胜由数值本身成立（isFirstRun 时剑气 10 > req(1) 8，实测零打断亦胜），
+        // 弹窗只负责演示与暂停，**不对战斗做任何特判** —— 保证「塔内四条链」仍是唯一事实源。
+        if (this.tutorial && this.run.floor === TUTORIAL_FLOOR && !this.tutorialShown) {
+            this.tutorialShown = true;
+            this.showTutorial();
+        }
+    }
+
+    /** R5 教学弹窗：只讲一件事（红环亮起 → 点凝神一击），期间暂停推进 */
+    private showTutorial() {
+        this.paused = true;
+        showDialog(this.node, {
+            title: TEXTS.towerTutorialTitle,
+            lines: [...TEXTS.towerTutorialLines],
+            width: 620,
+            buttons: [
+                {
+                    text: TEXTS.towerTutorialBtn,
+                    primary: true,
+                    cb: () => {
+                        this.paused = false;
+                    },
+                },
+            ],
+        });
     }
 
     update(dt: number) {
-        if (!this.sess || this.over) return;
+        if (!this.sess || this.over || this.paused) return;
+        if (this.chargeCd > 0) this.chargeCd = Math.max(0, this.chargeCd - dt);
         if (!this.interlude) {
             // 淬剑会实时抬高剑气 —— 这是「边打边淬剑」的直接收益
             this.sess.atk = this.currentAtk();
@@ -235,12 +302,16 @@ export class TowerBattleScene implements IScene {
     // ---------- 交互 ----------
 
     private onChargeTap() {
-        if (this.over || this.interlude || !this.sess) return;
+        if (this.over || this.interlude || this.paused || !this.sess) return;
+        // 0.3s 防连点：窗口外连按只反馈一次，免得刷屏（spec §5.3）
+        if (this.chargeCd > 0) return;
+        this.chargeCd = CHARGE_TAP_CD;
         if (this.sess.interrupt()) {
             if (this.monsterNode) shakeNode(this.monsterNode, 5);
             floatText(this.node, 0, 250, TEXTS.towerChargeHit, THEME.rainGold, 32);
             AudioMgr.play('rare');
         } else {
+            // 窗口外点击：明确告知「时机未到」，而不是让按钮看起来是坏的
             floatText(this.node, 0, 250, TEXTS.towerChargeMiss, THEME.cinnabar, 24);
         }
         this.sync();
@@ -256,8 +327,23 @@ export class TowerBattleScene implements IScene {
     }
 
     private confirmQuit() {
-        if (this.over) return;
-        this.finishRun();
+        if (this.over || this.paused) return;
+        // 收兵是不可逆的结算出口 —— 必须二次确认，避免战斗中误触直接结束一局
+        // （沿用 TrailBattleScene 的 showDialog 范式，文案键 towerQuitTitle/Line）。
+        this.paused = true;
+        showDialog(this.node, {
+            title: TEXTS.towerQuitTitle,
+            lines: [TEXTS.towerQuitLine],
+            buttons: [
+                {
+                    text: TEXTS.towerQuitBack,
+                    cb: () => {
+                        this.paused = false;
+                    },
+                },
+                { text: TEXTS.towerQuit, cb: () => this.finishRun() },
+            ],
+        });
     }
 
     // ---------- 失败清算（回魂 / 收兵） ----------
@@ -352,7 +438,7 @@ export class TowerBattleScene implements IScene {
         this.hpBar.set(Math.min(1, Math.max(0, s.hp / s.maxHp)), `${TEXTS.towerMonsterHp} ${formatCompact(Math.max(0, s.hp))}`);
         this.gangBar.set(Math.min(1, Math.max(0, s.gang / GANG_MAX)), `${TEXTS.towerGang} ${Math.round(Math.max(0, s.gang))}`);
         if (this.atkLabel) this.atkLabel.string = `${TEXTS.towerSwordAtk} ${formatCompact(this.currentAtk())}`;
-        if (this.crystalLabel) this.crystalLabel.string = `${TEXTS.towerCrystal} ${formatCompact(Game.save.tower.crystal)}`;
+        if (this.forgeLabel) this.forgeLabel.string = TEXTS.towerForgePanel(formatCompact(Game.save.tower.crystal));
         if (this.floorLabel) this.floorLabel.string = TEXTS.towerFloorTitle(this.run.floor);
 
         // 倒计时环：从满到空
@@ -387,7 +473,30 @@ export class TowerBattleScene implements IScene {
                 g.stroke();
             }
         }
-        this.chargeBtn?.setEnabled(s.chargeOpen);
+        // 凝神一击：窗口内高亮，窗口外「置灰但仍可点」（spec §5.3）——
+        // 不能用 setEnabled(false)，否则点击回调不再触发，玩家分不清「按钮坏了」
+        // 还是「时机没到」，towerChargeMiss 的反馈也就永远看不到。
+        if (this.chargeBtnOpacity) this.chargeBtnOpacity.opacity = s.chargeOpen ? 255 : 120;
+        // 教学层：提示条跟随蓄力窗口开关（窗口 2.0s 内一直在，玩家抬眼就能看到）。
+        // 不能只发一次 floatText —— 它 0.56s 就销毁，首次玩家几乎必然错过（spec §10 R5）。
+        if (this.tutorialHint) {
+            const show = this.tutorial && this.run.floor === TUTORIAL_FLOOR && s.chargeOpen;
+            this.tutorialHint.active = show;
+            if (show && !this.promptShown) {
+                // 首次亮起：给一次脉冲把视线拉过去
+                this.promptShown = true;
+                if (this.tutorialHintOpacity) {
+                    this.tutorialHintOpacity.opacity = 255;
+                    tween(this.tutorialHintOpacity).to(0.4, { opacity: 175 }).to(0.4, { opacity: 255 }).start();
+                }
+                if (this.chargeNode) {
+                    tween(this.chargeNode)
+                        .to(0.12, { scale: new Vec3(1.18, 1.18, 1) })
+                        .to(0.12, { scale: new Vec3(1, 1, 1) })
+                        .start();
+                }
+            }
+        }
         const canForge = Game.tower.affordableLevels(Game.save) >= 1;
         this.forgeBtns.forEach((b) => b.setEnabled(canForge));
     }

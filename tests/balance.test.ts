@@ -19,6 +19,8 @@ import { CombatSystem } from '../assets/scripts/core/systems/CombatSystem';
 import { AlchemySystem } from '../assets/scripts/core/systems/AlchemySystem';
 import { BOXES } from '../assets/scripts/core/config/boxes';
 import { PILLS, FORTUNES } from '../assets/scripts/core/config/alchemy';
+import { REALMS } from '../assets/scripts/core/config/realms';
+import { DAILY_LINGSHI_AID_AMOUNT, DAILY_LINGSHI_AID_LIMIT } from '../assets/scripts/core/config/economy';
 
 /** 灵材库存总量（三阶炼材求和） */
 function sumMaterials(s: SaveData): number {
@@ -285,5 +287,70 @@ describe('数值平衡模拟（打印报告，宽松断言防崩坏）', () => {
         // 未来上调周奖须同步复核护栏②
         const maxWeekly = Math.max(...RANK_TIERS.map((t) => t.lingshi));
         expect(maxWeekly / 7).toBeLessThanOrEqual(900);
+    });
+
+    /**
+     * 首日护栏（#49 首日体验 spec §4.B B2）。
+     *
+     * 与上一条「典型一日」互为镜像：那条的起点是 `realmIndex = 3`（金丹、全宝箱）
+     * + 1000 灵石，描述的是**中后期重度玩家**的一天；本条从 `defaultSave()` 起
+     * （凡人、realmIndex 0、初始 200 灵石、机缘 0），描述的是**首日新号**。
+     *
+     * 价值：这是「首次飞升首日可达」的唯一防线 —— 若日后有人把练气门槛抬到首日上限
+     * 之上，本条会直接变红。
+     *
+     * ⚠ 实测校准（2026-10-09）：三种子首日上限 **117–122 机缘**（远高于门槛 60）。
+     *   故本条的实际敏感区间是「门槛 > ~120」；把门槛**调回 100 不会**触发（120 ≥ 100）。
+     *   spec 原文设想的「调回 100 即变红」在真实数值下不成立 —— 实测首日路径（救济 900
+     *   + 活跃 250 + 活跃 100 档机缘 50 + 27 次凡俗宝盒）比 spec 估算的「50–65 机缘」
+     *   高得多（spec 只算了宝箱、漏了活跃度 100 档的 50 机缘）。门槛 60 因此有 ~2x 余量。
+     *
+     * 口径：只走新号真实可达的路径。注意**凡人只解锁凡俗宝盒**（修真宝盒需练气，
+     * `XIUZHEN_UNLOCK_REALM = 1`），所以机缘来源只能是凡俗宝盒 + 活跃度 100 档。
+     */
+    it('首日：新号一日可得资源足以跨过练气门槛（#49 的唯一防线）', () => {
+        const report: string[] = [];
+        const jiyuanOf: number[] = [];
+        for (const seed of [20261007, 20261008, 20261009]) {
+            const rng = new Rng(seed);
+            const save: SaveData = defaultSave();
+            expect(save.realmIndex).toBe(0); // 新号视角（凡人）
+            const eco = new EconomySystem(save);
+            const box = new BoxSystem(save, eco, rng);
+            const quests = new QuestSystem(eco);
+
+            // ① 每日仙缘：免费凡俗宝盒（先补 50 灵石再开箱，净消耗 0 —— 与 claimDailyGift 同口径）
+            eco.addLingshi(BOXES.find((b) => b.id === 'fansu')!.cost, false);
+            box.open('fansu');
+            quests.progress(save, 'openBoxes');
+
+            // ② 灵石救济 3×300（新号灵石见底时的唯一补给口，#19）
+            eco.addLingshi(DAILY_LINGSHI_AID_LIMIT * DAILY_LINGSHI_AID_AMOUNT, false);
+
+            // ③ 首日任务全清（含秘境/渡劫 1 场 → 活跃度打满 100）→ 三箱全领
+            quests.progress(save, 'tribulation');
+            quests.progress(save, 'goldRain', 15);
+            quests.progress(save, 'expedition');
+            quests.progress(save, 'openBoxes', 3);
+            for (const at of [30, 60, 100]) {
+                if (quests.canClaimChest(save, at)) quests.claimChest(save, at, rng);
+            }
+
+            // ④ 把当日灵石投入凡俗宝盒（机缘的主要来源；天道保底兜底低收益）。
+            // 必须有次数上限：宝箱毛回收率 ≈1.1× 成本（#10），用 while 判断余额会**永不终止**
+            // （灵石越开越多）。取 27 次 ≈ 首日可得 1350 灵石 ÷ 50（每次 50），
+            // 对应「首日开箱会话时长」，不模拟无限挂机。
+            let opens = 0;
+            for (let i = 0; i < 27; i++) {
+                if (!box.canOpen('fansu').ok) break;
+                box.open('fansu');
+                opens += 1;
+            }
+
+            report.push(`seed=${seed} 开箱=${opens} 机缘=${save.jiyuan}`);
+            jiyuanOf.push(save.jiyuan);
+        }
+        console.log('[首日] ' + report.join(' | ') + ` ｜ 门槛=${REALMS[1].needJiyuan}`);
+        expect(Math.min(...jiyuanOf)).toBeGreaterThanOrEqual(REALMS[1].needJiyuan);
     });
 });

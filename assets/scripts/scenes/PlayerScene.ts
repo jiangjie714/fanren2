@@ -110,7 +110,9 @@ export class PlayerScene implements IScene {
             fontSize: 20,
             variant: 'primary',
         });
-        goWeapon.node.setPosition(228, 0, 0);
+        // 卡内右对齐：卡半宽 334，钮半宽 110 → 钮心 216 时右缘 326，卡内留白 8px，
+        // 同时在 332 安全线内（旧值 228 → 右缘 338，出安全线 6px 且顶出卡片）。
+        goWeapon.node.setPosition(216, 0, 0);
 
         // ── 福禄卡：月卡 / 券 / 每日仙缘 / 灵根加成 ──
         const fortune = spritePanel(this.body, 668, 250, undefined, THEME.tintCard);

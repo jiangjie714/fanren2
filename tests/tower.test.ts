@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+    CHARGE_TAP_CD,
     CRYSTAL_GROWTH,
     FORGE_COST_GROWTH,
     REQ_GROWTH,
     SWORD_GROWTH,
+    TUTORIAL_FLOOR,
     floorCrystal,
     forgeCost,
+    isFirstRun,
     milestonesCrossed,
     minAtkFor,
     monsterHp,
@@ -91,6 +94,40 @@ describe('M22 剑冢：一层战斗门槛（spec §4.2）', () => {
         expect(r.win).toBe(false);
         expect(r.timeSec).toBeLessThanOrEqual(15);
         expect(r.gang).toBeGreaterThanOrEqual(0);
+    });
+});
+
+describe('M22 剑冢：首次入冢教学层（spec §10 R5）', () => {
+    it('isFirstRun：仅「一层未通且未淬剑」为真', () => {
+        expect(isFirstRun(1, 0, 0)).toBe(true);
+        expect(isFirstRun(0, 0, 0)).toBe(true);
+        // 通关过（best ≥ 2）→ 不是首次
+        expect(isFirstRun(2, 0, 0)).toBe(false);
+        // 只通过第 1 层就收兵：best 仍为 1，但煞晶已入账 → 不该再弹教学
+        expect(isFirstRun(1, 0, 25)).toBe(false);
+        // 淬过剑（说明已入过冢并花掉煞晶）→ 不是首次
+        expect(isFirstRun(1, 1, 0)).toBe(false);
+        expect(isFirstRun(9, 40, 1e6)).toBe(false);
+    });
+
+    it('教学层天然必胜：零打断也过（R5「保证这段必胜」不靠特判）', () => {
+        const atk = swordAtk(0); // 首次入冢时剑气 = 10
+        const r = simulateFloor(atk, TUTORIAL_FLOOR, 0);
+        expect(r.win, '教学层零打断必须也能过').toBe(true);
+        expect(r.gang, '教学层打赢时应仍有余量，不是擦线').toBeGreaterThan(0);
+        // 演示过红环的玩家（打断 1 次）只会更稳
+        const r1 = simulateFloor(atk, TUTORIAL_FLOOR, 1);
+        expect(r1.win).toBe(true);
+        expect(r1.gang).toBeGreaterThan(r.gang);
+    });
+
+    it('教学仅限第 1 层：第 2 层起零打断必败（教学不该软化后面的层）', () => {
+        const atk = swordAtk(0);
+        expect(simulateFloor(atk, TUTORIAL_FLOOR + 1, 0).win).toBe(false);
+    });
+
+    it('防连点 CD 为 0.3s（spec §5.3）', () => {
+        expect(CHARGE_TAP_CD).toBe(0.3);
     });
 });
 

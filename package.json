@@ -10,6 +10,7 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
+    "audit:layout": "node tools/layout-audit.mjs",
     "build:web": "node tools/build.mjs web-mobile",
     "build:douyin": "node tools/build.mjs bytedance-mini-game"
   },

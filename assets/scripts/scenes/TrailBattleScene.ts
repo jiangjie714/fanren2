@@ -344,19 +344,22 @@ export class TrailBattleScene implements IScene {
         label(panel, this.revived ? '回魂机会已用尽。' : TEXTS.trailReviveLine, 23, {
             color: THEME.paper, width: 520, shrink: true,
         }).setPosition(0, 48, 0);
+        // 双按钮按包围盒分栏：面板 596 宽（半宽 298），内留白 24 → 可用 548。
+        // 300 + 200 = 500，剩 48 作中间间隙 → 左右钮心 -124 / 174。
+        // 旧值 -92 / 140 会让两钮重叠 18px（-92+150=58 > 140-100=40），手机上互相抢点击。
         const go = spriteButton(panel, 300, 76, this.revived ? '已用尽' : TEXTS.trailReviveBtn, () => this.revive(overlay), {
             fontSize: 24,
             variant: 'primary',
             textColor: THEME.void,
         });
-        go.node.setPosition(-92, -100, 0);
+        go.node.setPosition(-124, -100, 0);
         if (this.revived) go.setEnabled(false);
         const quit = spriteButton(panel, 200, 76, TEXTS.trailGiveUpBtn, () => this.giveUp(), {
             fontSize: 23,
             variant: 'ghost',
             textColor: THEME.inkSoft,
         });
-        quit.node.setPosition(140, -100, 0);
+        quit.node.setPosition(174, -100, 0);
         return overlay;
     }
 

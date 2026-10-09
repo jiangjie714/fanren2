@@ -3,7 +3,9 @@ import { IScene } from '../infra/SceneStack';
 import { Game } from '../infra/Game';
 import { SaveStore } from '../infra/SaveStore';
 import { claimDailyGift } from '../infra/dailyGift';
+import { enterIllusion } from '../infra/enterIllusion';
 import { REALMS } from '../core/config/realms';
+import { themeOf } from '../core/config/trial';
 import { TEXTS } from '../core/config/texts';
 import { statusBar } from '../ui/StatusBar';
 import {
@@ -65,6 +67,10 @@ export class HomeScene implements IScene {
 
     private bar = { refresh: () => {} };
     private breakBtn!: ButtonHandle;
+    /** 引导条副行（显示「为什么推荐这件事」）；主文案走 breakBtn.setText */
+    private guideSubLabel!: Label;
+    /** 引导条当前状态定格的动作（refreshGuide 写入，onGuideTap 读取） */
+    private guideAction: 'break' | 'trial' | 'box' | 'gift' = 'break';
     private giftBtn!: ButtonHandle;
     private questBtn!: ButtonHandle;
     private trailBtn!: ButtonHandle;
@@ -76,6 +82,7 @@ export class HomeScene implements IScene {
     private weaponBtn!: ButtonHandle;
     private realmName!: Label;
     private statLabel!: Label;
+    private collectionBtn!: ButtonHandle;
     private collectionLabel!: Label;
     private collectionBar!: ProgressBarHandle;
     private stage!: Node;
@@ -175,11 +182,23 @@ export class HomeScene implements IScene {
         // 主 CTA：全页唯一的金色实底按钮，放大一档确立视觉锚点。
         // M12：从 -85 上移到 -68 给下方五入口环形腾位（环形上排钮顶缘 -236，
         // 与 CTA 下缘 -119 间隙 117；再往上会贴住 y=0 的标题「凡人开仙缘」）。
-        this.breakBtn = spriteButton(n, 500, 102, '冲击境界', () => this.enterRain(), {
+        // ── #49 首日体验 A1：这条带改为「今日引导条」（状态驱动语境 CTA）──
+        // 位置与尺寸**完全不变**（-68 / 500×102），10 个既有入口（环形 5 + 右栏 4 + 设置）
+        // 一个不动 → tools/ui-shots.mjs 的截图基线不受影响。变化只在「文案 + 去向」：
+        // 优先级（高→低）①机缘够→渡劫 ②秘境体力有→秘境 ③灵石≥50→开箱 ④都不够→领机遇。
+        this.breakBtn = spriteButton(n, 500, 102, '冲击境界', () => this.onGuideTap(), {
             fontSize: 32,
             variant: 'primary',
         });
         this.breakBtn.node.setPosition(0, -68, 0);
+        // 两行版式：主文案上移 16、副行下移 24（原单行 CTA 的包围盒不变）
+        this.breakBtn.labelNode.setPosition(0, 16, 0);
+        this.breakBtn.labelNode.getComponent(Label)!.lineHeight = 44;
+        this.guideSubLabel = label(this.breakBtn.node, '', 18, {
+            color: faded(THEME.void, 200),
+            width: 460,
+        }).getComponent(Label)!;
+        this.guideSubLabel.node.setPosition(0, -24, 0);
 
         // ── M22 剑冢试炼横幅入口（方案 C）：主 CTA 下方宽横幅，Secondary 权重 ──
         // 全页唯一的宽横幅，填的正是当前最空的那条带子；CTA 下缘（-119）留 16px 间隙。
@@ -190,9 +209,12 @@ export class HomeScene implements IScene {
         });
         this.towerBtn.node.setPosition(0, -179, 0);
         image(this.towerBtn.node, 'art/ui/icons/icon_tower/spriteFrame', 56, 56).setPosition(-278, 0, 0);
-        label(this.towerBtn.node, TEXTS.towerTitle, 28, { bold: true, color: THEME.goldLight }).setPosition(-96, 0, 0);
-        this.towerSubLabel = label(this.towerBtn.node, '', 18, { color: THEME.paper, align: 'left', width: 320 }).getComponent(Label);
-        this.towerSubLabel!.node.setPosition(78, 0, 0);
+        // 主标左移、副行右移，拉开 30px 净间隙。
+        // 旧值（主标 -96 居中 / 副行左缘 -82）实测主标右缘 -40 与副行左缘撞车 42px，
+        // 截图里「剑冢试炼」被「最高第 N 层」压住 —— 横幅内左右两栏必须按包围盒分栏。
+        label(this.towerBtn.node, TEXTS.towerTitle, 28, { bold: true, color: THEME.goldLight }).setPosition(-170, 0, 0);
+        this.towerSubLabel = label(this.towerBtn.node, '', 18, { color: THEME.paper, align: 'left', width: 360 }).getComponent(Label);
+        this.towerSubLabel!.node.setPosition(96, 0, 0);
 
         // ── M12 五入口环形（梅花布局）：四钮围环 + 中央圆形仙府商店 ──
         // 旧版 2×2 表格四入口（含设置）改为：设置独立成左上角齿轮圆钮，
@@ -266,15 +288,29 @@ export class HomeScene implements IScene {
         this.weaponBtn.node.setPosition(286, -20, 0);
         railLabel('法器', -70);
 
-        // A11 图鉴进度面板：左下角信息卡，与右侧「法器」同高对称。
-        // 左侧 y=240/110 保持留白——立绘舞台与五入口环形之间的呼吸区，不填满。
-        const colCard = spriteButton(n, 130, 96, '', () => Game.stack.push(new CollectionScene()), { variant: 'secondary' });
-        colCard.node.setPosition(-286, -20, 0);
-        label(colCard.node, '灵根图鉴', 17, { bold: true, color: THEME.goldLight }).setPosition(0, 28, 0);
-        this.collectionLabel = label(colCard.node, '', 22, { bold: true, color: THEME.paper }).getComponent(Label)!;
-        this.collectionLabel.node.setPosition(0, -2, 0);
-        this.collectionBar = progressBar(colCard.node, 110, 16);
-        this.collectionBar.node.setPosition(0, -30, 0);
+        // A11 图鉴入口：改为与右侧 rail（法器 / 论道 / 妖径 / 修行）**完全同构**的圆钮。
+        //
+        // 旧版是 130×96 信息卡挂在 (-267, -20)，右缘 -202 切进主 CTA（左缘 -250）48px —— 截图里
+        // 金底按钮左端被暗卡压掉一角。几何上无解：左侧 rail 位在 332 安全线与 CTA 左缘之间只有
+        // 82px（-332 → -250），装不下 130 宽的卡；把 CTA 收窄到容得下 130 会砍掉 24% 宽，毁掉
+        // 「全页唯一金色实底锚点」的设计意图（截图基线也锁死在 -68 / 500×102）。改为 rail 同构：
+        // 视觉 72@-286 → [-322,-250]，与 CTA **恰好相切**，既对称又不叠压。进度信息移到圆钮下方
+        // 的标签区，与右侧 rail 的「法器 / 论道 / 妖径 / 修行」同规。
+        this.collectionBtn = iconButton(n, 'art/ui/icons/icon_collection/spriteFrame', () => Game.stack.push(new CollectionScene()), 72, 72);
+        this.collectionBtn.node.setPosition(-286, -20, 0);
+        railLabel('图鉴', -70, -286);
+        // 计数与进度：两行小字挂在圆钮正下方，宽度收在安全线内（-332 → -250 = 82px 可用）。
+        // 进度条中心 -122 而非 -124：底缘 -117 要与剑冢横幅顶缘 -135 留 18px 间隙
+        // （-124 时只剩 6px，太紧）。
+        this.collectionLabel = label(n, '', 18, {
+            bold: true,
+            color: THEME.paper,
+            outline: faded(THEME.void, 220),
+            outlineWidth: 3,
+        }).getComponent(Label)!;
+        this.collectionLabel.node.setPosition(-286, -100, 0);
+        this.collectionBar = progressBar(n, 82, 10);
+        this.collectionBar.node.setPosition(-286, -122, 0);
 
         this.refresh();
     }
@@ -319,10 +355,7 @@ export class HomeScene implements IScene {
         // M22：剑冢横幅副行（最高层 + 塔内剑气；塔内数值不外溢主页 atk/def/power）
         this.towerSubLabel.string = TEXTS.towerBannerSub(save.tower.best, formatCompact(Game.tower.atk(save)));
 
-        const can = Game.realm.canBreakthrough();
-        const next = Game.realm.next;
-        this.breakBtn.setEnabled(can);
-        this.breakBtn.setText(can ? `冲击境界 · ${next!.name}` : '机缘未满 · 持续修行');
+        this.refreshGuide();
         this.giftBtn.node.active = !Game.save.daily.dailyGiftUsed;
 
         // M8 红点：修行 = 有可领的活跃度宝箱
@@ -364,5 +397,57 @@ export class HomeScene implements IScene {
             return;
         }
         Game.stack.push(new RainScene());
+    }
+
+    /**
+     * 今日引导条（#49 首日体验 §4.A A1）：永远把「当前最该做的事」顶到脸上。
+     *
+     * 优先级（高→低）：①机缘够→渡劫（最高情绪）②秘境体力有→秘境（15 秒短局）
+     * ③灵石 ≥50→开箱（攒机缘）④都不够→领机遇（复用每日仙缘）。
+     * 边界明确：机缘够且体力也满时**机缘优先**（spec §4.A A1 / R5，不留给运行时判定模糊）。
+     *
+     * 与存档同源计算，`refresh()` / `onResume()` 都会重算（后者经 refresh）。
+     */
+    private refreshGuide() {
+        const save = Game.save;
+        const next = Game.realm.next;
+        const need = next ? next.needJiyuan : 0;
+        const jiyuan = Game.eco.jiyuan;
+        if (Game.realm.canBreakthrough()) {
+            // ① 渡劫；首战走「天道庇佑」文案（#49 A3）
+            const first = Game.realm.firstBreakthroughProtect;
+            this.guideAction = 'break';
+            this.breakBtn.setText(first ? TEXTS.firstBattleBanner : TEXTS.homeGuideBreak(next!.name));
+            this.guideSubLabel.string = first
+                ? TEXTS.homeGuideFirstSub(jiyuan, need)
+                : TEXTS.homeGuideBreakSub(jiyuan, need);
+        } else if (Game.trial.canStart(save)) {
+            // ② 秘境：首日唯一「立刻能玩」的内容
+            this.guideAction = 'trial';
+            this.breakBtn.setText(TEXTS.homeGuideTrial);
+            this.guideSubLabel.string = TEXTS.homeGuideTrialSub(save.trial.stamina, themeOf().name);
+        } else if (save.lingshi >= 50) {
+            // ③ 开箱：机缘的主要来源
+            this.guideAction = 'box';
+            this.breakBtn.setText(TEXTS.homeGuideBox);
+            this.guideSubLabel.string = TEXTS.homeGuideBoxSub(save.lingshi, jiyuan, need);
+        } else {
+            // ④ 领机遇：灵石不足，看广告得 300
+            this.guideAction = 'gift';
+            this.breakBtn.setText(TEXTS.homeGuideGift);
+            this.guideSubLabel.string = TEXTS.homeGuideGiftSub;
+        }
+        // 引导条恒可点（四态各有去向），与旧版「机缘未满则置灰」不同
+        this.breakBtn.setEnabled(true);
+    }
+
+    /** 引导条点击：按 refreshGuide 定格的状态路由 */
+    private onGuideTap() {
+        switch (this.guideAction) {
+            case 'break': this.enterRain(); break;
+            case 'trial': enterIllusion(this.node); break;
+            case 'box': Game.stack.push(new BoxScene()); break;
+            default: claimDailyGift(this.node); break;
+        }
     }
 }

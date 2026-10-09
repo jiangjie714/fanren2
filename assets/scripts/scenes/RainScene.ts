@@ -75,7 +75,9 @@ export class RainScene implements IScene {
         // 触控根节点铺满可见高度：长屏下手指落在上下延伸区也照样能拖动角色
         n.addComponent(UITransform).setContentSize(visibleWidth(), visibleHeight());
         const targetIndex = Game.save.realmIndex + 1;
-        this.session = Game.rain.createSession(targetIndex, Game.eco.monthCardActive, this.mode);
+        // #49 A3 首战庇佑：仅渡劫模式 + 首次冲击练气（判定与 RealmSystem 同源，不重复实现）
+        const firstBattle = this.mode === 'tribulation' && Game.realm.firstBreakthroughProtect;
+        this.session = Game.rain.createSession(targetIndex, Game.eco.monthCardActive, this.mode, undefined, firstBattle);
         // 炼丹「速度」四维：放大角色跟随手指的惯性系数（#39，乘算）
         this.session.followLerp *= 1 + Game.alchemy.speedMoveBonus(Game.save);
 
@@ -138,6 +140,10 @@ export class RainScene implements IScene {
             outlineWidth: 3,
         }).getComponent(Label)!;
         this.statusLabel.node.setPosition(0, DESIGN_H / 2 - 240, 0);
+
+        // #49 A3 首战（天道庇佑）：不落雨滴权重之外的任何特殊分支，只在开场明确告知玩家。
+        // 「进入渡劫前」的正式横幅在首页引导条（主文案即 firstBattleBanner），此处为落场提示。
+        if (this.session.firstBattle) toast(n, TEXTS.firstBattleBanner);
 
         // 波次开场横幅（高于开场 toast，避免重叠）
         this.waveBanner = uinode('waveBanner', n, 560, 64);

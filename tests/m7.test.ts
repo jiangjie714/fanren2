@@ -21,6 +21,16 @@ function makeSave(): SaveData {
     return defaultSave();
 }
 
+/**
+ * 「非首战」存档。首战保护（#49 A3）会把新号首次冲击练气的 `computeFinalRate(1, …)`
+ * 短路成 1；测**基础公式/边界夹取**的用例需要绕过它，标记一次既有失败即可。
+ */
+function veteranSave(): SaveData {
+    const s = defaultSave();
+    s.stats.breakthroughFails = 1;
+    return s;
+}
+
 function makeBox(save: SaveData, rng: Rng) {
     const eco = new EconomySystem(save);
     return { box: new BoxSystem(save, eco, rng), eco };
@@ -162,7 +172,7 @@ describe('M7 渡劫评分（数值假设 #26）', () => {
     });
 
     it('连击加成进入最终成功率并被边界夹取', () => {
-        const realm = new RealmSystem(makeSave(), new EconomySystem(makeSave()), new Rng(1));
+        const realm = new RealmSystem(veteranSave(), new EconomySystem(veteranSave()), new Rng(1));
         const base = realm.computeFinalRate(1, 0, 0, false);
         const withCombo = realm.computeFinalRate(1, 0, 0, false, 0.03);
         expect(withCombo).toBeCloseTo(base + 0.03, 10);

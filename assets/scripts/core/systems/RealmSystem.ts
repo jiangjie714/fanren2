@@ -20,6 +20,21 @@ export class RealmSystem {
         return this.save.realmIndex < MAX_REALM_INDEX ? REALMS[this.save.realmIndex + 1] : null;
     }
 
+    /**
+     * 首战保护判定（#49 首日体验 §4.A A3「天道庇佑」）。
+     *
+     * 条件 = 仍在凡人（realmIndex 0，目标必为练气）**且**从未发生过任何突破判定
+     * （`breakthroughWins + breakthroughFails === 0`）。这样「首战」天然只命中第 1 次：
+     * 无论成功（wins→1）还是失败（fails→1），条件立刻不再成立，第 2 次起完全回到
+     * `clamp(10%, 95%)`，不把冲击高境界变成确定事件。
+     *
+     * 刻意**不落存档字段**：复用既有 `stats` 计数即可完全派生（存档结构不变，无需 bump）。
+     */
+    get firstBreakthroughProtect(): boolean {
+        return this.save.realmIndex === 0
+            && this.save.stats.breakthroughWins + this.save.stats.breakthroughFails === 0;
+    }
+
     /** 机缘是否满足突破条件 */
     canBreakthrough(): boolean {
         const n = this.next;
@@ -30,8 +45,13 @@ export class RealmSystem {
      * 最终突破成功率 = clamp(目标境界基础 + 金雨加成 + 连击加成 - 劫雨扣减 - 心魔
      *   + 机缘四维加成 + 道心加成, 10%, 95%)（#45：道心每层 +5%，加算进 clamp 前，
      *   与机缘四维同口径；不提供「必成」，仍受上下界约束）
+     *
+     * #49 例外：**首战（首次冲击练气）**走「天道庇佑」，直接返回 100%。
+     *   长期公式与 clamp 均不变，只是首战结果被顶到上限；第 2 次起完全回到上式。
+     *   首战时道心/机缘四维等加成无意义（仍照常计算但不影响结论），故直接短路返回。
      */
     computeFinalRate(targetIndex: number, goldBonus: number, penalty: number, mindDemon: boolean, comboBonus = 0): number {
+        if (targetIndex === 1 && this.firstBreakthroughProtect) return 1;
         const base = REALMS[targetIndex].baseRate;
         const md = mindDemon ? 0.05 : 0;
         const fate = this.fateBonusProvider();

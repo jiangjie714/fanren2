@@ -303,18 +303,20 @@ export class TrailMatch3Scene implements IScene {
         fadeIn(panel, 14);
         label(panel, TEXTS.trailMatch3ReviveTitle, 32, { bold: true, color: THEME.cinnabar }).setPosition(0, 100, 0);
         label(panel, TEXTS.trailMatch3ReviveLine, 23, { color: THEME.paper, width: 520 }).setPosition(0, 48, 0);
+        // 与拼图页弹窗同规：双按钮按包围盒分栏，间隙 48px、两侧留白 24px。
+        // 旧值 -92 / 140 会让两钮重叠 18px，手机上互相抢点击。
         const go = spriteButton(panel, 300, 76, TEXTS.trailReviveBtn, () => this.revive(overlay), {
             fontSize: 24,
             variant: 'primary',
             textColor: THEME.void,
         });
-        go.node.setPosition(-92, -100, 0);
+        go.node.setPosition(-124, -100, 0);
         const quit = spriteButton(panel, 200, 76, TEXTS.trailGiveUpBtn, () => this.giveUp(), {
             fontSize: 23,
             variant: 'ghost',
             textColor: THEME.inkSoft,
         });
-        quit.node.setPosition(140, -100, 0);
+        quit.node.setPosition(174, -100, 0);
         return overlay;
     }
 

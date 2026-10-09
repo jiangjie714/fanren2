@@ -516,18 +516,28 @@ describe('场景集成：HomeScene 入口接线（导航错乱回归）', () => 
         expect(-582 - 39 - -640).toBeGreaterThanOrEqual(12);
     });
 
-    it('A11 图鉴进度卡（左下 -286,-20）点击进图鉴页，且展示 x/y 与图鉴页同源', () => {
+    it('A11 图鉴入口（左侧 rail 圆钮 @-286,-20）点击进图鉴页，且展示 x/y 与图鉴页同源', () => {
         bootGame();
         const home = new HomeScene();
         const push = vi.spyOn(Game.stack, 'push').mockImplementation(() => { });
         home.onEnter();
 
-        // 卡片在 (-286,-20)；另一个 text 为空的按钮是每日仙缘 (0,-482)，用坐标区分
-        const card = h.registry.buttons.find(
-            (b) => b.text === '' && (b.node as { getPosition(): { x: number; y: number } }).getPosition().x === -286,
+        // 按图标路径定位（语义标识，比钉坐标抗布局变更）：图鉴入口已从「130 宽信息卡」
+        // 改为与右侧 rail 同构的圆钮 —— 旧卡右缘 -202 会切进主 CTA（左缘 -250）48px，
+        // 而 332 安全线到 CTA 之间只有 82px，横向放不下 130 宽的卡。
+        // 注意：collection 图标有两处 —— 五入口环形的「灵根图鉴」(+130,-287) 与左侧 rail 钮，
+        // 按负 x 区分后者。
+        const btn = h.registry.iconButtons.find(
+            (b) => b.path.includes('icon_collection/')
+                && (b.node as { getPosition(): { x: number } }).getPosition().x < 0,
         );
-        expect(card, '未找到左下角图鉴卡').toBeTruthy();
-        card!.onClick();
+        expect(btn, '未找到左侧 rail 的图鉴圆钮').toBeTruthy();
+        const pos = (btn!.node as { getPosition(): { x: number; y: number } }).getPosition();
+        expect(pos.x, '图鉴圆钮应对称于右侧 rail（x=-286）').toBe(-286);
+        // 与右侧法器钮同高对称
+        const weapon = icon('weapon');
+        expect(pos.y).toBe((weapon.node as { getPosition(): { y: number } }).getPosition().y);
+        btn!.onClick();
         expect(push).toHaveBeenLastCalledWith(expect.any(CollectionScene));
 
         const col = Game.col.progress(Game.save);
@@ -538,24 +548,61 @@ describe('场景集成：HomeScene 入口接线（导航错乱回归）', () => 
         push.mockRestore();
     });
 
-    it('「冲击境界」机缘未满时点击只提示、不进渡劫场景', () => {
+    it('#49 今日引导条（A1）：四态文案 + 去向（状态驱动语境 CTA）', () => {
         bootGame();
         const home = new HomeScene();
         const push = vi.spyOn(Game.stack, 'push').mockImplementation(() => { });
         home.onEnter();
 
-        const cta = h.registry.buttons.find((b) => b.text.includes('冲击境界') || b.text.includes('机缘未满'));
-        expect(cta).toBeTruthy();
-        // 默认新档机缘不足 → CTA 应被禁用，点击给出提示且不跳转
-        if (Game.realm.canBreakthrough()) {
-            cta!.onClick();
-            expect(push).toHaveBeenCalled();
-        } else {
-            expect(cta!.enabled).toBe(false);
-            cta!.onClick();
-            expect(push).not.toHaveBeenCalled();
-            expect(h.registry.toasts.length).toBeGreaterThan(0);
-        }
+        // 引导条 = 主 CTA 那条带（500×102 @ y=-68）——位置与旧「冲击境界」完全一致，
+        // 只是文案与去向随存档状态走。onResume() → refresh() → refreshGuide() 重算。
+        const guide = () => h.registry.buttons.find(
+            (b) => (b.node as { getPosition(): { y: number } }).getPosition().y === -68,
+        )!;
+        const save = Game.save;
+        const hasLabel = (needle: string) =>
+            h.registry.labels.some((l) => (l.comp as { string: string }).string.includes(needle));
+
+        // ① 机缘够 → 渡劫；新号首战走「天道庇佑」文案（#49 A3，与 RealmSystem 首战保护同源）
+        save.jiyuan = 200;
+        home.onResume();
+        expect(guide().text).toBe(TEXTS.firstBattleBanner);
+        expect(hasLabel('首战必成')).toBe(true);
+        push.mockClear();
+        guide().onClick();
+        expect(push).toHaveBeenLastCalledWith(expect.any(RainScene));
+
+        // ② 机缘不够但有秘境体力 → 秘境（首日唯一「立刻能玩」的 15 秒短局）
+        save.jiyuan = 0;
+        save.trial.stamina = 99;
+        home.onResume();
+        expect(guide().text).toBe(TEXTS.homeGuideTrial);
+        push.mockClear();
+        guide().onClick();
+        expect(push).toHaveBeenLastCalledWith(expect.any(RainScene));
+
+        // ③ 体力见底、灵石 ≥50 → 开箱（机缘的主要来源）
+        save.trial.stamina = 0;
+        save.trial.staminaAt = Date.now();
+        save.lingshi = 500;
+        home.onResume();
+        expect(guide().text).toBe(TEXTS.homeGuideBox);
+        push.mockClear();
+        guide().onClick();
+        expect(push).toHaveBeenLastCalledWith(expect.any(BoxScene));
+
+        // ④ 都不够 → 领机遇；用「今日已领」逼出确定的 toast 分支（广告桩行为不确定）
+        save.lingshi = 10;
+        save.daily.dailyGiftUsed = true;
+        h.registry.toasts.length = 0;
+        home.onResume();
+        expect(guide().text).toBe(TEXTS.homeGuideGift);
+        expect(guide().enabled, '引导条恒可点：四态各有去向，不再「机缘未满置灰」').toBe(true);
+        push.mockClear();
+        guide().onClick();
+        expect(push).not.toHaveBeenCalled();
+        expect(h.registry.toasts.length).toBeGreaterThan(0);
+
         push.mockRestore();
     });
 });

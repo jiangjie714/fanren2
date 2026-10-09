@@ -24,6 +24,18 @@ function makeSave(): SaveData {
     return defaultSave();
 }
 
+/**
+ * 「非首战」存档。首战保护（#49 A3，`firstBreakthroughProtect`）只在
+ * `realmIndex === 0` 且 `breakthroughWins + breakthroughFails === 0` 时生效，
+ * 会把 `computeFinalRate(1, …)` 直接短路成 1。下列测**基础公式**的用例必须绕过它
+ * —— 标记一次既有失败即等价于「这不是第一次冲练气」。首战保护本身另有专测。
+ */
+function veteranSave(): SaveData {
+    const s = defaultSave();
+    s.stats.breakthroughFails = 1;
+    return s;
+}
+
 function makeBox(save: SaveData, rng: Rng) {
     const eco = new EconomySystem(save);
     return { box: new BoxSystem(save, eco, rng), eco };
@@ -105,13 +117,13 @@ describe('PRD 用例 2：灵气雨数值', () => {
         const s = session();
         s.goldBonus = 0.03 + 0.08; // 两片金雨
         s.penalty = 0.04;
-        const realm = new RealmSystem(makeSave(), new EconomySystem(makeSave()), new Rng(1));
+        const realm = new RealmSystem(veteranSave(), new EconomySystem(veteranSave()), new Rng(1));
         const rate = realm.computeFinalRate(s.targetIndex, s.goldBonus, s.penalty, s.mindDemon);
         expect(rate).toBeCloseTo(0.6 + 0.11 - 0.04, 10);
     });
 
     it('概率不超出 [10%, 95%] 边界', () => {
-        const realm = new RealmSystem(makeSave(), new EconomySystem(makeSave()), new Rng(1));
+        const realm = new RealmSystem(veteranSave(), new EconomySystem(veteranSave()), new Rng(1));
         expect(realm.computeFinalRate(1, 99, 0, false)).toBe(RATE_MAX);
         expect(realm.computeFinalRate(5, 0, 99, false)).toBe(RATE_MIN);
         expect(realm.computeFinalRate(5, 0, 99, true)).toBe(RATE_MIN); // 心魔扣减也被夹住
@@ -134,7 +146,7 @@ describe('PRD 用例 2：灵气雨数值', () => {
         const s = session();
         for (let i = 0; i < 6; i++) rs['applyCatch'](s, 'red');
         expect(s.mindDemon).toBe(true);
-        const realm = new RealmSystem(makeSave(), new EconomySystem(makeSave()), new Rng(1));
+        const realm = new RealmSystem(veteranSave(), new EconomySystem(veteranSave()), new Rng(1));
         const withMd = realm.computeFinalRate(s.targetIndex, s.goldBonus, s.penalty, true);
         const withoutMd = realm.computeFinalRate(s.targetIndex, s.goldBonus, s.penalty, false);
         expect(withMd).toBeCloseTo(withoutMd - 0.05, 10);
@@ -257,7 +269,7 @@ describe('PRD 用例 4：突破边界', () => {
     });
 
     it('突破成功清零道心；成功率加成每层 +5% 加算进 clamp 前（#45）', () => {
-        const save = makeSave();
+        const save = veteranSave(); // 非首战，否则会被 #49 首战保护短路成 100%
         save.daoxin = 3;
         const eco = new EconomySystem(save);
         eco.addJiyuan(100);
@@ -273,6 +285,28 @@ describe('PRD 用例 4：突破边界', () => {
         // 成功清零
         realm.succeed(0);
         expect(save.daoxin).toBe(0);
+    });
+
+    it('首战保护（#49 A3）：首次冲击练气必成 100%，第 2 次起回到 clamp 公式', () => {
+        // 新号：realmIndex 0 + 从未有过突破判定 → 首战保护生效
+        const save = makeSave();
+        const realm = new RealmSystem(save, new EconomySystem(save), new Rng(1));
+        expect(realm.firstBreakthroughProtect).toBe(true);
+        // 即便满额劫雨惩罚 + 心魔，首战仍被顶到 100%（不是 clamp 后的 10%）
+        expect(realm.computeFinalRate(1, 0, 0.9, true)).toBe(1);
+        // 记录一次失败 → 保护立刻消失，回到 clamp 基础公式
+        save.stats.breakthroughFails = 1;
+        expect(realm.firstBreakthroughProtect).toBe(false);
+        expect(realm.computeFinalRate(1, 0, 0, false)).toBeCloseTo(0.6, 10);
+        // 成功同样使其失效（wins → 1）
+        const save2 = makeSave();
+        const realm2 = new RealmSystem(save2, new EconomySystem(save2), new Rng(1));
+        save2.stats.breakthroughWins = 1;
+        expect(realm2.firstBreakthroughProtect).toBe(false);
+        // 保护只认 targetIndex === 1：非练气目标不受影响（筑基基础率仍 0.55）
+        const save3 = makeSave();
+        const realm3 = new RealmSystem(save3, new EconomySystem(save3), new Rng(1));
+        expect(realm3.computeFinalRate(2, 0, 0, false)).toBeCloseTo(0.55, 10);
     });
 
     it('中途退出：机缘扣 30%，修为清零', () => {
