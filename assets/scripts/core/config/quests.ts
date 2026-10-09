@@ -1,5 +1,5 @@
 /** M8 修行日常：每日任务与活跃度宝箱（数值假设 #27） */
-export type QuestId = 'openBoxes' | 'tribulation' | 'expedition' | 'goldRain';
+export type QuestId = 'openBoxes' | 'tribulation' | 'expedition' | 'goldRain' | 'tower';
 
 export interface QuestConfig {
     id: QuestId;
@@ -13,6 +13,7 @@ export const QUESTS: QuestConfig[] = [
     { id: 'tribulation', name: '问心', desc: '完成 1 场灵气雨（渡劫或幻境）', target: 1 },
     { id: 'expedition',  name: '行走', desc: '妖径通关 1 层', target: 1 },
     { id: 'goldRain',    name: '接引', desc: '累计拾取 15 片金雨', target: 15 },
+    { id: 'tower',       name: '入冢', desc: '剑冢推层 1 次', target: 1 },
 ];
 
 /** 每个任务完成得 25 活跃度，上限 100 */

@@ -103,6 +103,23 @@ describe('M8 修行任务（数值假设 #27）', () => {
         expect(fragTotal).toBe(3); // 活跃度 100 档：随机普通灵根碎片 ×3
         expect(ACTIVITY_CHESTS.map((c) => c.at)).toEqual([30, 60, 100]);
     });
+
+    it('5 任务「完成任意 4 项」封顶 100；入冢计入进度（M22 §9）', () => {
+        const save = makeSave();
+        const qs = new QuestSystem(makeEco(save));
+        // 入冢任务可独立上报并完成
+        expect(qs.progressOf(save, 'tower')).toBe(0);
+        qs.progress(save, 'tower');
+        expect(qs.isCompleted(save, 'tower')).toBe(true);
+        // 完成 4 项（含 tower，缺 goldRain）→ 满额 100
+        qs.progress(save, 'openBoxes', 3);
+        qs.progress(save, 'tribulation');
+        qs.progress(save, 'expedition');
+        expect(qs.activityOf(save)).toBe(100);
+        // 完成全部 5 项仍封顶 100（不会溢出）
+        qs.progress(save, 'goldRain', 15);
+        expect(qs.activityOf(save)).toBe(100);
+    });
 });
 
 // ---------- 修真宝盒券 ----------

@@ -412,7 +412,9 @@ export class TowerBattleScene implements IScene {
         this.over = true;
         const levelFrom = this.run.startLevel;
         const grant = Game.tower.settle(Game.save, this.run);
+        Game.quests.progress(Game.save, 'tower'); // 活跃度任务「今日入冢 1 次」（M22 §9）
         Game.persist();
+        Game.checkAchievements(this.node); // 剑气成就序列「剑气破百万」（M22 §9）
         const p: TowerRunResult = {
             deepest: this.run.deepest,
             best: Game.save.tower.best,

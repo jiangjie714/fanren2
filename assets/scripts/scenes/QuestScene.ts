@@ -55,7 +55,7 @@ export class QuestScene implements IScene {
 
         // 心魔幻境入口横幅
         const illusion = spritePanel(n, 660, 112, undefined, THEME.tintPanel);
-        illusion.setPosition(0, 316, 0);
+        illusion.setPosition(0, 352, 0);
         fadeIn(illusion, 12);
         image(illusion, 'art/ui/icons/icon_illusion/spriteFrame', 56, 56).setPosition(-264, 0, 0);
         // 图标占 [-292, -236]，正文一律从 -224 起，别再让文字钻到图标底下
@@ -74,11 +74,12 @@ export class QuestScene implements IScene {
 
         // 任务列表。行高 108 = 三段（名称 34 / 描述 6 / 进度条 -30）刚好匀开，
         // 旧版行高 96 塞三段导致「描述压名称、进度条横穿名称」并且首字被卡片边缘裁掉。
+        // 5 任务（M22 增「入冢」）：起点 228，5 行末行下缘 -274，与宝箱行 -360 保持 12px 间隙。
         const ROW_H = 108;
         const ROW_GAP = 4;
         QUESTS.forEach((q, i) => {
             const row = spritePanel(n, 660, ROW_H, undefined, THEME.tintPanel);
-            row.setPosition(0, 176 - i * (ROW_H + ROW_GAP), 0);
+            row.setPosition(0, 228 - i * (ROW_H + ROW_GAP), 0);
             fadeIn(row, 14, i * 0.04);
             // 卡片半宽 330，左内边距 30 -> 文本左边缘 -300，进度条 600 宽铺满
             labelL(row, q.name, 26, { bold: true, color: THEME.goldLight }).setPosition(-300, 34, 0);
@@ -107,11 +108,11 @@ export class QuestScene implements IScene {
         // 活跃度宝箱行
         // 高 148（旧版 128 装不下：66 高的宝箱钮在 y=-36 时下缘 -69 已经捅出卡片 -64）
         const chestRow = spritePanel(n, 660, 148, undefined, THEME.tintPanel);
-        chestRow.setPosition(0, -298, 0);
+        chestRow.setPosition(0, -360, 0);
         fadeIn(chestRow, 14, 0.16);
         labelL(chestRow, `${TEXTS.questPageTitle} · 活跃度`, 24, { bold: true, color: THEME.goldLight })
             .setPosition(-300, 52, 0);
-        label(chestRow, `完成 4 项任务各 +25 活跃度（上限 ${ACTIVITY_MAX}）`, 19, { color: THEME.inkSoft })
+        label(chestRow, `完成任意 4 项任务各 +25 活跃度（上限 ${ACTIVITY_MAX}）`, 19, { color: THEME.inkSoft })
             .setPosition(0, 20, 0);
         ACTIVITY_CHESTS.forEach((c, i) => {
             const btn = spriteButton(chestRow, 196, 66, '', () => this.claimChest(c.at), {
@@ -128,11 +129,11 @@ export class QuestScene implements IScene {
             this.chestBtns.set(c.at, btn);
         });
 
-        label(n, '开箱、渡劫、幻境与历练归来都会自动计入任务进度', 20, {
+        label(n, '开箱、渡劫、幻境、历练归来与剑冢入冢都会自动计入任务进度', 20, {
             color: THEME.inkSoft,
             width: 600,
             shrink: true,
-        }).setPosition(0, -480, 0);
+        }).setPosition(0, -500, 0);
 
         this.refresh();
     }

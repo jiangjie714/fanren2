@@ -5,6 +5,7 @@ import { EconomySystem } from '../assets/scripts/core/systems/EconomySystem';
 import { AchievementSystem } from '../assets/scripts/core/systems/AchievementSystem';
 import { recordIllusion, recordTribulation } from '../assets/scripts/core/systems/StatsRecorder';
 import { ACHIEVEMENTS } from '../assets/scripts/core/config/achievements';
+import { swordAtk } from '../assets/scripts/core/config/tower';
 import { encodeIllusionWeek, encodeRealmValue } from '../assets/scripts/infra/DouyinSocial';
 
 function makeSave(): SaveData {
@@ -81,9 +82,9 @@ describe('M9a 长线计数器（StatsRecorder）', () => {
 // ---------- 成就系统 ----------
 
 describe('M9a 成就系统', () => {
-    it('12 项成就配置齐备且 id 唯一', () => {
-        expect(ACHIEVEMENTS.length).toBe(12);
-        expect(new Set(ACHIEVEMENTS.map((a) => a.id)).size).toBe(12);
+    it('成就配置齐备且 id 唯一（≥14 项，M22 增剑气序列后为 14）', () => {
+        expect(ACHIEVEMENTS.length).toBeGreaterThanOrEqual(14);
+        expect(new Set(ACHIEVEMENTS.map((a) => a.id)).size).toBe(ACHIEVEMENTS.length);
         for (const a of ACHIEVEMENTS) {
             expect(a.target).toBeGreaterThan(0);
             expect(a.reward.lingshi ?? 0).toBeGreaterThan(0);
@@ -132,6 +133,28 @@ describe('M9a 成就系统', () => {
         expect(ids).not.toContain('illusion180');
         // claimableCount 供红点
         expect(ach.claimableCount(save)).toBe(fresh.length);
+    });
+
+    it('剑气成就序列：swordLevel 派生剑气 ≥10 万/100 万分别达成（M22 §9）', () => {
+        const save = makeSave();
+        const ach = new AchievementSystem(makeEco(save));
+        // 初始 swordLevel 0 → 剑气 10，两条都不达成
+        let fresh = ach.check(save);
+        expect(fresh.map((a) => a.id)).not.toContain('towerSword100k');
+        expect(fresh.map((a) => a.id)).not.toContain('towerSword1m');
+        // 淬剑到剑气 ≥10 万（等级 189）→ 只达成 100k 档
+        save.tower.swordLevel = 189;
+        fresh = ach.check(save);
+        expect(swordAtk(189)).toBeGreaterThanOrEqual(100000);
+        expect(fresh.map((a) => a.id)).toContain('towerSword100k');
+        expect(fresh.map((a) => a.id)).not.toContain('towerSword1m');
+        // 淬剑到剑气 ≥100 万（等级 236）→ 两档都达成（100k 已在上一档 reached）
+        save.tower.swordLevel = 236;
+        fresh = ach.check(save);
+        expect(swordAtk(236)).toBeGreaterThanOrEqual(1000000);
+        expect(fresh.map((a) => a.id)).toContain('towerSword1m');
+        expect(save.achievements.reached).toContain('towerSword100k');
+        expect(save.achievements.reached).toContain('towerSword1m');
     });
 });
 

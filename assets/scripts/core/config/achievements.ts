@@ -1,13 +1,15 @@
-/** M9a 成就配置：12 项（数值假设 #31） */
+/** M9a 成就配置：12 项（数值假设 #31）；M22 增 2 项剑气成就序列（spec §9） */
 import { SaveData } from '../saveModel';
 import { LINGENS } from './lingens';
+import { swordAtk } from './tower';
 
 export type AchievementId =
     | 'firstOpen' | 'firstTribulation' | 'firstBreakthrough'
     | 'immortalTrib' | 'perfectTrib' | 'combo15'
     | 'collection4' | 'collectionAll'
     | 'open100' | 'lingshi100k'
-    | 'illusion120' | 'illusion180';
+    | 'illusion120' | 'illusion180'
+    | 'towerSword100k' | 'towerSword1m';
 
 export interface AchievementReward {
     lingshi?: number;
@@ -41,6 +43,8 @@ export const ACHIEVEMENTS: AchievementConfig[] = [
     { id: 'lingshi100k',        name: '家财万贯', desc: '累计获得 10 万灵石',        metric: (s) => s.stats.lingshiEarned,     target: 100000, unit: '灵石', reward: { lingshi: 1000, fragments: 3 } },
     { id: 'illusion120',        name: '心魔退散', desc: '幻境单局得分达到 120',      metric: (s) => s.illusionBestEver,        target: 120, reward: { lingshi: 800 } },
     { id: 'illusion180',        name: '心魔大圣', desc: '幻境单局得分达到 180',      metric: (s) => s.illusionBestEver,        target: 180, reward: { lingshi: 1500, fragments: 4 } },
+    { id: 'towerSword100k',     name: '剑气凝霜', desc: '剑气淬炼至 10 万',          metric: (s) => Math.floor(swordAtk(s.tower.swordLevel)), target: 100000, unit: '剑气', reward: { lingshi: 1000, fragments: 3 } },
+    { id: 'towerSword1m',       name: '剑气破百万', desc: '剑气淬炼至 100 万',        metric: (s) => Math.floor(swordAtk(s.tower.swordLevel)), target: 1000000, unit: '剑气', reward: { lingshi: 3000, fragments: 5 } },
 ];
 
 export function getAchievement(id: string): AchievementConfig {
