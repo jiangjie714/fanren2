@@ -33,3 +33,5 @@ __pycache__/
 # Art rebuild run artifacts (keep scripts & plans via git add -f)
 #//////////////////////////
 tools/art-rebuild/runs/
+
+project.local.yaml
