@@ -53,9 +53,9 @@ export class QuestScene implements IScene {
         pageHeader(n, TEXTS.questPageTitle, () => Game.stack.pop());
         this.bar = statusBar(n, 436);
 
-        // 心魔幻境入口横幅
+        // 心魔幻境入口横幅。statusBar(y=436, 高132)底缘 370，横幅上缘 = 306+56 = 362，留 8px。
         const illusion = spritePanel(n, 660, 112, undefined, THEME.tintPanel);
-        illusion.setPosition(0, 352, 0);
+        illusion.setPosition(0, 306, 0);
         fadeIn(illusion, 12);
         image(illusion, 'art/ui/icons/icon_illusion/spriteFrame', 56, 56).setPosition(-264, 0, 0);
         // 图标占 [-292, -236]，正文一律从 -224 起，别再让文字钻到图标底下
@@ -74,12 +74,14 @@ export class QuestScene implements IScene {
 
         // 任务列表。行高 108 = 三段（名称 34 / 描述 6 / 进度条 -30）刚好匀开，
         // 旧版行高 96 塞三段导致「描述压名称、进度条横穿名称」并且首字被卡片边缘裁掉。
-        // 5 任务（M22 增「入冢」）：起点 228，5 行末行下缘 -274，与宝箱行 -360 保持 12px 间隙。
+        // 5 任务（M22 增「入冢」）：起点 194（上缘 248，与横幅下缘 250 间隙 2px→改 190 留 6px），
+        // 5 行末行下缘 -308，与宝箱行 -392（上缘 -318）保持 10px 间隙。
+        // 全页紧凑排布下 1280 最矮屏（下限 -585）内放得下，无需滚动容器。
         const ROW_H = 108;
         const ROW_GAP = 4;
         QUESTS.forEach((q, i) => {
             const row = spritePanel(n, 660, ROW_H, undefined, THEME.tintPanel);
-            row.setPosition(0, 228 - i * (ROW_H + ROW_GAP), 0);
+            row.setPosition(0, 190 - i * (ROW_H + ROW_GAP), 0);
             fadeIn(row, 14, i * 0.04);
             // 卡片半宽 330，左内边距 30 -> 文本左边缘 -300，进度条 600 宽铺满
             labelL(row, q.name, 26, { bold: true, color: THEME.goldLight }).setPosition(-300, 34, 0);
@@ -108,7 +110,7 @@ export class QuestScene implements IScene {
         // 活跃度宝箱行
         // 高 148（旧版 128 装不下：66 高的宝箱钮在 y=-36 时下缘 -69 已经捅出卡片 -64）
         const chestRow = spritePanel(n, 660, 148, undefined, THEME.tintPanel);
-        chestRow.setPosition(0, -360, 0);
+        chestRow.setPosition(0, -392, 0);
         fadeIn(chestRow, 14, 0.16);
         labelL(chestRow, `${TEXTS.questPageTitle} · 活跃度`, 24, { bold: true, color: THEME.goldLight })
             .setPosition(-300, 52, 0);
@@ -133,7 +135,7 @@ export class QuestScene implements IScene {
             color: THEME.inkSoft,
             width: 600,
             shrink: true,
-        }).setPosition(0, -500, 0);
+        }).setPosition(0, -518, 0);
 
         this.refresh();
     }
