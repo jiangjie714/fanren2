@@ -418,6 +418,7 @@ import { TowerScene } from '../assets/scripts/scenes/TowerScene';
 import { TowerBattleScene } from '../assets/scripts/scenes/TowerBattleScene';
 import { LudaoScene } from '../assets/scripts/scenes/LudaoScene';
 import { WeaponScene } from '../assets/scripts/scenes/WeaponScene';
+import { PathScene } from '../assets/scripts/scenes/PathScene';
 import { PlayerScene } from '../assets/scripts/scenes/PlayerScene';
 import { ProfileScene } from '../assets/scripts/scenes/ProfileScene';
 import { RainScene } from '../assets/scripts/scenes/RainScene';
@@ -488,6 +489,10 @@ describe('场景集成：HomeScene 入口接线（导航错乱回归）', () => 
         icon('weapon').onClick();
         expect(push).toHaveBeenLastCalledWith(expect.any(WeaponScene));
 
+        // M23：仙路圆钮（五线进度总览）
+        icon('rank').onClick();
+        expect(push).toHaveBeenLastCalledWith(expect.any(PathScene));
+
         // M22：剑冢横幅（宽横幅、无内建文本，按 y=−179 定位）
         const towerBanner = h.registry.buttons.find(
             (b) => b.text === '' && (b.node as { getPosition(): { y: number } }).getPosition().y === -179,
@@ -496,7 +501,7 @@ describe('场景集成：HomeScene 入口接线（导航错乱回归）', () => 
         towerBanner!.onClick();
         expect(push).toHaveBeenLastCalledWith(expect.any(TowerScene));
 
-        expect(push).toHaveBeenCalledTimes(11);
+        expect(push).toHaveBeenCalledTimes(12);
         push.mockRestore();
     });
 
@@ -516,7 +521,7 @@ describe('场景集成：HomeScene 入口接线（导航错乱回归）', () => 
         expect(-582 - 39 - -640).toBeGreaterThanOrEqual(12);
     });
 
-    it('A11 图鉴入口（左侧 rail 圆钮 @-286,-20）点击进图鉴页，且展示 x/y 与图鉴页同源', () => {
+    it('A11 图鉴入口（左侧 rail 圆钮 @-286，M23 后随法器对称 @y=58）点击进图鉴页，且展示 x/y 与图鉴页同源', () => {
         bootGame();
         const home = new HomeScene();
         const push = vi.spyOn(Game.stack, 'push').mockImplementation(() => { });
@@ -666,6 +671,7 @@ const sceneCases: Array<[string, () => { onEnter(): void; onExit?(): void }]> = 
     ['SettingsScene', () => new SettingsScene()],
     ['ShopScene', () => new ShopScene()],
     ['WeaponScene', () => new WeaponScene()],
+    ['PathScene', () => new PathScene()],
     ['RainScene', () => new RainScene()],
     ['PkBattleScene', () => new PkBattleScene()],
 ];

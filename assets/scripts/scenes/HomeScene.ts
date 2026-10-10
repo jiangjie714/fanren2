@@ -42,6 +42,7 @@ import { SettingsScene } from './SettingsScene';
 import { ShopScene } from './ShopScene';
 import { PlayerScene } from './PlayerScene';
 import { WeaponScene } from './WeaponScene';
+import { PathScene } from './PathScene';
 import { AlchemyScene } from './AlchemyScene';
 import { FortuneScene } from './FortuneScene';
 import { ACTIVITY_CHESTS } from '../core/config/quests';
@@ -274,19 +275,26 @@ export class HomeScene implements IScene {
         this.questDot = makeRedDot(n, 310, 394);
 
         this.trailBtn = iconButton(n, 'art/ui/icons/icon_expedition/spriteFrame', () => Game.stack.push(new TrailScene()), 72, 72);
-        this.trailBtn.node.setPosition(286, 240, 0);
-        railLabel('妖径', 188);
+        this.trailBtn.node.setPosition(286, 266, 0);
+        railLabel('妖径', 214);
 
         // M9a 论道入口：排行（降级版）/ 论武 / 幻境 / 成就
         this.ludaoBtn = iconButton(n, 'art/ui/icons/icon_ludao/spriteFrame', () => Game.stack.push(new LudaoScene()), 72, 72);
-        this.ludaoBtn.node.setPosition(286, 110, 0);
-        railLabel('论道', 58);
-        this.ludaoDot = makeRedDot(n, 310, 134);
+        this.ludaoBtn.node.setPosition(286, 162, 0);
+        railLabel('论道', 110);
+        this.ludaoDot = makeRedDot(n, 310, 186);
 
         // M11 法器阁入口：锻体 + 六档法器
         this.weaponBtn = iconButton(n, 'art/ui/icons/icon_weapon/spriteFrame', () => Game.stack.push(new WeaponScene()), 72, 72);
-        this.weaponBtn.node.setPosition(286, -20, 0);
-        railLabel('法器', -70);
+        this.weaponBtn.node.setPosition(286, 58, 0);
+        railLabel('法器', 6);
+
+        // M23 修仙之路入口：五线进度总览（境界/妖径/剑冢/图鉴/成就）
+        // rail 从 4 钮（间距 130）压缩为 5 钮（间距 104）：规格首选的法器下方 -150
+        // 被 M22 剑冢横幅（y=-179，660 宽）堵死，压缩间距是不动 CTA/横幅/环形的唯一解。
+        iconButton(n, 'art/ui/icons/icon_rank/spriteFrame', () => Game.stack.push(new PathScene()), 72, 72)
+            .node.setPosition(286, -46, 0);
+        railLabel('仙路', -98);
 
         // A11 图鉴入口：改为与右侧 rail（法器 / 论道 / 妖径 / 修行）**完全同构**的圆钮。
         //
@@ -297,20 +305,20 @@ export class HomeScene implements IScene {
         // 视觉 72@-286 → [-322,-250]，与 CTA **恰好相切**，既对称又不叠压。进度信息移到圆钮下方
         // 的标签区，与右侧 rail 的「法器 / 论道 / 妖径 / 修行」同规。
         this.collectionBtn = iconButton(n, 'art/ui/icons/icon_collection/spriteFrame', () => Game.stack.push(new CollectionScene()), 72, 72);
-        this.collectionBtn.node.setPosition(-286, -20, 0);
-        railLabel('图鉴', -70, -286);
+        this.collectionBtn.node.setPosition(-286, 58, 0);
+        railLabel('图鉴', 6, -286);
         // 计数与进度：两行小字挂在圆钮正下方，宽度收在安全线内（-332 → -250 = 82px 可用）。
-        // 进度条中心 -122 而非 -124：底缘 -117 要与剑冢横幅顶缘 -135 留 18px 间隙
-        // （-124 时只剩 6px，太紧）。
+        // 进度条中心 -50：底缘 -55 与剑冢横幅顶缘 -135 留 80px 间隙
+        // （M23 rail 压缩后随法器对称上移到 58）。
         this.collectionLabel = label(n, '', 18, {
             bold: true,
             color: THEME.paper,
             outline: faded(THEME.void, 220),
             outlineWidth: 3,
         }).getComponent(Label)!;
-        this.collectionLabel.node.setPosition(-286, -100, 0);
-        this.collectionBar = progressBar(n, 82, 10);
-        this.collectionBar.node.setPosition(-286, -122, 0);
+        this.collectionLabel.node.setPosition(-286, -28, 0);
+        this.collectionBar = progressBar(n, 72, 10);
+        this.collectionBar.node.setPosition(-286, -50, 0);
 
         this.refresh();
     }

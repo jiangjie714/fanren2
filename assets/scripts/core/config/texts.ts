@@ -68,6 +68,8 @@ export const TEXTS = {
     perfectStars: '★ ★ ★',
     // M8 修行日常（数值假设 #27–#29）
     questPageTitle: '修行任务',
+    // M23 修仙之路（进度总览页）
+    pathPageTitle: '修仙之路',
     questActivity: (n: number) => `活跃度 ${n}/100`,
     questDone: '已完成',
     questChestClaim: '领 取',
