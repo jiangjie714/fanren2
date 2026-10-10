@@ -256,6 +256,34 @@ export const TRAIL_CHAPTERS: readonly TrailChapter[] = [
         bossSlay: { xiuwei: 4370, jiyuan: 100 },
         gift: { lingshi: 21100, mats: { lingcao: 11, lingshi_core: 9, yaodan_core: 7 }, fragments: 7 },
     },
+    {
+        id: 'gangfeng',
+        name: '罡风天壑',
+        blurb: '风壑呼啸，罡风裂骨削魂',
+        bg: 'art/ui/bg_trail_gangfeng/spriteFrame',
+        monsters: [
+            { id: 'qinggang', name: '青罡隼' },
+            { id: 'liefeng', name: '裂风狼鹫' },
+            { id: 'fengsha', name: '风煞妖灵' },
+            { id: 'pengchu', name: '啸空鹏雏' },
+            { id: 'xuangui', name: '旋龟风蜮' },
+            { id: 'gangkui', name: '罡风傀儡' },
+        ],
+        boss: { id: 'fengjun', name: '罡风兽君' },
+        typePlan: [
+            'battle', 'puzzle', 'match3', 'battle', 'puzzle',
+            'match3', 'battle', 'puzzle', 'battle',
+        ],
+        rewardSections: [
+            [2700, 3580],
+            [3190, 4180],
+            [3820, 4980],
+        ],
+        bossReward: [4050, 5580],
+        fragmentChance: [0.45, 0.65, 0.85],
+        bossSlay: { xiuwei: 5900, jiyuan: 130 },
+        gift: { lingshi: 28500, mats: { lingcao: 12, lingshi_core: 10, yaodan_core: 8 }, fragments: 8 },
+    },
 ];
 
 // ---------- 章节/层换算 ----------
@@ -431,10 +459,13 @@ export function chapterGift(chapter: number): TrailChapter['gift'] {
 }
 
 /**
- * 章节难度系数：妖怪面板随章节线性爬升 1 → 1.8 封顶（#47，M19 修订：
- * 原 1.6 封顶在第 5 章即触顶，失去纵深空间，故抬封顶、斜率不变）。
+ * 章节难度系数（#47，M24 修订）：妖怪面板随章节爬升。
+ * 前 7 章维持旧式 min(1.8, 1+0.15(ch−1))（第 7 章触顶 1.8，存量 bit-exact）；
+ * 第 8 章起 1.8+0.15(ch−7) 无封顶续爬（M24：第 7 章触顶后第 8 章将失去纵深）。
  * 血量 = 玩家攻 × 4.5 × 系数——玩家成长不改变通关率，难度只随章节推进。
  */
 export function chapterScale(chapter: number): number {
-    return Math.min(1.8, 1 + (chapter - 1) * 0.15);
+    return chapter <= 7
+        ? Math.min(1.8, 1 + (chapter - 1) * 0.15)
+        : 1.8 + (chapter - 7) * 0.15;
 }

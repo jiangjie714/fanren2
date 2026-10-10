@@ -204,7 +204,7 @@ describe('M15-T1 奖励表（#47）', () => {
     });
 
     it('M21 第 7 章焚天炎海：配比 5:3:2 且奖励继续爬升', () => {
-        expect(TRAIL_CHAPTERS.length).toBe(7); // ← 章节总数基线：新增第 8 章时改这里
+        expect(TRAIL_CHAPTERS.length).toBe(8); // ← 章节总数基线：M24 起 8 章
         const ch7 = TRAIL_CHAPTERS[6];
         expect(ch7.id).toBe('fentian');
         expect(ch7.monsters.length).toBe(6);
@@ -219,12 +219,43 @@ describe('M15-T1 奖励表（#47）', () => {
         expect(ch7.fragmentChance[2]).toBeGreaterThan(ch6.fragmentChance[2]);
     });
 
-    it('第 7 章难度触及 1.8 封顶；三消 HP 仍封顶 38 不再加码', () => {
-        expect(chapterScale(7)).toBeCloseTo(1.8);
-        expect(chapterScale(8)).toBeCloseTo(1.8);
-        expect(chapterOf(61)).toBe(7);
-        expect(deriveMatch3(61).hp).toBe(38);
-        expect(deriveMatch3(70).hp).toBe(38);
+    it('M24 第 8 章罡风天壑：配比 4:3:2 且奖励按 1.35× 继续爬升', () => {
+        expect(TRAIL_CHAPTERS.length).toBe(8); // ← 章节总数基线：新增第 9 章时改这里
+        const ch8 = TRAIL_CHAPTERS[7];
+        expect(ch8.id).toBe('gangfeng');
+        expect(ch8.name).toBe('罡风天壑');
+        expect(ch8.monsters.length).toBe(6);
+        const count = (g: string) => ch8.typePlan.filter((x) => x === g).length;
+        expect(count('battle')).toBe(4);
+        expect(count('puzzle')).toBe(3);
+        expect(count('match3')).toBe(2);
+        const ch7 = TRAIL_CHAPTERS[6];
+        expect(ch8.rewardSections[2][1]).toBeGreaterThan(ch7.rewardSections[2][1]);
+        expect(ch8.bossReward[1]).toBeGreaterThan(ch7.bossReward[1]);
+        expect(ch8.bossSlay.xiuwei).toBeGreaterThan(ch7.bossSlay.xiuwei);
+        expect(ch8.bossSlay.jiyuan).toBe(130);
+        expect(ch8.fragmentChance).toEqual([0.45, 0.65, 0.85]);
+        expect(ch8.gift.lingshi).toBe(28500);
+        expect(ch8.gift.fragments).toBe(8);
+        // 静态区间锚点（防手滑改值）
+        expect(ch8.rewardSections[0]).toEqual([2700, 3580]);
+        expect(ch8.rewardSections[1]).toEqual([3190, 4180]);
+        expect(ch8.rewardSections[2]).toEqual([3820, 4980]);
+        expect(ch8.bossReward).toEqual([4050, 5580]);
+        expect(ch8.bossSlay.xiuwei).toBe(5900);
+    });
+
+    it('M24 chapterScale 分段续爬：第 7 章仍 1.8，第 8 章起 1.8+0.15(ch−7) 无封顶', () => {
+        // 存量 bit-exact：前 7 章与旧式 min(1.8, 1+0.15(ch−1)) 全等
+        for (let ch = 1; ch <= 7; ch++) {
+            expect(chapterScale(ch)).toBe(Math.min(1.8, 1 + (ch - 1) * 0.15));
+        }
+        expect(chapterScale(8)).toBeCloseTo(1.95);
+        expect(chapterScale(9)).toBeCloseTo(2.1);
+        expect(chapterScale(20)).toBeCloseTo(3.75); // 无封顶永续（1.8+0.15×13）
+        // 三消 HP 仍封顶 38 不再加码（拼图 60s 触底同理，均维持）
+        expect(deriveMatch3(71).hp).toBe(38);
+        expect(deriveMatch3(80).hp).toBe(38);
     });
 
     it('chapterScale：线性 0.15/章，1.8 封顶（M19 由 1.6 抬高，给第 5 章纵深）', () => {
@@ -233,7 +264,6 @@ describe('M15-T1 奖励表（#47）', () => {
         expect(chapterScale(5)).toBeCloseTo(1.6);
         expect(chapterScale(6)).toBeCloseTo(1.75);
         expect(chapterScale(7)).toBeCloseTo(1.8);
-        expect(chapterScale(9)).toBeCloseTo(1.8);
     });
 });
 
