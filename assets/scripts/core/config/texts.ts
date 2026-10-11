@@ -203,6 +203,10 @@ export const TEXTS = {
     towerRevived: '回魂！剑气暴涨',
     towerGiveUpBtn: '收兵返回',
     towerForgePanel: (c: string) => `淬剑 · ${c} 煞晶`,
+    // 剑冢第二个广告位 towerDouble（M22b）：本局煞晶翻倍（每局限激活 1 次，主动想点的增益位）
+    towerDoubleBtn: '看广告 · 本局煞晶×2',
+    towerDoubleOn: '本局煞晶×2 已激活',
+    towerResultDouble: '本局已开启「煞晶×2」',
     towerResultWin: '剑冢收兵',
     towerResultDeepest: (f: number, best: number) => `本局最深 第 ${f} 层 · 最高纪录 第 ${best} 层`,
     towerResultNewBest: '新纪录！',

@@ -88,6 +88,8 @@ export class TowerBattleScene implements IScene {
     private chargeBtnOpacity: UIOpacity | null = null;
     /** 凝神一击防连点剩余冷却（秒） */
     private chargeCd = 0;
+    /** 本局煞晶翻倍（towerDouble 广告位）：由剑冢首页传入，作用于整局收入 */
+    private doubleMode = false;
     /** 教学局（首次入冢）：仅第 1 层，保证必胜并演示「红环亮起点它」（spec §10 R5） */
     private tutorial = false;
     private tutorialShown = false;
@@ -102,9 +104,10 @@ export class TowerBattleScene implements IScene {
     private overlay: Node | null = null;
     private forgeBtns: ButtonHandle[] = [];
 
-    constructor() {
+    constructor(doubleMode = false) {
         this.node = new Node('TowerBattleScene');
         this.node.layer = Layers.Enum.UI_2D;
+        this.doubleMode = doubleMode;
     }
 
     onEnter() {
@@ -113,6 +116,7 @@ export class TowerBattleScene implements IScene {
         // 演示「红环亮起点它」+ 该层必胜（spec §10 R5）
         this.tutorial = isFirstRun(Game.save.tower.best, Game.save.tower.swordLevel, Game.save.tower.crystal);
         this.run = Game.tower.startRun(Game.save);
+        this.run.double = this.doubleMode;
         pageBackground(n, 'art/ui/bg_tower/spriteFrame');
         this.bar = statusBar(n, 436);
 
@@ -428,6 +432,7 @@ export class TowerBattleScene implements IScene {
             xiuwei: grant.xiuwei,
             capped: grant.capped,
             revives: this.run.revives,
+            double: this.run.double,
         };
         Game.stack.swap(new TowerResultScene(p));
     }
@@ -441,7 +446,10 @@ export class TowerBattleScene implements IScene {
         this.hpBar.set(Math.min(1, Math.max(0, s.hp / s.maxHp)), `${TEXTS.towerMonsterHp} ${formatCompact(Math.max(0, s.hp))}`);
         this.gangBar.set(Math.min(1, Math.max(0, s.gang / GANG_MAX)), `${TEXTS.towerGang} ${Math.round(Math.max(0, s.gang))}`);
         if (this.atkLabel) this.atkLabel.string = `${TEXTS.towerSwordAtk} ${formatCompact(this.currentAtk())}`;
-        if (this.forgeLabel) this.forgeLabel.string = TEXTS.towerForgePanel(formatCompact(Game.save.tower.crystal));
+        if (this.forgeLabel) {
+            const tag = this.run.double ? ' · 煞晶×2' : '';
+            this.forgeLabel.string = TEXTS.towerForgePanel(formatCompact(Game.save.tower.crystal)) + tag;
+        }
         if (this.floorLabel) this.floorLabel.string = TEXTS.towerFloorTitle(this.run.floor);
 
         // 倒计时环：从满到空

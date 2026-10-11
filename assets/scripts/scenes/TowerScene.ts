@@ -7,6 +7,7 @@
 import { Graphics, Label, Layers, Node } from 'cc';
 import { IScene } from '../infra/SceneStack';
 import { Game } from '../infra/Game';
+import { Ads } from '../infra/Ads';
 import { TEXTS } from '../core/config/texts';
 import { formatCompact } from '../core/bignum';
 import { MAINLINE, REVIVE_MAX, SWORD_GROWTH, req, startFloor } from '../core/config/tower';
@@ -46,6 +47,9 @@ export class TowerScene implements IScene {
     private scale!: Node;
     private enterBtn: ButtonHandle | null = null;
     private forgeBtns: ButtonHandle[] = [];
+    /** 本局煞晶翻倍（towerDouble 广告位）：本页面激活，入冢时传入战斗局；每局仅 1 次 */
+    private doublePending = false;
+    private doubleBtn: ButtonHandle | null = null;
 
     constructor() {
         this.node = new Node('TowerScene');
@@ -104,17 +108,28 @@ export class TowerScene implements IScene {
             variant: 'primary',
             textColor: THEME.void,
         });
-        this.enterBtn.node.setPosition(0, -226, 0);
+        this.enterBtn.node.setPosition(0, -264, 0);
+
+        // 增益位：本局煞晶翻倍（towerDouble，主动想点，每局 1 次）—— 玩家在剑冢首页
+        // 主动点开广告换本局通关煞晶 ×2，契合 spec §9 的「玩家主动想点的增益位」（与
+        // 回魂这种失败触发型广告区别开）。激活后本页面置灰，入冢时随 run 传入战斗局。
+        this.doubleBtn = spriteButton(n, 460, 64, TEXTS.towerDoubleBtn, () => this.activateDouble(), {
+            fontSize: 24,
+            variant: 'secondary',
+            textColor: THEME.goldLight,
+        });
+        this.doubleBtn.node.setPosition(0, -170, 0);
 
         // 底部：今日回灌进度（日封顶可见化，防「打了却没收益」的疑惑）
         const foot = spritePanel(n, 628, 116, undefined, THEME.tintDeep);
-        foot.setPosition(0, -376, 0);
+        foot.setPosition(0, -384, 0);
         fadeIn(foot, 10, 0.06);
         this.dailyLabel = label(foot, '', 22, { bold: true, color: THEME.goldLight, width: 580, shrink: true }).getComponent(Label);
         this.dailyLabel!.node.setPosition(0, 16, 0);
         label(foot, TEXTS.towerBlurb, 19, { color: THEME.paper, width: 580, shrink: true }).setPosition(0, -26, 0);
 
         this.refresh();
+        this.refreshDouble();
     }
 
     onResume() {
@@ -208,7 +223,32 @@ export class TowerScene implements IScene {
 
     private enter() {
         // 首入铭层：run 起手层必有 5 层连胜（spec §4.3 首因效应），不设门槛
-        Game.stack.push(new TowerBattleScene());
+        // 本局煞晶翻倍标记随 run 传入战斗局（每局限激活 1 次，由 doublePending 保证）
+        Game.stack.push(new TowerBattleScene(this.doublePending));
+    }
+
+    /** 主动增益位：看广告开启本局煞晶 ×2（per-run，每局仅 1 次） */
+    private activateDouble() {
+        if (this.doublePending) return;
+        Ads.show('towerDouble', this.node, {
+            onSuccess: () => {
+                this.doublePending = true;
+                this.refreshDouble();
+                toast(this.node, TEXTS.towerDoubleOn, 26);
+            },
+        });
+    }
+
+    /** 同步翻倍按钮状态：未激活可点、激活后置灰并改文案 */
+    private refreshDouble() {
+        if (!this.doubleBtn) return;
+        if (this.doublePending) {
+            this.doubleBtn.setText(TEXTS.towerDoubleOn);
+            this.doubleBtn.setEnabled(false);
+        } else {
+            this.doubleBtn.setText(TEXTS.towerDoubleBtn);
+            this.doubleBtn.setEnabled(true);
+        }
     }
 }
 

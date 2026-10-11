@@ -3,8 +3,8 @@ import { buildLaunchReport } from '../assets/scripts/core/launchCheck';
 
 describe('buildLaunchReport — 上线前核查', () => {
   const base = {
-    total: 11,
-    configured: 11,
+    total: 12,
+    configured: 12,
     missingNames: [] as string[],
     privacyPending: false,
     simAuto: false,
@@ -23,7 +23,7 @@ describe('buildLaunchReport — 上线前核查', () => {
       missingNames: ['论武蓄力', '剑冢回魂', '凝神一瞥'],
     });
     expect(r.buildReady).toBe(false);
-    expect(r.warnings.some((w) => w.includes('论武蓄力') && w.includes('3/11'))).toBe(true);
+    expect(r.warnings.some((w) => w.includes('论武蓄力') && w.includes('3/12'))).toBe(true);
   });
 
   it('隐私/协议仍占位：告警且 buildReady 为假', () => {

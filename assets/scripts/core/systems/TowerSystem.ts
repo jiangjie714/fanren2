@@ -8,6 +8,7 @@
  */
 import { SaveData, todayString } from '../saveModel';
 import {
+    DOUBLE_MULT,
     MAINLINE,
     REVIVE_MAX,
     forgeCost,
@@ -34,12 +35,15 @@ export class TowerRun {
     crystal = 0;
     /** 本局起始淬剑等级（结算页展示等级变化时用） */
     readonly startLevel: number;
+    /** 本局煞晶翻倍（towerDouble 广告位，每局限激活 1 次）；正交 per-run buff，不碰四条链 */
+    double = false;
 
-    constructor(best: number, swordLevel: number) {
+    constructor(best: number, swordLevel: number, double = false) {
         this.floor = startFloor(best);
         this.startFloor = this.floor;
         this.deepest = this.floor;
         this.startLevel = swordLevel;
+        this.double = double;
     }
 
     /** 本局剑气 = 剑气(淬剑等级) × 回魂增益（乘算叠加） */
@@ -47,9 +51,9 @@ export class TowerRun {
         return swordAtk(swordLevel) * reviveMult(this.revives);
     }
 
-    /** 通关当前层：结算煞晶并推进到下一层 */
+    /** 通关当前层：结算煞晶并推进到下一层（towerDouble 时本层收入 ×2，正交于四条链） */
     win(): void {
-        this.crystal += floorCrystal(this.floor);
+        this.crystal += floorCrystal(this.floor) * (this.double ? DOUBLE_MULT : 1);
         this.deepest = Math.max(this.deepest, this.floor);
         this.floor += 1;
     }
@@ -136,9 +140,9 @@ export class TowerSystem {
 
     // ---------- 局 ----------
 
-    /** 开一局：起手层 = max(1, best−4) */
-    startRun(save: SaveData): TowerRun {
-        return new TowerRun(save.tower.best, save.tower.swordLevel);
+    /** 开一局：起手层 = max(1, best−4)；double 为本局煞晶翻倍标记（towerDouble 广告位） */
+    startRun(save: SaveData, double = false): TowerRun {
+        return new TowerRun(save.tower.best, save.tower.swordLevel, double);
     }
 
     /**

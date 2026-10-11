@@ -102,6 +102,18 @@ export function reviveMult(revives: number): number {
     return Math.pow(REVIVE_BOOST, Math.max(0, Math.min(REVIVE_MAX, revives)));
 }
 
+// ---------- 第二个广告位 towerDouble（M22b） ----------
+
+/**
+ * 本局煞晶翻倍倍率。这是**正交 per-run buff**，作用点是 `TowerRun.win()` 的通关收入，
+ * 绝不触碰上面四条链（SWORD_GROWTH/FORGE_COST_GROWTH/REQ_GROWTH/CRYSTAL_GROWTH）。
+ * 即：它只把玩家沿既有「无限但缓慢」曲线推进的**速度**加快一倍，不改变曲线形状本身，
+ * 因此 `tests/tower-balance.test.ts` 的 180 日仿真（不含广告增益）无需重跑、结论不变。
+ */
+export const DOUBLE_MULT = 2;
+/** 每局可激活次数上限（增益位，主动想点；按钮激活后即置灰至下一局） */
+export const DOUBLE_MAX = 1;
+
 // ---------- 教学（spec §10 R5） ----------
 
 /**

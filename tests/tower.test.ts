@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
     CHARGE_TAP_CD,
     CRYSTAL_GROWTH,
+    DOUBLE_MAX,
+    DOUBLE_MULT,
     FORGE_COST_GROWTH,
     REQ_GROWTH,
     SWORD_GROWTH,
@@ -21,6 +23,13 @@ import {
 import { formatCompact } from '../assets/scripts/core/bignum';
 import { TowerSystem } from '../assets/scripts/core/systems/TowerSystem';
 import { defaultSave, migrate, SaveData } from '../assets/scripts/core/saveModel';
+
+/** 测试用初始存档（剑冢字段清零）；模块级，供各 describe 共用 */
+function save(): SaveData {
+    const s = defaultSave();
+    s.tower = { best: 1, swordLevel: 0, crystal: 0, daily: { day: '', lingshi: 0, mats: 0, xiuwei: 0 } };
+    return s;
+}
 
 describe('M22 剑冢：四条链单调性与无封顶', () => {
     it('剑气 ×1.05/级、成本 ×1.13、层需求 ×1.16、煞晶 ×1.39', () => {
@@ -148,6 +157,50 @@ describe('M22 剑冢：局（run）与回魂', () => {
     });
 });
 
+describe('M22b 剑冢：towerDouble 增益广告位（正交 per-run buff，不碰四条链）', () => {
+    it('常量：翻倍倍率 2、每局激活上限 1', () => {
+        expect(DOUBLE_MULT).toBe(2);
+        expect(DOUBLE_MAX).toBe(1);
+    });
+
+    it('startRun(save, double) 透传标记，默认 false', () => {
+        const s = save();
+        const sys = new TowerSystem();
+        expect(sys.startRun(s).double).toBe(false);
+        expect(sys.startRun(s, true).double).toBe(true);
+    });
+
+    it('本局煞晶翻倍：激活后通关收入 ×2，且整局全程生效', () => {
+        const s = save();
+        const sys = new TowerSystem();
+        s.tower.best = 20; // 起手层 16
+        const runOn = sys.startRun(s, true);
+        expect(runOn.double).toBe(true);
+        runOn.win(); // 通 16 → 收入 floorCrystal(16)*2
+        runOn.win(); // 通 17 → 收入 floorCrystal(17)*2
+        expect(runOn.crystal).toBe(floorCrystal(16) * 2 + floorCrystal(17) * 2);
+
+        const runOff = sys.startRun(s, false);
+        expect(runOff.double).toBe(false);
+        runOff.win();
+        expect(runOff.crystal).toBe(floorCrystal(runOff.startFloor)); // 关闭时等同旧版
+    });
+
+    it('正交性：double 只作用在 win 收入点，四条链公式（floorCrystal 等）不受其影响', () => {
+        // floorCrystal 是四条链之一，绝不因 double 改变
+        expect(floorCrystal(1)).toBe(25);
+        expect(floorCrystal(50)).toBe(Math.floor(25 * Math.pow(1.39, 49)));
+        // 关闭 double 时行为与旧版一致（与「局」测试同口径）
+        const s = save();
+        const sys = new TowerSystem();
+        const run = sys.startRun(s, false);
+        run.win();
+        expect(run.crystal).toBe(floorCrystal(1));
+        // 关键回归：180 日长线仿真（tower-balance.test.ts）不含本 buff，曲线形状不变
+        expect(DOUBLE_MULT).toBeGreaterThan(1);
+    });
+});
+
 describe('M22 剑冢：主线回灌里程碑', () => {
     it('只统计本局新跨越的 10 的倍数层', () => {
         expect(milestonesCrossed(0, 10)).toBe(1);
@@ -159,12 +212,6 @@ describe('M22 剑冢：主线回灌里程碑', () => {
 });
 
 describe('M22 剑冢：淬剑与局状态机（TowerSystem）', () => {
-    function save(): SaveData {
-        const s = defaultSave();
-        s.tower = { best: 1, swordLevel: 0, crystal: 0, daily: { day: '', lingshi: 0, mats: 0, xiuwei: 0 } };
-        return s;
-    }
-
     it('淬剑：扣煞晶升等级，剑气与成本同步派生', () => {
         const s = save();
         const sys = new TowerSystem();

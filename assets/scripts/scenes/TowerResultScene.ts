@@ -10,6 +10,7 @@ import { TEXTS } from '../core/config/texts';
 import { formatCompact } from '../core/bignum';
 import { THEME, fadeIn, label, pageBackground, spriteButton, spritePanel } from '../ui/ThemeLib';
 import { TowerBattleScene } from './TowerBattleScene';
+import { TowerScene } from './TowerScene';
 
 /** 一局的结算数据（TowerSystem.settle 的输出 + 局内读数） */
 export interface TowerRunResult {
@@ -24,6 +25,8 @@ export interface TowerRunResult {
     xiuwei: number;
     capped: boolean;
     revives: number;
+    /** 本局是否开启煞晶翻倍（towerDouble） */
+    double: boolean;
 }
 
 const LINE_STEP = 44;
@@ -68,6 +71,7 @@ export class TowerResultScene implements IScene {
         ];
         if (p.capped) lines.push(TEXTS.towerResultCapped);
         if (p.revives > 0) lines.push(TEXTS.towerResultRevives(p.revives));
+        if (p.double) lines.push(TEXTS.towerResultDouble);
 
         const detailH = lines.length * LINE_STEP + 60;
         const detailTop = 380;
@@ -86,7 +90,8 @@ export class TowerResultScene implements IScene {
 
         const btnY = Math.max(-500, detailTop - detailH - 90);
         const again = spriteButton(n, 300, 88, TEXTS.towerResultAgain, () => {
-            Game.stack.swap(new TowerBattleScene());
+            // 回到剑冢首页（hub）：玩家可在此重新激活本局煞晶×2 等增益，再入冢
+            Game.stack.swap(new TowerScene());
         }, { fontSize: 26, variant: 'primary', textColor: THEME.void });
         again.node.setPosition(-162, btnY, 0);
         const home = spriteButton(n, 300, 88, TEXTS.towerResultHome, () => {
