@@ -29,7 +29,7 @@ import {
     uinode,
     makeRedDot,
 } from '../ui/ThemeLib';
-import { DouyinSocial } from '../infra/DouyinSocial';
+import { DouyinSocial, encodeIllusionWeek, encodeRealmValue } from '../infra/DouyinSocial';
 import { PkBattleScene } from './PkBattleScene';
 import { DaoFriendScene } from './DaoFriendScene';
 import { PK_DAILY_LIMIT, WEAPONS } from '../core/config/combat';
@@ -195,7 +195,7 @@ export class LudaoScene implements IScene {
                 sp.spriteFrame = sf;
                 this.odcTexture = tex;
                 this.odcSpriteFrame = sf;
-                DouyinSocial.requestRank(this.odcKey);
+                DouyinSocial.requestRank(this.odcKey, this.myRankValue(this.odcKey));
             } catch {
                 label(view, '好友榜视图初始化失败，稍后重试', 22, { color: THEME.inkSoft, width: 600, shrink: true });
             }
@@ -217,7 +217,15 @@ export class LudaoScene implements IScene {
         this.odcKey = key;
         this.renderTabbar();
         this.renderTab();
-        DouyinSocial.requestRank(key);
+        DouyinSocial.requestRank(key, this.myRankValue(key));
+    }
+
+    /** 玩家自身三榜编码值（与子域好友同口径），用于好友榜注入"我"行 */
+    private myRankValue(key: RankKey): number {
+        const s = Game.save;
+        if (key === 'realm_value') return encodeRealmValue(s.realmIndex, s.xiuwei);
+        if (key === 'illusion_week') return encodeIllusionWeek(s.illusionWeekKey, s.illusionWeekBest);
+        return s.stats.bestTribScore;
     }
 
     /** 降级版：三榜个人值 + 虚拟道友目标线 + 追赶进度条 */

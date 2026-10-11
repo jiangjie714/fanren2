@@ -4,8 +4,9 @@
  * 职责：tt.getFriendCloudStorage 拉好友三键 → 渲染榜单到共享画布 / 计算好友对比 → postMessage 回主域。
  * 语义必须与主域 core/systems/SocialRank.ts 保持同步（解码/对比/排序）。
  * 消息协议（docs/项目现状与后续规划.md 3.2）：
- *   主域 → 子域：{ type:'renderRank', key } / { type:'compare', key, myValue }
+ *   主域 → 子域：{ type:'renderRank', key, myValue } / { type:'compare', key, myValue }
  *   子域 → 主域：{ type:'rankReady' } / { type:'compareResult', beat, total, top }
+ *   renderRank.myValue 为玩家自身三榜编码值（主域算好传入），用于在好友榜注入"我"行。
  */
 /* global tt */
 
@@ -123,12 +124,23 @@ function drawEmpty(text) {
     ctx.fillText(text, sharedCanvas.width / 2, sharedCanvas.height / 2);
 }
 
-function drawList(users, key, myValue) {
+/**
+ * 组装榜单条目：好友 + 玩家自己。
+ * 关键：抖音 getFriendCloudStorage 只返回好友数据，**不含玩家本人**，
+ * 若直接渲染玩家永远看不到自己排第几。故 myValue>0 时注入一条合成「我」行，
+ * 与好友按同一编码值混排，自然落在正确名次并以金色高亮。
+ */
+function buildEntries(users, key, myValue) {
     var entries = [];
     for (var i = 0; i < users.length; i++) {
         var v = valueOf(users[i], key);
-        if (v > 0) entries.push({ nickname: users[i].nickname || '道友', value: v });
+        if (v > 0) entries.push({ nickname: users[i].nickname || '道友', value: v, isMe: false });
     }
+    if (myValue > 0) entries.push({ nickname: '我', value: myValue, isMe: true });
+    return entries;
+}
+
+function drawList(entries, key) {
     if (!entries.length) {
         drawEmpty('好友们还没有成绩，去邀请他们吧');
         return;
@@ -140,8 +152,8 @@ function drawList(users, key, myValue) {
     for (var r = 0; r < maxRows; r++) {
         var y = top + r * rowH;
         var e = sorted[r];
-        var isMe = myValue > 0 && e.value === myValue;
-        // 行底
+        var isMe = e.isMe;
+        // 行底（"我"行高亮）
         if (isMe) {
             ctx.fillStyle = 'rgba(240,177,74,0.14)';
             ctx.fillRect(20, y - 6, sharedCanvas.width - 40, rowH - 10);
@@ -172,7 +184,7 @@ function render(key, users, myValue) {
         tribulation_best: '渡劫评分榜 · 好友',
     };
     drawHeader(titles[key] || '好友榜', '虚位以待，共赴大道');
-    drawList(users, key, myValue);
+    drawList(buildEntries(users, key, myValue), key);
 }
 
 // ---------- 消息处理 ----------
@@ -181,8 +193,9 @@ tt.onMessage(function (msg) {
     if (!msg || typeof msg !== 'object') return;
     if (msg.type === 'renderRank' && KEYS.indexOf(msg.key) >= 0) {
         currentKey = msg.key;
+        var myValue = Math.max(0, Math.round(Number(msg.myValue) || 0));
         fetchFriends(function (users) {
-            render(currentKey, users, 0);
+            render(currentKey, users, myValue);
             console.log('[fanren][odc] rank rendered, rankReady sent');
             tt.postMessage({ type: 'rankReady' });
         });

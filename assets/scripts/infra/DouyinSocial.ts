@@ -112,14 +112,18 @@ export class DouyinSocial {
         return canvas;
     }
 
-    /** 请求子域渲染好友榜（三个榜键之一）；不可用时 no-op */
-    static requestRank(key: RankKey): void {
+    /**
+     * 请求子域渲染好友榜（三个榜键之一）；不可用时 no-op。
+     * @param myValue 玩家自身三榜编码值（主域算好传入），用于在好友榜注入"我"行，
+     *                让玩家看到自己排第几。0 表示不注入（旧协议/非抖音端兼容）。
+     */
+    static requestRank(key: RankKey, myValue = 0): void {
         const ctx = this.openContext();
         if (!ctx) return;
         try {
-            ctx.postMessage({ type: 'renderRank', key });
+            ctx.postMessage({ type: 'renderRank', key, myValue: Math.max(0, Math.round(myValue)) });
             diagState.rankRequestCount++;
-            if (this.isDevtoolsSimulator()) console.log(`[fanren][social] requestRank ${key} sent`);
+            if (this.isDevtoolsSimulator()) console.log(`[fanren][social] requestRank ${key} sent (myValue=${myValue})`);
         } catch (e) {
             diagState.lastError = `[requestRank] ${String(e).slice(0, 200)}`;
             console.warn('[fanren] requestRank failed', e);
