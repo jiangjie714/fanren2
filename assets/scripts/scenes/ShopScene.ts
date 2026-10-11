@@ -10,6 +10,7 @@ import {
     THEME,
     image,
     label,
+    labelL,
     pageBackground,
     pageHeader,
     spriteButton,
@@ -53,11 +54,11 @@ export class ShopScene implements IScene {
         const gift = spritePanel(n, cardW, 120, undefined, THEME.tintPanel);
         gift.setPosition(0, 325, 0);
         image(gift, 'art/ui/icons/icon_ad/spriteFrame', 68, 68).setPosition(-240, 0, 0);
-        // 左缘严格对齐：中心在 -35，宽度 285 → 左缘在 -177，右缘在 107（避开右侧按钮）
-        label(gift, TEXTS.dailyGiftBtn, 27, { bold: true, color: THEME.goldLight, align: 'left', width: 285 })
-            .setPosition(-35, 20, 0);
-        label(gift, '观看机缘领免费凡俗宝盒 (每日1次)', 18, { color: THEME.inkSoft, align: 'left', width: 285 })
-            .setPosition(-35, -20, 0);
+        // 左锚点 x = -177.5（原中心 -35、宽 285 的左缘，位置不变），右缘在 107.5（避开右侧按钮）
+        labelL(gift, TEXTS.dailyGiftBtn, 27, { bold: true, color: THEME.goldLight, width: 285 })
+            .setPosition(-177.5, 20, 0);
+        labelL(gift, '观看机缘领免费凡俗宝盒 (每日1次)', 18, { color: THEME.inkSoft, width: 285 })
+            .setPosition(-177.5, -20, 0);
         const giftBtn = spriteButton(gift, 138, 64, used ? '已领取' : '领 取', () => claimDailyGift(this.node), {
             fontSize: 24,
             variant: used ? 'ghost' : 'primary',
@@ -78,14 +79,13 @@ export class ShopScene implements IScene {
             card.setPosition(0, itemY, 0);
             const iconId = item.id === 'monthlyCard' ? 'icon_jiyuan' : 'icon_collection';
             image(card, `art/ui/icons/${iconId}/spriteFrame`, 68, 68).setPosition(-240, 0, 0);
-            label(card, item.name, 25, {
+            labelL(card, item.name, 25, {
                 bold: true,
                 color: IAP_ENABLED ? THEME.goldLight : THEME.ink,
-                align: 'left',
                 width: 285,
-            }).setPosition(-35, 18, 0);
-            label(card, item.effect, 18, { color: THEME.inkSoft, align: 'left', width: 285 })
-                .setPosition(-35, -20, 0);
+            }).setPosition(-177.5, 18, 0);
+            labelL(card, item.effect, 18, { color: THEME.inkSoft, width: 285 })
+                .setPosition(-177.5, -20, 0);
             const buyBtn = spriteButton(card, 138, 60,
                 IAP_ENABLED ? `${TEXTS.shopBuyBtn} ¥${item.price}` : TEXTS.shopUnavailable,
                 () => this.buy(item.id, item.name), {

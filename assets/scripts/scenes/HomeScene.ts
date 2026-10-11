@@ -21,6 +21,7 @@ import {
     iconButton,
     image,
     label,
+    labelL,
     pageBackground,
     progressBar,
     spriteAnimation,
@@ -214,8 +215,8 @@ export class HomeScene implements IScene {
         // 旧值（主标 -96 居中 / 副行左缘 -82）实测主标右缘 -40 与副行左缘撞车 42px，
         // 截图里「剑冢试炼」被「最高第 N 层」压住 —— 横幅内左右两栏必须按包围盒分栏。
         label(this.towerBtn.node, TEXTS.towerTitle, 28, { bold: true, color: THEME.goldLight }).setPosition(-170, 0, 0);
-        this.towerSubLabel = label(this.towerBtn.node, '', 18, { color: THEME.paper, align: 'left', width: 360 }).getComponent(Label);
-        this.towerSubLabel!.node.setPosition(96, 0, 0);
+        this.towerSubLabel = labelL(this.towerBtn.node, '', 18, { color: THEME.paper, width: 360 }).getComponent(Label);
+        this.towerSubLabel!.node.setPosition(-84, 0, 0);
 
         // ── M12 五入口环形（梅花布局）：四钮围环 + 中央圆形仙府商店 ──
         // 旧版 2×2 表格四入口（含设置）改为：设置独立成左上角齿轮圆钮，

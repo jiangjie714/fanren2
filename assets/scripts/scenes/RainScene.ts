@@ -18,6 +18,7 @@ import {
     iconButton,
     image,
     label,
+    labelL,
     pageBackground,
     spriteButton,
     spritePanel,
@@ -104,13 +105,12 @@ export class RainScene implements IScene {
         iconButton(hud, 'art/ui/icons/icon_close/spriteFrame', () => this.confirmQuit(), 86, 68)
             .node.setPosition(-266, 0, 0);
         image(hud, 'art/ui/icons/icon_timer/spriteFrame', 40, 40).setPosition(-154, 0, 0);
-        this.countdown = label(hud, `${Math.ceil(this.session.duration)}s`, 38, {
+        this.countdown = labelL(hud, `${Math.ceil(this.session.duration)}s`, 38, {
             bold: true,
             color: THEME.white,
-            align: 'left',
             width: 104,
         }).getComponent(Label)!;
-        this.countdown.node.setPosition(-124, 0, 0);
+        this.countdown.node.setPosition(-176, 0, 0);
         this.rateLabel = label(hud, '突破率 0%', 28, {
             bold: true,
             color: THEME.goldLight,

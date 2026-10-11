@@ -29,6 +29,7 @@ import {
     floatText,
     image,
     label,
+    labelL,
     pageBackground,
     progressBar,
     shakeNode,
@@ -210,10 +211,10 @@ export class TowerBattleScene implements IScene {
         // 底部淬剑条（常驻：边打边淬剑是本作核心快感，不可打断）
         const forge = spritePanel(n, 628, 92, undefined, THEME.tintDeep);
         forge.setPosition(0, -556, 0);
-        this.forgeLabel = label(forge, '', 20, { bold: true, color: THEME.success, align: 'left', width: 300 }).getComponent(Label);
-        this.forgeLabel!.node.setPosition(-150, 18, 0);
-        this.atkLabel = label(forge, '', 22, { bold: true, color: THEME.goldLight, align: 'left', width: 300 }).getComponent(Label);
-        this.atkLabel!.node.setPosition(-150, -18, 0);
+        this.forgeLabel = labelL(forge, '', 20, { bold: true, color: THEME.success, width: 300 }).getComponent(Label);
+        this.forgeLabel!.node.setPosition(-300, 18, 0);
+        this.atkLabel = labelL(forge, '', 22, { bold: true, color: THEME.goldLight, width: 300 }).getComponent(Label);
+        this.atkLabel!.node.setPosition(-300, -18, 0);
         const f1 = spriteButton(forge, 150, 62, TEXTS.towerForge1, () => this.forge(1), { fontSize: 22, variant: 'primary', textColor: THEME.void });
         f1.node.setPosition(60, 0, 0);
         const f10 = spriteButton(forge, 150, 62, TEXTS.towerForge10, () => this.forge(10), { fontSize: 22, variant: 'secondary', textColor: THEME.goldLight });

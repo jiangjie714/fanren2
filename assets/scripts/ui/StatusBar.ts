@@ -2,7 +2,7 @@
 import { Color, Label, Node } from 'cc';
 import { REALMS } from '../core/config/realms';
 import { Game } from '../infra/Game';
-import { DESIGN_H, image, label, progressBar, spritePanel, THEME, uinode } from './ThemeLib';
+import { DESIGN_H, image, label, labelL, progressBar, spritePanel, THEME, uinode } from './ThemeLib';
 
 export interface StatusBarHandle {
     node: Node;
@@ -16,15 +16,14 @@ export function statusBar(parent: Node, y = DESIGN_H / 2 - 132): StatusBarHandle
     // Dark panel with gold border
     spritePanel(n, 664, 124);
 
-    const realmLb = label(n, '境界【凡人】', 27, {
+    const realmLb = labelL(n, '境界【凡人】', 27, {
         bold: true,
         color: THEME.goldLight,
-        align: 'left',
         width: 260,
         shadow: true,
         shadowColor: THEME.shadow,
     });
-    realmLb.setPosition(-168, 26, 0);
+    realmLb.setPosition(-298, 26, 0);
 
     image(n, 'art/ui/icons/icon_lingshi/spriteFrame', 36, 36).setPosition(280, 26, 0);
     const lingshiLb = label(n, '0', 27, {

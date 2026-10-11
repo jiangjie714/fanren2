@@ -13,6 +13,7 @@ import {
     faded,
     fadeIn,
     label,
+    labelL,
     pageBackground,
     pageHeader,
     spriteButton,
@@ -100,8 +101,8 @@ export class TrailScene implements IScene {
         btn.node.setPosition(x, y, 0);
         const title = label(btn.node, TEXTS.trailLayerNum(lin), 26, { bold: true, color: THEME.paper }).getComponent(Label)!;
         title.node.setPosition(-84, 0, 0);
-        const sub = label(btn.node, '', 20, { bold: true, color: THEME.goldLight, align: 'left', width: 150 }).getComponent(Label)!;
-        sub.node.setPosition(30, 0, 0);
+        const sub = labelL(btn.node, '', 20, { bold: true, color: THEME.goldLight, width: 150 }).getComponent(Label)!;
+        sub.node.setPosition(-45, 0, 0);
         // Boss 关右下角朱砂角标（与主标签错位，防重叠）
         let tag: Label | null = null;
         if (isBoss) {

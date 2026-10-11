@@ -9,6 +9,7 @@ import {
     THEME,
     faded,
     label,
+    labelL,
     pageBackground,
     pageHeader,
     spriteButton,
@@ -113,9 +114,9 @@ export class SettingsScene implements IScene {
 
     // ---------- 开关单项 ----------
     private buildToggleItem(parent: Node, y: number, text: string, initial: boolean, onChange: (on: boolean) => void) {
-        // label 宽 360，中心位于 -90，左缘对齐在 -270
-        label(parent, `✦ ${text}`, 28, { bold: true, color: THEME.ink, align: 'left', width: 360 })
-            .setPosition(-90, y, 0);
+        // labelL 左锚点：x 即左缘，-270 对齐开关行（位置不变）
+        labelL(parent, `✦ ${text}`, 28, { bold: true, color: THEME.ink, width: 360 })
+            .setPosition(-270, y, 0);
 
         // 开关：胶囊 + 滑块
         const swW = 92;
@@ -159,9 +160,9 @@ export class SettingsScene implements IScene {
     private buildLinkItem(parent: Node, y: number, text: string, onTap: () => void) {
         const item = uinode('linkItem', parent, 610, 52);
         item.setPosition(0, y, 0);
-        // 左缘严格对齐：中心在 -75，宽度 390 → 左缘在 -270
-        label(item, `✦ ${text}`, 26, { color: THEME.goldLight, align: 'left', width: 390 })
-            .setPosition(-75, 0, 0);
+        // 左锚点 x = -270（原中心 -75、宽 390 的左缘，位置不变）
+        labelL(item, `✦ ${text}`, 26, { color: THEME.goldLight, width: 390 })
+            .setPosition(-270, 0, 0);
         label(item, '›', 32, { bold: true, color: THEME.inkSoft })
             .setPosition(265, 0, 0);
 
@@ -254,19 +255,18 @@ export class SettingsScene implements IScene {
         renderLines.forEach((t, i) => {
             const danger = (i === 0 && ad.missing.length > 0) || (i === 1 && report.privacyPending);
             const color = danger ? THEME.danger : THEME.ink;
-            label(body, t, 21, { color, align: 'left', width: 600 })
-                .setPosition(-290, 185 - i * 40, 0);
+            labelL(body, t, 21, { color, width: 600 })
+                .setPosition(-590, 185 - i * 40, 0);
         });
         // 广告模拟直通状态行 + 切换按钮（#46 补充）：抖音未嵌广告位期间调试用，
         // 开启后所有广告位立即按「已播完」发放；提审/上线前必须关闭（开启态朱砂警示）
         const simText = () =>
             `广告模拟直通: ${Ads.simAutoSuccess ? '开（所有广告立即发放）⚠ 提审前须关闭' : '关'}｜点下方按钮切换`;
-        const simRow = label(body, simText(), 21, {
+        const simRow = labelL(body, simText(), 21, {
             color: Ads.simAutoSuccess ? THEME.danger : THEME.goldLight,
-            align: 'left',
             width: 600,
         });
-        simRow.setPosition(-290, 185 - renderLines.length * 40, 0);
+        simRow.setPosition(-590, 185 - renderLines.length * 40, 0);
         const refreshSim = () => {
             simRow.getComponent(Label)!.string = simText();
             simRow.getComponent(Label)!.color = Ads.simAutoSuccess ? THEME.danger : THEME.goldLight;

@@ -17,6 +17,7 @@ import {
     THEME,
     fadeIn,
     label,
+    labelL,
     pageBackground,
     spriteButton,
     spritePanel,
@@ -109,8 +110,8 @@ export class IllusionResultScene implements IScene {
         const LINE_STEP = 56;
         const LINE_TOP = 138; // 面板局部坐标：首行距顶 48，末行距底 44（6 行时）
         lines.forEach((t, i) => {
-            const ln = label(detail, t, 26, { color: THEME.paper, align: 'left', width: 440 });
-            ln.setPosition(0, LINE_TOP - i * LINE_STEP, 0);
+            const ln = labelL(detail, t, 26, { color: THEME.paper, width: 440 });
+            ln.setPosition(-220, LINE_TOP - i * LINE_STEP, 0);
             if (t === streakText) this.streakLabel = ln.getComponent(Label);
         });
 
