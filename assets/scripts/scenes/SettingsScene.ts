@@ -18,6 +18,7 @@ import {
 import { DouyinSocial } from '../infra/DouyinSocial';
 import { Ads } from '../infra/Ads';
 import { AD_PLACES } from '../core/config/ads';
+import { buildLaunchReport } from '../core/launchCheck';
 
 /**
  * 设置页 — PRD 页面7。
@@ -222,24 +223,53 @@ export class SettingsScene implements IScene {
             `上次对比结果: ${d.lastCompare ? `超越 ${d.lastCompare.beat}/${d.lastCompare.total} · 最高 ${d.lastCompare.top}` : '无'}`,
             `末次错误: ${d.lastError || '无'}`,
         ];
-        const panel = spritePanel(parent, 660, 580, undefined, THEME.tintPanel);
+        const panel = spritePanel(parent, 660, 640, undefined, THEME.tintPanel);
         panel.setPosition(0, 0, 50);
-        label(panel, '上线自检 · 广告位 + 社交管线', 27, { bold: true, color: THEME.goldLight }).setPosition(0, 240, 0);
-        const body = uinode('diagBody', panel, 620, 420);
-        body.setPosition(0, -10, 0);
-        lines.forEach((t, i) => {
-            // 首行是广告位配置：漏配用警示色，全配用墨色，便于一眼判定
-            const color = i === 0 && ad.missing.length > 0 ? THEME.danger : THEME.ink;
+        label(panel, '上线自检 · 广告位 + 社交管线', 27, { bold: true, color: THEME.goldLight }).setPosition(0, 280, 0);
+
+        // 提审准备小结（M10 代码侧收尾）：构建期关卡（广告位/隐私）+ 运行时模拟直通，一眼判定
+        const report = buildLaunchReport({
+            total: ad.total,
+            configured: ad.configured,
+            missingNames: ad.missing.map((p) => AD_PLACES[p].name),
+            privacyPending:
+                TEXTS.agreementPending.includes('抖音审核必需') ||
+                TEXTS.privacyPending.includes('抖音审核必需'),
+            simAuto: Ads.simAutoSuccess,
+        });
+        const issueCount =
+            (report.missingNames.length > 0 ? 1 : 0) + (report.privacyPending ? 1 : 0) + (report.simAuto ? 1 : 0);
+        label(
+            panel,
+            issueCount > 0 ? `提审准备：${issueCount} 项待处理（见下方明细）` : '提审准备：构建期关卡就绪',
+            23,
+            { bold: true, color: issueCount > 0 ? THEME.danger : THEME.jade },
+        ).setPosition(0, 235, 0);
+
+        const body = uinode('diagBody', panel, 620, 460);
+        body.setPosition(0, -30, 0);
+        // 隐私/协议状态行（构建期关卡之一）：占位则朱砂警示，已替换则墨色
+        const privacyLine = `隐私/协议文本: ${report.privacyPending ? '占位（待运营补充）' : '已替换'}`;
+        const renderLines = [adLine, privacyLine, ...lines.slice(1)];
+        renderLines.forEach((t, i) => {
+            const danger = (i === 0 && ad.missing.length > 0) || (i === 1 && report.privacyPending);
+            const color = danger ? THEME.danger : THEME.ink;
             label(body, t, 21, { color, align: 'left', width: 600 })
-                .setPosition(-290, 170 - i * 40, 0);
+                .setPosition(-290, 185 - i * 40, 0);
         });
         // 广告模拟直通状态行 + 切换按钮（#46 补充）：抖音未嵌广告位期间调试用，
-        // 开启后所有广告位立即按「已播完」发放；提审/上线前必须关闭
-        const simText = () => `广告模拟直通: ${Ads.simAutoSuccess ? '开（所有广告立即发放）' : '关'}｜点下方按钮切换`;
-        const simRow = label(body, simText(), 21, { color: THEME.goldLight, align: 'left', width: 600 });
-        simRow.setPosition(-290, 170 - lines.length * 40, 0);
+        // 开启后所有广告位立即按「已播完」发放；提审/上线前必须关闭（开启态朱砂警示）
+        const simText = () =>
+            `广告模拟直通: ${Ads.simAutoSuccess ? '开（所有广告立即发放）⚠ 提审前须关闭' : '关'}｜点下方按钮切换`;
+        const simRow = label(body, simText(), 21, {
+            color: Ads.simAutoSuccess ? THEME.danger : THEME.goldLight,
+            align: 'left',
+            width: 600,
+        });
+        simRow.setPosition(-290, 185 - renderLines.length * 40, 0);
         const refreshSim = () => {
             simRow.getComponent(Label)!.string = simText();
+            simRow.getComponent(Label)!.color = Ads.simAutoSuccess ? THEME.danger : THEME.goldLight;
         };
         const simToggle = spriteButton(panel, 260, 72, `模拟直通·${Ads.simAutoSuccess ? '开' : '关'}`, () => {
             Ads.setSimAuto(!Ads.simAutoSuccess);
@@ -250,12 +280,12 @@ export class SettingsScene implements IScene {
             variant: 'secondary',
             textColor: THEME.paper,
         });
-        simToggle.node.setPosition(-160, -246, 0);
+        simToggle.node.setPosition(-160, -286, 0);
         const close = spriteButton(panel, 220, 72, '关闭', () => panel.destroy(), {
             fontSize: 26,
             variant: 'secondary',
             textColor: THEME.paper,
         });
-        close.node.setPosition(165, -246, 0);
+        close.node.setPosition(165, -286, 0);
     }
 }
