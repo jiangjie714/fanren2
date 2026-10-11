@@ -65,11 +65,12 @@ export class PkBattleScene implements IScene {
     /** 演出步进队列（update 按 dt 消费，帧驱动比 tween 链可控） */
     private cine: { steps: CineStep[]; t: number; i: number; done: () => void } | null = null;
 
-    constructor(private mode: PkMode = 'random') {
+    constructor(private mode: PkMode = 'random', private fixedOpp?: PkOpponent) {
         this.node = new Node('PkBattleScene');
         this.node.layer = Layers.Enum.UI_2D;
-        // 对手在进页时定格：蓄力再战的是同一个对手（#37）
-        this.opp = Game.combat.makeOpponent(Game.save, mode, Game.rng);
+        // 对手在进页时定格：蓄力再战的是同一个对手（#37）；
+        // M25 #50：档案切磋传入 fixedOpp（道友名录指定），random 模式仍现场掷对手
+        this.opp = fixedOpp ?? Game.combat.makeOpponent(Game.save, mode, Game.rng);
     }
 
     onEnter() {
@@ -395,6 +396,11 @@ export class PkBattleScene implements IScene {
         const win = outcome.win;
         const streak = Game.combat.recordPkResult(Game.save, win);
         const items = win ? Game.combat.pkWinRewards(Game.save, streak) : [];
+        // M25 #50：档案切磋（friend）胜利追加交情礼（100/场，日封顶 200）
+        if (win && this.opp.mode === 'friend') {
+            const gift = Game.combat.friendGift(Game.save);
+            if (gift.amount > 0) items.push(gift);
+        }
         Game.persist();
         if (win) Game.checkAchievements(this.node);
         this.showResult(outcome, win, streak, items);
@@ -422,8 +428,11 @@ export class PkBattleScene implements IScene {
                         text: '再战一场',
                         primary: true,
                         cb: () => {
-                            if (Game.combat.canPk(Game.save)) Game.stack.swap(new PkBattleScene('random'));
-                            else {
+                            // 档案切磋再战同一道友；random 遭遇战重掷对手（#37 语义）
+                            if (Game.combat.canPk(Game.save)) {
+                                Game.stack.swap(new PkBattleScene(this.opp.mode === 'friend' ? 'friend' : 'random',
+                                    this.opp.mode === 'friend' ? this.opp : undefined));
+                            } else {
                                 toast(this.node, TEXTS.pkExhausted);
                                 Game.stack.pop();
                             }

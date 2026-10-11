@@ -270,6 +270,8 @@ export const TEXTS = {
     pkPageTitle: '论武 · 切磋',
     pkRandom: '随机切磋',
     pkFriend: '约人切磋',
+    // M25 道友名录（#50）
+    daoFriendPageTitle: '道友名录',
     pkRemaining: (n: number, total: number) => `今日切磋 ${total - n}/${total} 场`,
     pkExhausted: '今日切磋帖已用尽，明日再来',
     pkStreak: (n: number) => `连胜 ×${n}`,

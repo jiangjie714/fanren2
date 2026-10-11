@@ -31,6 +31,7 @@ import {
 } from '../ui/ThemeLib';
 import { DouyinSocial } from '../infra/DouyinSocial';
 import { PkBattleScene } from './PkBattleScene';
+import { DaoFriendScene } from './DaoFriendScene';
 import { PK_DAILY_LIMIT, WEAPONS } from '../core/config/combat';
 
 type LudaoTab = 'rank' | 'illusion' | 'achieve' | 'pk';
@@ -405,7 +406,10 @@ export class LudaoScene implements IScene {
             variant: 'primary',
         });
         randomBtn.node.setPosition(-160, -66, 0);
-        const friendBtn = spriteButton(card, 300, 88, TEXTS.pkFriend, () => this.enterPk('friend'), {
+        const friendBtn = spriteButton(card, 300, 88, TEXTS.pkFriend, () => {
+            // M25 #50：约人切磋 → 道友名录（档案道友指定对手）
+            Game.stack.push(new DaoFriendScene());
+        }, {
             fontSize: 26,
             variant: 'secondary',
             textColor: THEME.goldLight,

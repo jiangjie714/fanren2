@@ -417,6 +417,7 @@ import { TrailScene } from '../assets/scripts/scenes/TrailScene';
 import { TowerScene } from '../assets/scripts/scenes/TowerScene';
 import { TowerBattleScene } from '../assets/scripts/scenes/TowerBattleScene';
 import { LudaoScene } from '../assets/scripts/scenes/LudaoScene';
+import { DaoFriendScene } from '../assets/scripts/scenes/DaoFriendScene';
 import { WeaponScene } from '../assets/scripts/scenes/WeaponScene';
 import { PathScene } from '../assets/scripts/scenes/PathScene';
 import { PlayerScene } from '../assets/scripts/scenes/PlayerScene';
@@ -519,6 +520,39 @@ describe('场景集成：HomeScene 入口接线（导航错乱回归）', () => 
         // 下排标签底 ≈ -531 ↔ 礼包顶 -543（12px）；礼包底 -621 ↔ 设计底边 -640（19px）
         expect(-451 - 48 - 18 - 19 / 2 - (-582 + 39)).toBeGreaterThanOrEqual(12);
         expect(-582 - 39 - -640).toBeGreaterThanOrEqual(12);
+    });
+
+    it('M25 #50：论武 tab 下「约人切磋」→ push 道友名录页', () => {
+        h.reset();
+        bootGame();
+        h.reset();
+        const s = new LudaoScene();
+        const push = vi.spyOn(Game.stack, 'push').mockImplementation(() => { });
+        s.onEnter();
+        // 默认 rank tab，需切到论武 tab 才渲染「约人切磋」
+        const pkTab = h.registry.buttons.find((b) => b.text === '论武');
+        expect(pkTab, '未找到论武 tab 钮').toBeTruthy();
+        pkTab!.onClick();
+        const friendBtn = h.registry.buttons.find((b) => b.text === '约人切磋');
+        expect(friendBtn, '论武 tab 未渲染约人切磋钮').toBeTruthy();
+        friendBtn!.onClick();
+        expect(push, '约人切磋未进道友名录').toHaveBeenLastCalledWith(expect.any(DaoFriendScene));
+        push.mockRestore();
+    });
+
+    it('M25 #50：道友名录点击切磋 → push 档案战 PkBattleScene（friend 模式）', () => {
+        h.reset();
+        bootGame();
+        h.reset();
+        const s = new DaoFriendScene();
+        const push = vi.spyOn(Game.stack, 'push').mockImplementation(() => { });
+        s.onEnter();
+        // 列表行按钮为无文字 spriteButton（名字另加标签），取第一个空文本钮
+        const rowBtn = h.registry.buttons.find((b) => b.text === '' && (b.w === 312 && b.h === 88));
+        expect(rowBtn, '未渲染道友列表行钮').toBeTruthy();
+        rowBtn!.onClick();
+        expect(push, '道友切磋未进论武战').toHaveBeenLastCalledWith(expect.any(PkBattleScene));
+        push.mockRestore();
     });
 
     it('A11 图鉴入口（左侧 rail 圆钮 @-286，M23 后随法器对称 @y=58）点击进图鉴页，且展示 x/y 与图鉴页同源', () => {
@@ -674,6 +708,7 @@ const sceneCases: Array<[string, () => { onEnter(): void; onExit?(): void }]> = 
     ['PathScene', () => new PathScene()],
     ['RainScene', () => new RainScene()],
     ['PkBattleScene', () => new PkBattleScene()],
+    ['DaoFriendScene', () => new DaoFriendScene()],
 ];
 
 describe('场景集成：全场景 onEnter/onExit 冒烟（防 P0 崩溃回归）', () => {

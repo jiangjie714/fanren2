@@ -28,6 +28,8 @@ export interface DailyState {
     pkUsed: number;
     /** 今日秘境结算奖励翻倍已用次数（M14-5 #46，上限 3） */
     doubleRewardUsed: number;
+    /** 今日已领交情礼灵石（M25 #50：friend 胜利 100/场，日封顶 200） */
+    pkFriendGift?: number;
 }
 
 export interface SettingsState {

@@ -8,7 +8,8 @@ import {
     NAME_SUFFIXES,
     PK_DAILY_LIMIT,
     PK_FIRST_STRIKE_EDGE,
-    PK_OPP_BAND_FRIEND,
+    PK_FRIEND_GIFT,
+    PK_FRIEND_GIFT_CAP,
     PK_OPP_BAND_RANDOM,
     PK_OPP_NAMES,
     PK_STREAK_CAP,
@@ -41,6 +42,8 @@ export interface PkOpponent {
     atk: number;
     def: number;
     mode: PkMode;
+    /** M25 #50：档案道友下标（random 模式无此字段） */
+    friendIndex?: number;
 }
 
 export interface BattleRound {
@@ -165,16 +168,33 @@ export class CombatSystem {
     /**
      * 生成对手：攻/防按**境界基础值**×带宽生成（不随我方锻体/法器水涨船高），
      * 投入成长的玩家在论武里直接体现为胜率上移；蓄力在其之上继续加成（#36/#37）。
+     * M25 #50：friend 模式改由道友档案确定性派生（daoFriends.makeFriendOpponent），
+     * 本方法只保留 random 遭遇战口径。
      */
     makeOpponent(save: SaveData, mode: PkMode, rng: Rng): PkOpponent {
         const base = REALM_COMBAT[Math.min(REALM_COMBAT.length - 1, save.realmIndex)];
-        const [lo, hi] = mode === 'friend' ? PK_OPP_BAND_FRIEND : PK_OPP_BAND_RANDOM;
+        const [lo, hi] = PK_OPP_BAND_RANDOM;
         return {
             name: PK_OPP_NAMES[rng.int(0, PK_OPP_NAMES.length - 1)],
             atk: Math.max(1, Math.round(base.atk * rng.range(lo, hi))),
             def: Math.max(1, Math.round(base.def * rng.range(lo, hi))),
             mode,
         };
+    }
+
+    /**
+     * 交情礼（M25 #50）：档案切磋（friend）胜利的彩头，100/场、日封顶 200，
+     * 挂 save.daily（dailyReset 跨日清零）。只在胜利后由调用方触发；
+     * 余额不足给 amount=0（调用方按 amount>0 展示）。与 pkWinRewards 叠加。
+     */
+    friendGift(save: SaveData): RewardItem {
+        const used = save.daily.pkFriendGift ?? 0;
+        const got = Math.max(0, Math.min(PK_FRIEND_GIFT, PK_FRIEND_GIFT_CAP - used));
+        if (got > 0) {
+            this.eco.addLingshi(got);
+            save.daily.pkFriendGift = used + got;
+        }
+        return { kind: 'lingshi', amount: got, label: `交情礼 灵石 +${got}` };
     }
 
     /**

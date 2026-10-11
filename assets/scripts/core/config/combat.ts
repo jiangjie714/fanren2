@@ -110,7 +110,11 @@ export const PK_STREAK_CAP = 0.25;
  * 蓄力的乘算攻防复利成碾压（+30% 属性 ≈ +69% 战力），曲线全靠 logistic 拉平。
  */
 export const PK_OPP_BAND_RANDOM: [number, number] = [1.0, 1.25];
-export const PK_OPP_BAND_FRIEND: [number, number] = [1.05, 1.3];
+/** M25 #50：friend 模式改由道友档案确定性派生（daoFriends），随机带宽退役 */
+
+/** #50 交情礼：档案切磋（friend）胜利追加 100/场，日封顶 200（挂 save.daily，跨日清零） */
+export const PK_FRIEND_GIFT = 100;
+export const PK_FRIEND_GIFT_CAP = 200;
 /** 我方先手优势：战力平方比上的固定系数 */
 export const PK_FIRST_STRIKE_EDGE = 1.15;
 
