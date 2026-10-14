@@ -73,6 +73,12 @@ export class AudioMgr {
     private static bgmPadOscs: OscillatorNodeLike[] = [];
     private static bgmPlaying = false;
     private static bgmStep = 0;
+    /**
+     * 音效播放音高倍率（1 = 原调）。仅 `play()` 专用，供连开「音效阶梯」升调：
+     * 各合成辅助方法自行乘上它，`play()` 同步调用完即恢复，不影响 BGM（BGM 直接
+     * 写 osc.frequency，不走这些辅助）。
+     */
+    private static pitchRatio = 1;
 
     /** 首次用户手势时调用：唤醒 AudioContext 并按设置启动 BGM */
     static ensureStarted() {
@@ -85,12 +91,16 @@ export class AudioMgr {
         }
     }
 
-    /** 播放仙侠国风音效 */
-    static play(name: SfxName) {
+    /**
+     * 播放仙侠国风音效。
+     * @param pitch 音高倍率（1 = 原调）；开箱连开的「音效阶梯」按连开层数升调用。
+     */
+    static play(name: SfxName, pitch = 1) {
         if (!Game.save?.settings.sound) return;
         const ctx = this.ensureCtx();
         if (!ctx) return;
         const t0 = ctx.currentTime;
+        this.pitchRatio = pitch > 0 ? pitch : 1;
 
         switch (name) {
             case 'click':
@@ -183,7 +193,7 @@ export class AudioMgr {
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
             osc.type = 'sine';
-            osc.frequency.setValueAtTime(freq, at);
+            osc.frequency.setValueAtTime(freq * this.pitchRatio, at);
 
             gain.gain.setValueAtTime(0.0001, at);
             gain.gain.exponentialRampToValueAtTime(vol, at + 0.004);
@@ -202,7 +212,7 @@ export class AudioMgr {
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
             osc.type = 'triangle';
-            osc.frequency.setValueAtTime(freq, at);
+            osc.frequency.setValueAtTime(freq * this.pitchRatio, at);
 
             gain.gain.setValueAtTime(0.0001, at);
             gain.gain.exponentialRampToValueAtTime(vol, at + 0.006);
@@ -221,8 +231,8 @@ export class AudioMgr {
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
             osc.type = 'sine';
-            osc.frequency.setValueAtTime(f0, at);
-            osc.frequency.exponentialRampToValueAtTime(f1, at + dur * 0.7);
+            osc.frequency.setValueAtTime(f0 * this.pitchRatio, at);
+            osc.frequency.exponentialRampToValueAtTime(f1 * this.pitchRatio, at + dur * 0.7);
 
             gain.gain.setValueAtTime(0.0001, at);
             gain.gain.exponentialRampToValueAtTime(vol, at + 0.006);
@@ -241,8 +251,8 @@ export class AudioMgr {
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
             osc.type = type;
-            osc.frequency.setValueAtTime(f0, at);
-            osc.frequency.exponentialRampToValueAtTime(f1, at + dur);
+            osc.frequency.setValueAtTime(f0 * this.pitchRatio, at);
+            osc.frequency.exponentialRampToValueAtTime(f1 * this.pitchRatio, at + dur);
 
             gain.gain.setValueAtTime(0.0001, at);
             gain.gain.exponentialRampToValueAtTime(vol, at + 0.012);

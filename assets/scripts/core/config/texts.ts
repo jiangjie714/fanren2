@@ -13,6 +13,23 @@ export const TEXTS = {
     breakthroughSuccess: (realm: string) => `境界晋升，踏入【${realm}】！`,
     breakthroughFail: '心魔干扰，突破未果，修为受损。',
     pityTriggered: '天道眷顾，获得稀有机缘。',
+    // ---- 开箱长按连开（首日体验 spec §4.C） ----
+    /** 卡片按钮提示：按住可连开 */
+    boxHoldHint: '按住连开',
+    /** 连开进行中的 HUD 计数 */
+    boxAutoCount: (n: number) => `连开 ×${n}`,
+    /** 连开结束的汇总结算标题 */
+    boxAutoSummaryTitle: '连开揭晓',
+    /** 连开汇总结算首行 */
+    boxAutoSummaryLine: (n: number) => `本次连开 ${n} 次，仙缘汇总如下`,
+    /** 连开中止：可渡劫 */
+    boxAutoStopBreakthrough: '感应到突破契机，连开已停，去冲击下一境界！',
+    /** 连开中止：灵石不足 */
+    boxAutoStopLingshi: '灵石不足，连开已停',
+    /** 连开中止：达到单次上限 */
+    boxAutoStopLimit: '连开已达单次上限，稍作停歇再继续',
+    /** C3 新手期保底进度提示 */
+    boxPityProgress: (n: number, cap: number) => `再开 ${cap - n} 次必出稀有机缘`,
     lingshiNotEnough: '灵石不足，可观看广告获取灵石',
     lingshiAidRemain: (n: number, total: number) => `今日灵石救济剩余 ${n}/${total} 次`,
     lingshiAidExhausted: '今日救济次数已用尽，明日再来',

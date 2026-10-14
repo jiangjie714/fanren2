@@ -841,6 +841,47 @@ describe('场景集成：长屏模态遮罩铺满（FIXED_WIDTH 穿透点击回�
         expect(overlay('runeOverlay').h, `符文遮罩未铺满长屏 ${LONG_H}`).toBe(LONG_H);
     });
 
+    it('宝箱长按连开：短按不开、按住达阈值自动连开、松手即停', () => {
+        h.setVisibleSize(720, LONG_H);
+        bootGame();
+        Game.save.lingshi = 500;
+        const box = new BoxScene();
+        box.onEnter();
+
+        // C2 载体：连开灵光节点必须存在，否则亮度阶梯无处表达
+        expect(h.registry.nodes.find((n) => n.name === 'autoHalo'), '未创建连开灵光节点 autoHalo').toBeTruthy();
+
+        const p = box as unknown as {
+            onPressStart(id: string): void;
+            onPressEnd(): void;
+            update(dt: number): void;
+            autoActive: boolean;
+            autoOpened: number;
+        };
+
+        // ① 短按（< holdThreshold 0.35s）不进连开，仍走普通单次开箱
+        p.onPressStart('fansu');
+        p.update(0.1);
+        expect(p.autoActive, '短按不应进入连开').toBe(false);
+        p.onPressEnd();
+
+        // ② 按住达阈值 → 进入连开，并立即开第一次
+        p.onPressStart('fansu');
+        p.update(0.4);
+        expect(p.autoActive).toBe(true);
+        expect(p.autoOpened, '进入连开应立即开第一次').toBe(1);
+        // 按钮就地反馈连开计数（不新增布局，避免挤压既有版式）
+        expect(h.registry.buttons.some((b) => b.text === '连开 ×1')).toBe(true);
+
+        // ③ 每 1.2s 续开一次
+        p.update(1.2);
+        expect(p.autoOpened, '连开间隔 1.2s 后应续开').toBe(2);
+
+        // ④ 松手即停
+        p.onPressEnd();
+        expect(p.autoActive).toBe(false);
+    });
+
     it('图鉴境界弹窗遮罩 realmDialog 铺满可见高度', () => {
         h.setVisibleSize(720, LONG_H);
         bootGame();

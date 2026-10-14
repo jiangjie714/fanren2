@@ -3,7 +3,17 @@ import { IScene } from '../infra/SceneStack';
 import { Game } from '../infra/Game';
 import { Ads } from '../infra/Ads';
 import { AudioMgr } from '../infra/AudioMgr';
-import { BoxConfig, BoxId, getBox, BOXES } from '../core/config/boxes';
+import { BoxConfig, BoxId, getBox, BOXES, PITY_THRESHOLD } from '../core/config/boxes';
+import {
+    AUTO_OPEN,
+    autoPitch,
+    autoStopReason,
+    chestGlow,
+    isNovicePity,
+    shouldEnterAuto,
+    summarizeAutoOpens,
+    type AutoStopReason,
+} from '../core/boxAuto';
 import { DAILY_LINGSHI_AID_LIMIT } from '../core/config/economy';
 import { getLingeng } from '../core/config/lingens';
 import { BoxResult, RewardItem } from '../core/systems/BoxSystem';
@@ -86,6 +96,22 @@ export class BoxScene implements IScene {
     private runeNodes: Node[] = [];
     private runeBoxId: BoxId = 'fansu';
     private runeCb: ((layers: number, items: RewardItem[]) => void) | null = null;
+    // ---- 长按连开（首日体验 spec §4.C1/C2）----
+    /** 是否正按住某个「开启」按钮 */
+    private holding = false;
+    /** 按住时长（秒），用于判定是否进入连开 */
+    private holdT = 0;
+    private holdBoxId: BoxId | null = null;
+    /** 本次触摸已被连开接管：按钮 click 到来时不再走普通单次开箱 */
+    private holdConsumed = false;
+    private autoActive = false;
+    private autoBoxId: BoxId | null = null;
+    /** 距下一次自动开箱的计时 */
+    private autoT = 0;
+    private autoOpened = 0;
+    private autoResults: BoxResult[] = [];
+    /** 连开灵光（箱体亮度阶梯的视觉载体） */
+    private autoHalo: Node | null = null;
 
     constructor(initialResult: BoxResult | null = null) {
         this.node = new Node('BoxScene');
@@ -141,6 +167,19 @@ export class BoxScene implements IScene {
         gPedestal.roundRect(-140, -32, 280, 26, 13);
         gPedestal.stroke();
 
+        // 连开灵光：叠在箱体之后（渲染顺序：先 halo 后箱体 → halo 在箱体下层），
+        // 连开时按次数渐亮。Sprite.color 上限 255 无法"变亮"，故用灵光层表达亮度阶梯。
+        const halo = uinode('autoHalo', anim, 260, 260);
+        halo.setPosition(0, 16, 0);
+        const hg = halo.addComponent(Graphics);
+        hg.fillColor = faded(THEME.gold, 150);
+        hg.circle(0, 0, 92);
+        hg.fill();
+        const haloOp = halo.addComponent(UIOpacity);
+        haloOp.opacity = 0;
+        halo.setScale(0.85, 0.85, 1);
+        this.autoHalo = halo;
+
         const chestAnim = image(anim, CHEST_ART.tiandao, 190, 150);
         chestAnim.name = 'chestAnim';
         chestAnim.setPosition(0, 16, 0);
@@ -166,6 +205,14 @@ export class BoxScene implements IScene {
             outlineWidth: 3,
         })
             .setPosition(0, -108, 0);
+        // 连开动线提示：没有它玩家不会知道可以按住
+        label(anim, '按住「开 启」可连开，松手即停', 18, {
+            color: THEME.goldLight,
+            width: 560,
+            outline: faded(THEME.void, 210),
+            outlineWidth: 3,
+        })
+            .setPosition(0, -140, 0);
 
         const back = spriteButton(n, 280, 72, '返回仙府', () => Game.stack.pop(), {
             fontSize: 25,
@@ -184,6 +231,19 @@ export class BoxScene implements IScene {
     }
 
     update(dt: number) {
+        // 按住计时 → 达阈值进入连开（只在无浮层时，避免与蓄力/三连打架）
+        if (this.holding && !this.autoActive && this.phase === 'idle' && this.holdBoxId) {
+            this.holdT += dt;
+            if (shouldEnterAuto(this.holdT)) this.startAuto(this.holdBoxId);
+        }
+        // 连开节拍：每 interval 秒自动开一次
+        if (this.autoActive) {
+            this.autoT += dt;
+            if (this.autoT >= AUTO_OPEN.interval) {
+                this.autoT = 0;
+                this.autoTick();
+            }
+        }
         if (this.phase === 'charge' && this.chargeHolding) {
             this.chargePressT += dt;
             this.chargeOscT += dt;
@@ -205,6 +265,11 @@ export class BoxScene implements IScene {
     }
 
     onExit() {
+        // 连开中离屏：先收掉，避免 update 继续按节拍开箱
+        this.holding = false;
+        this.autoActive = false;
+        this.autoBoxId = null;
+        this.autoResults = [];
         // P2-3：停掉开箱页所有 repeatForever tween（法台宝箱呼吸 / 蓄力箱摆动 / 符文脉动），
         // 避免离屏后仍在每帧调度，配合场景销毁也不残留动作。
         if (this.chestAnimNode) Tween.stopAllByTarget(this.chestAnimNode);
@@ -243,13 +308,30 @@ export class BoxScene implements IScene {
             textColor: box.id === 'tiandao' ? THEME.void : THEME.ink,
         });
         openBtn.node.setPosition(0, -h / 2 + 50, 0);
+        // 长按连开：Button 自带的 click 仍负责短按单次开箱，这里额外监听按住/松开。
+        // 进入连开时置 holdConsumed，click 到达时 tryOpen 直接返回，避免「长按后又单开一次」。
+        openBtn.node.on(Input.EventType.TOUCH_START, () => this.onPressStart(box.id));
+        openBtn.node.on(Input.EventType.TOUCH_END, () => this.onPressEnd());
+        openBtn.node.on(Input.EventType.TOUCH_CANCEL, () => this.onPressEnd());
         this.openBtns[box.id] = openBtn;
         return card;
     }
 
     private refresh() {
         this.bar.refresh();
-        this.pityLabel.string = Game.save.pityCount > 0 ? `天道庇佑 · 保底 ${Game.save.pityCount}/3` : '';
+        // C3 保底前置：新手期（累计开箱 <5 次）额外给出「再开 x 次必出稀有」，让第一次就读懂保底
+        const pity = Game.save.pityCount;
+        const novice = isNovicePity(Game.save.stats.opens);
+        if (pity > 0) {
+            const base = `天道庇佑 · 保底 ${pity}/${PITY_THRESHOLD}`;
+            this.pityLabel.string = novice ? `${base}　${TEXTS.boxPityProgress(pity, PITY_THRESHOLD)}` : base;
+            this.pityLabel.fontSize = novice ? 25 : 22;
+            this.pityLabel.color = novice ? THEME.gold : THEME.goldLight;
+        } else {
+            this.pityLabel.string = '';
+            this.pityLabel.fontSize = 22;
+            this.pityLabel.color = THEME.goldLight;
+        }
         for (const box of BOXES) {
             const st = Game.box.canOpen(box.id);
             const handle = this.openBtns[box.id]!;
@@ -279,6 +361,8 @@ export class BoxScene implements IScene {
     }
 
     private tryOpen(boxId: BoxId) {
+        // 本次触摸已由长按连开接管：click 到达时不再重复开一次
+        if (this.holdConsumed) return;
         const st = Game.box.canOpen(boxId);
         if (!st.ok) {
             if (st.reason === 'lingshiNotEnough') {
@@ -292,6 +376,144 @@ export class BoxScene implements IScene {
             this.session = { boxId, seeksUsed: 0 };
         }
         this.beginCharge(boxId, 'open');
+    }
+
+    // ---------------- 长按连开（首日体验 spec §4.C1 / C2） ----------------
+
+    private onPressStart(boxId: BoxId) {
+        this.holding = true;
+        this.holdT = 0;
+        this.holdConsumed = false;
+        this.holdBoxId = boxId;
+    }
+
+    private onPressEnd() {
+        this.holding = false;
+        this.holdT = 0;
+        // 松手即停：立刻结算本次连开
+        if (this.autoActive) this.stopAuto('none');
+    }
+
+    private startAuto(boxId: BoxId) {
+        if (this.autoActive || this.phase !== 'idle') return;
+        const st = Game.box.canOpen(boxId);
+        if (!st.ok) {
+            if (st.reason === 'lingshiNotEnough') this.lingshiNotEnoughDialog();
+            else toast(this.node, '境界不足，暂未解锁此宝盒');
+            this.holdConsumed = true; // 已经给过原因，别让 click 再弹一次
+            return;
+        }
+        this.autoActive = true;
+        this.autoBoxId = boxId;
+        this.autoOpened = 0;
+        this.autoT = 0;
+        this.autoResults = [];
+        // 本次触摸改由连开处理：随后到达的 Button click 会被 tryOpen 拦掉
+        this.holdConsumed = true;
+        if (!this.session || this.session.boxId !== boxId) this.session = { boxId, seeksUsed: 0 };
+        this.autoTick(); // 立刻开第一次，之后按 interval 续开
+    }
+
+    private autoTick() {
+        if (!this.autoActive || !this.autoBoxId) return;
+        const boxId = this.autoBoxId;
+        const st = Game.box.canOpen(boxId);
+        const reason = autoStopReason({
+            canOpen: st.ok,
+            boxLocked: st.reason === 'boxLocked',
+            canBreakthrough: Game.realm.canBreakthrough(),
+            opened: this.autoOpened,
+        });
+        if (reason !== 'none') {
+            this.stopAuto(reason);
+            return;
+        }
+        // 数值完全走原路径：连开只是「替玩家重复开箱」，不改概率 / 保底 / 奖励
+        const r = Game.box.open(boxId);
+        Game.quests.progress(Game.save, 'openBoxes');
+        Game.checkAchievements(this.node);
+        Game.persist();
+        this.autoOpened += 1;
+        this.autoResults.push(r);
+        // C2 音效阶梯：按连开层数升调
+        AudioMgr.play(
+            r.tier === 'rare' ? 'rare' : r.tier === 'disaster' ? 'disaster' : 'open',
+            autoPitch(this.autoOpened),
+        );
+        this.flashAutoHalo();
+        this.refresh();
+        const btn = this.openBtns[boxId];
+        if (btn && Game.box.canOpen(boxId).ok) btn.setText(TEXTS.boxAutoCount(this.autoOpened));
+    }
+
+    /** C2 箱体亮度阶梯：连开越多灵光越盛（halo 透明度 + 尺寸，纯演出） */
+    private flashAutoHalo() {
+        const halo = this.autoHalo;
+        if (!halo) return;
+        const g = chestGlow(this.autoOpened);
+        const steady = Math.round(30 + g * 150);
+        halo.setScale(0.85 + g * 0.35, 0.85 + g * 0.35, 1);
+        const op = halo.getComponent(UIOpacity);
+        if (!op) return;
+        Tween.stopAllByTarget(op);
+        op.opacity = Math.min(255, steady + 90);
+        tween(op).to(0.22, { opacity: steady }).start();
+    }
+
+    private stopAuto(reason: AutoStopReason) {
+        if (!this.autoActive) return;
+        this.autoActive = false;
+        this.autoBoxId = null;
+        const opened = this.autoOpened;
+        const results = this.autoResults;
+        this.autoResults = [];
+        if (this.autoHalo) {
+            const op = this.autoHalo.getComponent(UIOpacity);
+            if (op) {
+                Tween.stopAllByTarget(op);
+                op.opacity = 0;
+            }
+            this.autoHalo.setScale(0.85, 0.85, 1);
+        }
+        this.refresh(); // 复位按钮文案与保底显示
+
+        if (opened <= 0) {
+            if (reason === 'lingshiNotEnough') this.lingshiNotEnoughDialog();
+            else if (reason === 'breakthrough') toast(this.node, TEXTS.boxAutoStopBreakthrough);
+            else if (reason === 'limit') toast(this.node, TEXTS.boxAutoStopLimit);
+            return;
+        }
+        this.showAutoSummary(results, reason);
+    }
+
+    /** 连开汇总结算：聚合多次结果一次性展示，避免连开 n 次弹 n 个窗 */
+    private showAutoSummary(results: BoxResult[], reason: AutoStopReason) {
+        const s = summarizeAutoOpens(results);
+        const lines: Array<string | { text: string; color?: number }> = [];
+        lines.push({ text: TEXTS.boxAutoSummaryLine(s.opens), color: 1 });
+        if (s.rare > 0) lines.push({ text: `稀有机缘 ×${s.rare}`, color: 1 });
+        if (s.lingshi !== 0) lines.push({ text: `灵石 +${s.lingshi}`, color: 1 });
+        if (s.xiuwei > 0) lines.push(`修为 +${s.xiuwei}`);
+        else if (s.xiuwei < 0) lines.push({ text: `修为 ${s.xiuwei}`, color: 2 });
+        if (s.jiyuan !== 0) lines.push({ text: `机缘 +${s.jiyuan}`, color: 3 });
+        for (const f of s.fragments) {
+            const cfg = getLingeng(f.id);
+            lines.push(`灵根碎片「${cfg.name}」×${f.amount}`);
+        }
+        for (const o of s.others) lines.push({ text: o.label, color: 1 });
+        if (s.disaster > 0) lines.push({ text: `心魔劫扰 ×${s.disaster}`, color: 2 });
+        if (results.some((r) => r.pityTriggered)) lines.push({ text: TEXTS.pityTriggered, color: 1 });
+        if (reason === 'breakthrough') lines.push({ text: TEXTS.boxAutoStopBreakthrough, color: 1 });
+        else if (reason === 'lingshiNotEnough') lines.push({ text: TEXTS.boxAutoStopLingshi, color: 2 });
+        else if (reason === 'limit') lines.push({ text: TEXTS.boxAutoStopLimit, color: 2 });
+        if (reason !== 'breakthrough' && Game.realm.canBreakthrough()) {
+            lines.push({ text: TEXTS.boxBreakthroughChance, color: 1 });
+        }
+        showDialog(this.node, {
+            title: TEXTS.boxAutoSummaryTitle,
+            lines,
+            buttons: [{ text: TEXTS.keepReward, primary: true, cb: () => this.afterSettle() }],
+        });
     }
 
     /** V2 A1：蓄力共鸣阶段——按住蓄力，光标居中松手触发灵气共鸣；快速点击直接开启。 */

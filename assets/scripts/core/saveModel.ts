@@ -385,8 +385,11 @@ function numOr(v: unknown, fallback: number): number {
 function migrateTrail(raw: unknown): TrailState {
     const d = defaultSave().trail;
     const t = (raw ?? {}) as Partial<TrailState>;
+    // ⚠ 必须用 Array.from 而非 [...new Set(...)]：本项目构建目标的降级编译会把
+    // 展开语法编成 `[].concat(new Set(...))`，而 concat **不展开 Set/迭代器**，
+    // 结果会变成 [Set]（单测跑 node 原生展开，测不出来，只有产物会坏）。
     const gifts = Array.isArray(t.chapterGifts)
-        ? [...new Set(t.chapterGifts.filter((x): x is number => Number.isInteger(x) && x >= 0))].sort((a, b) => a - b)
+        ? Array.from(new Set(t.chapterGifts.filter((x): x is number => Number.isInteger(x) && x >= 0))).sort((a, b) => a - b)
         : [];
     const rep = (t.dailyRepeat ?? {}) as Partial<TrailState['dailyRepeat']>;
     return {
