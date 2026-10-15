@@ -16,6 +16,7 @@ import { TowerSystem } from '../assets/scripts/core/systems/TowerSystem';
 import { MAINLINE } from '../assets/scripts/core/config/tower';
 import { TRIAL_THEMES, TRIAL_TIERS, RANK_TIERS } from '../assets/scripts/core/config/trial';
 import { CombatSystem } from '../assets/scripts/core/systems/CombatSystem';
+import { CheckinSystem } from '../assets/scripts/core/systems/CheckinSystem';
 import { AlchemySystem } from '../assets/scripts/core/systems/AlchemySystem';
 import { BOXES } from '../assets/scripts/core/config/boxes';
 import { PILLS, FORTUNES } from '../assets/scripts/core/config/alchemy';
@@ -187,6 +188,16 @@ describe('数值平衡模拟（打印报告，宽松断言防崩坏）', () => {
             expect(towerMats).toBe(MAINLINE.matsCap);
             expect(tower.dailyLeft(save, new Date(0)).lingshi).toBe(0);
 
+            // M26 连续登录签到（#53）：取**最坏档**——连续第 7 天的周期大奖（800 灵石 +
+            // 机缘 10 + 灵材 3）。日均摊只有 ≈307/1.43/0.43，但护栏要守的是单日最坏值，
+            // 故模拟刻意落在第 7 天上（构造：昨日已领 + streak=6）。
+            const checkin = new CheckinSystem(eco, alch);
+            save.checkin.lastDay = '1969-12-31';
+            save.checkin.streak = 6;
+            const ckGot = checkin.claim(save, new Date(0));
+            expect(ckGot, '签到应可领（构造为连续第 7 天）').toBeTruthy();
+            expect(ckGot!.lingshi).toBe(800);
+
             // 活跃度三箱全领
             for (const at of [30, 60, 100]) {
                 if (quests.canClaimChest(save, at)) quests.claimChest(save, at, rng);
@@ -208,8 +219,9 @@ describe('数值平衡模拟（打印报告，宽松断言防崩坏）', () => {
             // 验证封顶机制使投入有界、余额不为负、双资源循环不构成印钞机。
             const matGained = sumMaterials(save) - matAtStart;
             // 灵材按日有界（#42/#46 终审：秘境重度口径爬三档+翻倍 ≈28，斩妖/历练 ≈3；
-            // M22 剑冢日封顶 +5，#48）→ 上限 37，不构成无限炼材来源
-            expect(matGained).toBeLessThanOrEqual(37);
+            // M22 剑冢日封顶 +5，#48；M26 签到第 7 天周期大奖 +3，#53）→ 上限 40，
+            // 不构成无限炼材来源（实测 38–39，旧上限 37 被签到顶破 1，故重定 40）
+            expect(matGained).toBeLessThanOrEqual(40);
             let pills = 0;
             while (alch.canCraft(save, 'chu') === null && pills < 100) {
                 alch.craft(save, 'chu');
@@ -226,6 +238,39 @@ describe('数值平衡模拟（打印报告，宽松断言防崩坏）', () => {
             expect(sumMaterials(save)).toBeGreaterThanOrEqual(0);
         }
         console.log('=== 典型一日报告 ===\n' + report.join('\n'));
+    });
+
+    /**
+     * M26 签到最坏单日（#53）：连续第 7 天周期大奖 + 累计里程碑同日全领。
+     * 这是签到对「机缘直接投放 ≤120」压力最大的一天，必须仍在 #38 上限内。
+     */
+    it('M26 签到最坏单日：第 7 天大奖 + 30 天里程碑同日领取仍在 #38 上限内', () => {
+        const save: SaveData = defaultSave();
+        const eco = new EconomySystem(save);
+        const alch = new AlchemySystem(eco);
+        const ck = new CheckinSystem(eco, alch);
+
+        // 昨日已领 + streak=6 → 今日领到的是第 7 天周期大奖
+        save.checkin.lastDay = '1969-12-31';
+        save.checkin.streak = 6;
+        save.checkin.totalDays = 29;
+        const r = ck.claim(save, new Date(0));
+        expect(r!.lingshi).toBe(800);
+        expect(save.checkin.totalDays).toBe(30);
+
+        // 三条里程碑（7/15/30 天）同日全部达标并领取 = 最坏情况
+        ck.claimMilestone(save, 7);
+        ck.claimMilestone(save, 15);
+        const m30 = ck.claimMilestone(save, 30);
+        expect(m30!.jiyuan).toBe(30);
+
+        // 单日机缘增量 40（周期大奖 10 + 30 天档 30），远低于 120 上限；
+        // 灵石 1300 也只占 9500 上限的 13.7%；灵材 8 远低于 37
+        expect(save.jiyuan).toBe(40);
+        expect(save.jiyuan).toBeLessThanOrEqual(120);
+        expect(save.lingshi).toBeLessThanOrEqual(9500);
+        expect(alch.materialCount(save)).toBe(8);
+        expect(save.xiuzhenTickets).toBe(1);
     });
 
     /**

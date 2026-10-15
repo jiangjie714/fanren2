@@ -330,7 +330,7 @@ describe('M22 存档 v7 → v8', () => {
         const raw = { ...defaultSave(), version: 7 };
         delete (raw as Partial<SaveData>).tower;
         const m = migrate(raw);
-        expect(m.version).toBe(8);
+        expect(m.version).toBe(9);
         expect(m.tower).toEqual({
             best: 1,
             swordLevel: 0,
@@ -363,16 +363,16 @@ describe('M22 存档 v7 → v8', () => {
 
     it('v1 → v8 全链路兼容：最原始档也能迁到当前模型', () => {
         const m = migrate({ version: 1, lingshi: 10 });
-        expect(m.version).toBe(8);
+        expect(m.version).toBe(9);
         expect(m.tower.best).toBe(1);
         expect(m.trail.curLayer).toBe(1);
         expect(m.profile.name).toBe('');
     });
 
     it('损坏档（null/字符串/未知版本）→ 重置为 v8 缺省', () => {
-        expect(migrate(null).version).toBe(8);
-        expect(migrate('junk').version).toBe(8);
-        expect(migrate({ version: 99 }).version).toBe(8);
+        expect(migrate(null).version).toBe(9);
+        expect(migrate('junk').version).toBe(9);
+        expect(migrate({ version: 99 }).version).toBe(9);
     });
 });
 

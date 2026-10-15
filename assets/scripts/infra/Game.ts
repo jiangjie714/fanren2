@@ -4,6 +4,7 @@ import { SaveData } from '../core/saveModel';
 import { AchievementSystem } from '../core/systems/AchievementSystem';
 import { AlchemySystem } from '../core/systems/AlchemySystem';
 import { BoxSystem } from '../core/systems/BoxSystem';
+import { CheckinSystem } from '../core/systems/CheckinSystem';
 import { CollectionSystem } from '../core/systems/CollectionSystem';
 import { CombatSystem } from '../core/systems/CombatSystem';
 import { EconomySystem } from '../core/systems/EconomySystem';
@@ -46,6 +47,8 @@ export class Game {
     static illusion: IllusionSystem;
     static trial: TrialSystem;
     static ach: AchievementSystem;
+    /** M26 连续登录签到：七日轮回 + 累计里程碑（#53） */
+    static checkin: CheckinSystem;
     static social: DouyinSocial;
 
     /** root: GameRoot 节点（场景根子节点，非 Canvas 层级） */
@@ -80,6 +83,7 @@ export class Game {
         this.illusion = new IllusionSystem(this.eco, this.alchemy);
         this.trial = new TrialSystem(this.eco, this.alchemy);
         this.ach = new AchievementSystem(this.eco);
+        this.checkin = new CheckinSystem(this.eco, this.alchemy);
         this.social = new DouyinSocial();
         this.eco.dailyReset();
         this.illusion.checkWeek(this.save);

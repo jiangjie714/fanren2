@@ -44,6 +44,7 @@ import { ShopScene } from './ShopScene';
 import { PlayerScene } from './PlayerScene';
 import { WeaponScene } from './WeaponScene';
 import { PathScene } from './PathScene';
+import { CheckinScene } from './CheckinScene';
 import { AlchemyScene } from './AlchemyScene';
 import { FortuneScene } from './FortuneScene';
 import { ACTIVITY_CHESTS } from '../core/config/quests';
@@ -79,6 +80,8 @@ export class HomeScene implements IScene {
     private towerBtn!: ButtonHandle;
     private towerSubLabel!: Label;
     private questDot!: Node;
+    /** M26 签到入口红点：今日尚未领取时点亮 */
+    private checkinDot!: Node;
     private ludaoBtn!: ButtonHandle;
     private ludaoDot!: Node;
     private weaponBtn!: ButtonHandle;
@@ -305,6 +308,14 @@ export class HomeScene implements IScene {
         // 「全页唯一金色实底锚点」的设计意图（截图基线也锁死在 -68 / 500×102）。改为 rail 同构：
         // 视觉 72@-286 → [-322,-250]，与 CTA **恰好相切**，既对称又不叠压。进度信息移到圆钮下方
         // 的标签区，与右侧 rail 的「法器 / 论道 / 妖径 / 修行」同规。
+        // M26 连续登录签到入口：插在左侧 rail 的空位（设置 370 与图鉴 58 之间），
+        // 左 rail 只有 2 个钮、上下各留 >100px，不动任何既有坐标。
+        // 图标暂用 icon_streak（「连续」语义最贴切）占位，待美术补 icon_checkin 后替换。
+        iconButton(n, 'art/ui/icons/icon_streak/spriteFrame', () => Game.stack.push(new CheckinScene()), 72, 72)
+            .node.setPosition(-286, 266, 0);
+        railLabel('签到', 214, -286);
+        this.checkinDot = makeRedDot(n, -262, 290);
+
         this.collectionBtn = iconButton(n, 'art/ui/icons/icon_collection/spriteFrame', () => Game.stack.push(new CollectionScene()), 72, 72);
         this.collectionBtn.node.setPosition(-286, 58, 0);
         railLabel('图鉴', 6, -286);
@@ -371,6 +382,8 @@ export class HomeScene implements IScene {
         const chestClaimable = ACTIVITY_CHESTS.some((c) => Game.quests.canClaimChest(Game.save, c.at));
         this.questDot.active = chestClaimable;
         this.ludaoDot.active = Game.ach.claimableCount(Game.save) > 0;
+        // M26：签到红点 = 今日尚未领取（回前台/领完返回都会走 refresh 刷新）
+        this.checkinDot.active = Game.checkin.view(Game.save).canClaim;
 
         // A11：图鉴收集进度。合成灵根后从图鉴页返回会走 onResume → 这里刷新。
         const col = Game.col.progress(Game.save);

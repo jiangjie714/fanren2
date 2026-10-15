@@ -1,4 +1,4 @@
-/** 存档模型 v8：v7 字段 + M22 剑冢爬塔（tower，#48）；塔内只存整数淬剑等级，剑气按需派生 */
+/** 存档模型 v9：v8 字段 + M26 连续登录签到（checkin，#53）；塔内只存整数淬剑等级，剑气按需派生 */
 import { STAMINA_MAX, STAMINA_AD_PER_DAY } from './config/trial';
 import { weekKeyOf } from './config/illusion';
 
@@ -158,8 +158,26 @@ export interface TowerState {
     daily: { day: string; lingshi: number; mats: number; xiuwei: number };
 }
 
+// ---------- v9（M26 连续登录签到，#53） ----------
+
+/**
+ * 签到进度。**刻意放顶层而非 daily**：连续天数是跨日持久语义，
+ * 放进 daily 会让「每日状态」与「连续状态」混淆（daily 语义是「每天清一次」）。
+ * `lastDay` 同时承担「今日是否已领」的判定（=== today 即已领），故无需额外布尔字段。
+ */
+export interface CheckinState {
+    /** 上次领取日期 YYYY-MM-DD；'' = 从未领取（首日即可领第 1 档） */
+    lastDay: string;
+    /** 连续天数（断签重置为 1，随领取递增） */
+    streak: number;
+    /** 累计登录天数（只增，里程碑依据） */
+    totalDays: number;
+    /** 已领取的里程碑天数（幂等） */
+    milestonesClaimed: number[];
+}
+
 export interface SaveData {
-    version: 8;
+    version: 9;
     lingshi: number;
     xiuwei: number;
     jiyuan: number;
@@ -210,13 +228,16 @@ export interface SaveData {
     // ---------- v8（M22） ----------
     /** 剑冢爬塔进度（#48） */
     tower: TowerState;
+    // ---------- v9（M26） ----------
+    /** 连续登录签到进度（#53） */
+    checkin: CheckinState;
 }
 
 import { INITIAL_LINGSHI } from './config/economy';
 
 export function defaultSave(): SaveData {
     return {
-        version: 8,
+        version: 9,
         lingshi: INITIAL_LINGSHI,
         xiuwei: 0,
         jiyuan: 0,
@@ -283,6 +304,12 @@ export function defaultSave(): SaveData {
             crystal: 0,
             daily: { day: '', lingshi: 0, mats: 0, xiuwei: 0 },
         },
+        checkin: {
+            lastDay: '',
+            streak: 0,
+            totalDays: 0,
+            milestonesClaimed: [],
+        },
     };
 }
 
@@ -295,7 +322,7 @@ export function migrate(raw: unknown): SaveData {
     const d = defaultSave();
     if (!raw || typeof raw !== 'object') return d;
     const r = raw as Record<string, unknown>;
-    if (r.version !== 1 && r.version !== 2 && r.version !== 3 && r.version !== 4 && r.version !== 5 && r.version !== 6 && r.version !== 7 && r.version !== 8) return d;
+    if (r.version !== 1 && r.version !== 2 && r.version !== 3 && r.version !== 4 && r.version !== 5 && r.version !== 6 && r.version !== 7 && r.version !== 8 && r.version !== 9) return d;
     const profile = { ...d.profile, ...(r.profile as object ?? {}) };
     const srcTrial = (r.trial as Partial<TrialState>) ?? {};
     return {
@@ -354,8 +381,27 @@ export function migrate(raw: unknown): SaveData {
         trail: migrateTrail(r.trail),
         // v8：剑冢爬塔进度（v7 老档无此字段 → 缺省补齐；非法值钳制，防手改存档注入）
         tower: migrateTower(r.tower),
-        version: 8,
+        // v9：连续登录签到（v8 老档无此字段 → 缺省补齐，首日即可领第 1 档）
+        checkin: migrateCheckin(r.checkin),
+        version: 9,
     } as SaveData;
+}
+
+/** v9 签到字段迁移：streak/totalDays 非负整数钳制，milestonesClaimed 去重有序，lastDay 非字符串回退空串 */
+function migrateCheckin(raw: unknown): CheckinState {
+    const d = defaultSave().checkin;
+    const c = (raw ?? {}) as Partial<CheckinState>;
+    // ⚠ 同 migrateTrail：必须用 Array.from 而非 [...new Set(...)]（降级编译会变成
+    // [].concat(new Set(...))，concat 不展开 Set，产物里会变成 [Set]）。
+    const ms = Array.isArray(c.milestonesClaimed)
+        ? Array.from(new Set(c.milestonesClaimed.filter((x): x is number => Number.isInteger(x) && x >= 0))).sort((a, b) => a - b)
+        : [];
+    return {
+        lastDay: typeof c.lastDay === 'string' ? c.lastDay : d.lastDay,
+        streak: clampIntOr(c.streak, 0),
+        totalDays: clampIntOr(c.totalDays, 0),
+        milestonesClaimed: ms,
+    };
 }
 
 /** v8 剑冢字段迁移：best ≥1、swordLevel/crystal ≥0，非数字一律填缺省（剑气/成本由等级派生，不存浮点） */
