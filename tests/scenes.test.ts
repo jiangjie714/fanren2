@@ -422,6 +422,7 @@ import { WeaponScene } from '../assets/scripts/scenes/WeaponScene';
 import { PathScene } from '../assets/scripts/scenes/PathScene';
 import { CheckinScene } from '../assets/scripts/scenes/CheckinScene';
 import { PlayerScene } from '../assets/scripts/scenes/PlayerScene';
+import { GuideLayer } from '../assets/scripts/ui/GuideLayer';
 import { ProfileScene } from '../assets/scripts/scenes/ProfileScene';
 import { RainScene } from '../assets/scripts/scenes/RainScene';
 import { PkBattleScene } from '../assets/scripts/scenes/PkBattleScene';
@@ -716,6 +717,78 @@ describe('场景集成：HomeScene 入口接线（导航错乱回归）', () => 
         expect(h.registry.toasts.length).toBeGreaterThan(0);
 
         push.mockRestore();
+    });
+});
+
+describe('场景集成：M27 新手引导锚点（#54）', () => {
+    /** 安全区横向 ±332（设计系 720 宽 / SAFE.x=28 → 半宽 360-28=332） */
+    const inSafeX = (a: { x: number; w: number }) => a.x - a.w / 2 >= -332 && a.x + a.w / 2 <= 332;
+
+    it('首页：机缘不足指「仙缘宝盒」入口，机缘已足指主 CTA（均在安全区内）', () => {
+        bootGame();
+        const home = new HomeScene();
+        home.onEnter();
+
+        Game.save.jiyuan = 0;
+        const entry = home.guideAnchor()!;
+        expect(entry).toEqual({ x: -130, y: -287, w: 110, h: 110 });
+
+        Game.save.jiyuan = 9999;
+        const cta = home.guideAnchor()!;
+        expect(cta).toEqual({ x: 0, y: -68, w: 508, h: 110 });
+
+        expect(inSafeX(entry)).toBe(true);
+        expect(inSafeX(cta)).toBe(true);
+    });
+
+    it('开箱页：指凡俗卡「开 启」钮；蓄力/三连浮层打开时让位', () => {
+        bootGame();
+        const box = new BoxScene();
+        box.onEnter();
+        const a = box.guideAnchor()!;
+        expect(a).toEqual({ x: -232, y: -18, w: 196, h: 96 });
+        expect(inSafeX(a)).toBe(true);
+
+        // 浮层打开（蓄力/三连）→ 返回 null，引导自动让位
+        (box as unknown as { phase: string }).phase = 'charge';
+        expect(box.guideAnchor()).toBeNull();
+    });
+
+    it('引导层：挂 Canvas 之上；首页未跳过时显示，跳过后隐藏', () => {
+        const { canvas } = bootGame();
+        const layer = canvas.getChildByName('GuideLayer');
+        expect(layer, 'Game.init 必须装配引导层').toBeTruthy();
+        expect(layer!.active).toBe(false); // 栈顶是捏人页 → 不引导
+
+        Game.save.tutorial = { done: false };
+        Game.save.jiyuan = 0;
+        Game.stack.push(new HomeScene());
+        GuideLayer.sync();
+        expect(layer!.active).toBe(true);
+        expect(layer!.children.some((c) => c.name === 'bubble')).toBe(true);
+        expect(layer!.children.some((c) => c.name === 'ring')).toBe(true);
+
+        // 跳过按钮：点一下即写 done 并**立刻**收起（曾因回调里手动清 key 导致 sync 判定「无变化」而不收）
+        const skip = lastBtn((b) => b.text === TEXTS.guideSkip)!;
+        expect(skip, '气泡必须常驻「跳过引导」钮').toBeTruthy();
+        skip.onClick();
+        expect(Game.save.tutorial.done).toBe(true);
+        expect(layer!.active).toBe(false);
+
+        // 再 sync 一次也不会复活（done 后恒为 null）
+        GuideLayer.sync();
+        expect(layer!.active).toBe(false);
+    });
+
+    it('引导层：已渡劫（realmIndex > 0）自动判定完成并落盘', () => {
+        const { canvas } = bootGame();
+        const layer = canvas.getChildByName('GuideLayer')!;
+        Game.save.tutorial = { done: false };
+        Game.save.realmIndex = 1;
+        Game.stack.push(new HomeScene());
+        GuideLayer.sync();
+        expect(Game.save.tutorial.done, '首次渡劫成功即引导目标达成').toBe(true);
+        expect(layer.active).toBe(false);
     });
 });
 
