@@ -379,4 +379,26 @@ export const TEXTS = {
     // 优先级 4：都不满足 → 领机遇（复用每日仙缘）
     homeGuideGift: '领取机遇',
     homeGuideGiftSub: '灵石不足，看广告得 300',
+
+    // ---------- #53 连续登录签到（M26） ----------
+    checkinPageTitle: '每日问道',
+    /** 摘要卡：连续天数（0 天时另给引导文案） */
+    checkinStreak: (n: number) => `已连续问道 ${n} 天`,
+    checkinStreakZero: '仙路初启，今日即可领第一份问道之礼',
+    checkinTotal: (n: number) => `累计问道 ${n} 天`,
+    /** 轮回提示：明日回到第几天（第 7 天时显示） */
+    checkinCycleReset: (d: number) => `明日轮回 · 回到第 ${d} 天`,
+    checkinDayLabel: (n: number) => `第${n}天`,
+    checkinCellDone: '已领',
+    checkinCellToday: '今日',
+    checkinCellLocked: '未至',
+    checkinMilestoneTitle: (days: number) => `累计问道 ${days} 天`,
+    checkinMilestoneClaim: '领 取',
+    checkinMilestoneClaimed: '已领',
+    checkinMilestoneLocked: (need: number) => `还差 ${need} 天`,
+    checkinClaim: (lingshi: number) => `领取今日 · 灵石 ${lingshi}`,
+    checkinClaimDone: '今日已问道，明日再来',
+    checkinToast: (text: string) => `问道所得：${text}`,
+    checkinMilestoneToast: (days: number) => `累计问道 ${days} 天，里程碑之礼已入囊中`,
+    checkinHint: '每日回来问一句道，连续七日可得周期大礼；中断则从首日重新计起。',
 } as const;

@@ -420,6 +420,7 @@ import { LudaoScene } from '../assets/scripts/scenes/LudaoScene';
 import { DaoFriendScene } from '../assets/scripts/scenes/DaoFriendScene';
 import { WeaponScene } from '../assets/scripts/scenes/WeaponScene';
 import { PathScene } from '../assets/scripts/scenes/PathScene';
+import { CheckinScene } from '../assets/scripts/scenes/CheckinScene';
 import { PlayerScene } from '../assets/scripts/scenes/PlayerScene';
 import { ProfileScene } from '../assets/scripts/scenes/ProfileScene';
 import { RainScene } from '../assets/scripts/scenes/RainScene';
@@ -437,6 +438,13 @@ function bootGame() {
     (root as unknown as { scene: unknown }).scene = { getChildByName: () => canvas };
     Game.init(root as never);
     return { root, canvas };
+}
+
+/** 取**最后一次**匹配文案的按钮（场景重建会在 registry 里留下旧记录） */
+function lastBtn(pred: (b: { text: string }) => boolean) {
+    const arr = h.registry.buttons;
+    for (let i = arr.length - 1; i >= 0; i--) if (pred(arr[i])) return arr[i];
+    return undefined;
 }
 
 /** 按图标路径定位入口按钮（比按坐标更稳：路径是语义标识） */
@@ -585,6 +593,71 @@ describe('场景集成：HomeScene 入口接线（导航错乱回归）', () => 
         );
         expect(shown, `未渲染图鉴进度 ${col.unlocked}/${col.total}`).toBeTruthy();
         push.mockRestore();
+    });
+
+    it('M26 签到入口（左侧 rail 圆钮，图标暂用 icon_streak 占位）→ 进签到页，红点随领取熄灭', () => {
+        bootGame();
+        const home = new HomeScene();
+        const push = vi.spyOn(Game.stack, 'push').mockImplementation(() => { });
+        home.onEnter();
+
+        // 签到钮在左侧 rail（x=-286），夹在设置（370）与图鉴（58）之间
+        const btn = h.registry.iconButtons.find(
+            (b) => b.path.includes('icon_streak/')
+                && (b.node as { getPosition(): { x: number } }).getPosition().x < 0,
+        );
+        expect(btn, '未找到左侧 rail 的签到圆钮').toBeTruthy();
+        const pos = (btn!.node as { getPosition(): { x: number; y: number } }).getPosition();
+        expect(pos.x).toBe(-286);
+        expect(pos.y).toBe(266);
+        btn!.onClick();
+        expect(push).toHaveBeenLastCalledWith(expect.any(CheckinScene));
+
+        // 红点：今日未领 → 亮；领取并刷新后 → 灭
+        const dot = (home as unknown as { checkinDot: { active: boolean } }).checkinDot;
+        expect(dot.active, '今日未领时红点应亮').toBe(true);
+        Game.checkin.claim(Game.save);
+        home.onResume();
+        expect(dot.active, '领取后红点应熄灭').toBe(false);
+        push.mockRestore();
+    });
+
+    it('M26 签到页：领取今日 → 存档推进 + 按钮转已领态（置灰不停用回调，幂等）', () => {
+        bootGame();
+        const scene = new CheckinScene();
+        scene.onEnter();
+
+        const claim = lastBtn((b) => b.text.includes('领取今日'));
+        expect(claim, '未渲染「领取今日」按钮').toBeTruthy();
+
+        const before = Game.save.lingshi;
+        claim!.onClick();
+        expect(Game.save.checkin.streak).toBe(1);
+        expect(Game.save.checkin.totalDays).toBe(1);
+        expect(Game.save.lingshi - before, '第 1 档应为 100 灵石（且不吃小等级加成）').toBe(100);
+
+        // 重建后主按钮转「今日已问道」；置灰必须走 UIOpacity —— 用 setEnabled(false)
+        // 会让回调一并失效（M22 towerChargeMiss 就是这么死的），故断言 enabled 仍为 true
+        const done = lastBtn((b) => b.text.includes('今日已问道'));
+        expect(done, '领取后未切换为已领态').toBeTruthy();
+        expect(done!.enabled, '置灰不得用 setEnabled(false)').toBe(true);
+
+        const after = Game.save.lingshi;
+        done!.onClick();
+        expect(Game.save.lingshi, '重复领取必须幂等').toBe(after);
+        expect(Game.save.checkin.totalDays).toBe(1);
+
+        // 累计里程碑：达标后可领，领完幂等
+        Game.save.checkin.totalDays = 7;
+        scene.onResume();
+        const ms = lastBtn((b) => b.text === '领 取');
+        expect(ms, '总天数 7 时应出现可领的里程碑按钮').toBeTruthy();
+        const beforeMs = Game.save.lingshi;
+        ms!.onClick();
+        expect(Game.save.lingshi - beforeMs, '7 天里程碑应为 500 灵石').toBe(500);
+        const afterMs = Game.save.lingshi;
+        ms!.onClick();
+        expect(Game.save.lingshi, '里程碑重复领取必须幂等').toBe(afterMs);
     });
 
     it('#49 今日引导条（A1）：四态文案 + 去向（状态驱动语境 CTA）', () => {
