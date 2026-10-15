@@ -40,6 +40,7 @@ import {
     visibleWidth,
 } from '../ui/ThemeLib';
 import { hitRune } from '../core/runeHit';
+import type { GuideAnchor } from '../core/guide';
 import { RainScene } from './RainScene';
 
 const CHEST_ART: Record<BoxId, string> = {
@@ -117,6 +118,17 @@ export class BoxScene implements IScene {
         this.node = new Node('BoxScene');
         this.node.layer = Layers.Enum.UI_2D;
         this.pendingResult = initialResult;
+    }
+
+    /**
+     * M27 新手引导锚点（`GuideHost` 协议）：指凡俗卡（最便宜、首日开得起）的「开 启」钮。
+     *
+     * 卡片 x = (i-1)×232、y = 118；按钮在卡内 (0, -cardH/2 + 50) → 绝对 (-232, -18)。
+     * 蓄力/三连浮层打开时返回 `null` 让位（引导层另有通用弹层检测兜底）。
+     */
+    guideAnchor(): GuideAnchor | null {
+        if (this.phase !== 'idle') return null;
+        return { x: -232, y: -18, w: 196, h: 96 };
     }
 
     onEnter() {

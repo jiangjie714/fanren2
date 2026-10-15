@@ -1,4 +1,4 @@
-/** 存档模型 v9：v8 字段 + M26 连续登录签到（checkin，#53）；塔内只存整数淬剑等级，剑气按需派生 */
+/** 存档模型 v10：v9 字段 + M27 新手引导（tutorial，#54）；引导只存「已完成」布尔，步骤由状态推导 */
 import { STAMINA_MAX, STAMINA_AD_PER_DAY } from './config/trial';
 import { weekKeyOf } from './config/illusion';
 
@@ -176,8 +176,19 @@ export interface CheckinState {
     milestonesClaimed: number[];
 }
 
+/**
+ * 新手引导进度（M27，#54）。**刻意放顶层而非 daily**：引导完成是跨会话持久语义，
+ * 放进 daily 会被每日重置清掉，玩家每天重看一遍引导。
+ * 只存 `done` 一个布尔 —— 当前展示哪一步由 `core/guide.ts` 从存档状态推导，
+ * 再存一份 `step` 会造成「存档里的步 vs 实际状态」双源真相。
+ */
+export interface GuideState {
+    /** 已完成 / 主动跳过；true 后引导永不再现 */
+    done: boolean;
+}
+
 export interface SaveData {
-    version: 9;
+    version: 10;
     lingshi: number;
     xiuwei: number;
     jiyuan: number;
@@ -231,13 +242,16 @@ export interface SaveData {
     // ---------- v9（M26） ----------
     /** 连续登录签到进度（#53） */
     checkin: CheckinState;
+    // ---------- v10（M27） ----------
+    /** 新手引导进度（#54） */
+    tutorial: GuideState;
 }
 
 import { INITIAL_LINGSHI } from './config/economy';
 
 export function defaultSave(): SaveData {
     return {
-        version: 9,
+        version: 10,
         lingshi: INITIAL_LINGSHI,
         xiuwei: 0,
         jiyuan: 0,
@@ -310,6 +324,7 @@ export function defaultSave(): SaveData {
             totalDays: 0,
             milestonesClaimed: [],
         },
+        tutorial: { done: false },
     };
 }
 
@@ -322,7 +337,7 @@ export function migrate(raw: unknown): SaveData {
     const d = defaultSave();
     if (!raw || typeof raw !== 'object') return d;
     const r = raw as Record<string, unknown>;
-    if (r.version !== 1 && r.version !== 2 && r.version !== 3 && r.version !== 4 && r.version !== 5 && r.version !== 6 && r.version !== 7 && r.version !== 8 && r.version !== 9) return d;
+    if (r.version !== 1 && r.version !== 2 && r.version !== 3 && r.version !== 4 && r.version !== 5 && r.version !== 6 && r.version !== 7 && r.version !== 8 && r.version !== 9 && r.version !== 10) return d;
     const profile = { ...d.profile, ...(r.profile as object ?? {}) };
     const srcTrial = (r.trial as Partial<TrialState>) ?? {};
     return {
@@ -383,8 +398,18 @@ export function migrate(raw: unknown): SaveData {
         tower: migrateTower(r.tower),
         // v9：连续登录签到（v8 老档无此字段 → 缺省补齐，首日即可领第 1 档）
         checkin: migrateCheckin(r.checkin),
-        version: 9,
+        // v10：新手引导（v9 老档无此字段 → 未跳过；老玩家多半 realmIndex > 0，
+        // 首次 sync 即被判定「目标已达成」并补写 done，实际不会挡路）
+        tutorial: migrateTutorial(r.tutorial),
+        version: 10,
     } as SaveData;
+}
+
+/** v10 引导字段迁移：非对象一律回退 { done: false }，done 取真值布尔（防手改存档注入） */
+function migrateTutorial(raw: unknown): GuideState {
+    if (!raw || typeof raw !== 'object') return { done: false };
+    const t = raw as Partial<GuideState>;
+    return { done: Boolean(t.done) };
 }
 
 /** v9 签到字段迁移：streak/totalDays 非负整数钳制，milestonesClaimed 去重有序，lastDay 非字符串回退空串 */

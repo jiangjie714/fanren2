@@ -48,6 +48,7 @@ import { CheckinScene } from './CheckinScene';
 import { AlchemyScene } from './AlchemyScene';
 import { FortuneScene } from './FortuneScene';
 import { ACTIVITY_CHESTS } from '../core/config/quests';
+import type { GuideAnchor } from '../core/guide';
 
 /**
  * 全境界逐帧动画化（2026-10 第三批）：境界 0 男女各一套 idle，境界 1~5
@@ -337,6 +338,21 @@ export class HomeScene implements IScene {
 
     onResume() {
         this.refresh();
+    }
+
+    /**
+     * M27 新手引导锚点（`GuideHost` 协议）：告诉引导层「此刻该指哪儿」。
+     *
+     * 坐标写在**本页构建代码旁边**而非引导层里硬编码一张坐标表 —— 页面改版式时
+     * 这里会跟着改，不会出现「引导指向已经搬走的按钮」。矩形比视觉尺寸外扩 8–14px，
+     * 保证洞边缘也点得到（差 1px 点不中是最常见的挖洞坑）。
+     */
+    guideAnchor(): GuideAnchor {
+        return Game.realm.canBreakthrough()
+            // 主 CTA「冲击境界」（视觉 500×102 @ (0,-68)）
+            ? { x: 0, y: -68, w: 508, h: 110 }
+            // 环形「仙缘宝盒」钮（视觉 96 @ (-130,-287)）
+            : { x: -130, y: -287, w: 110, h: 110 };
     }
 
     onExit() {

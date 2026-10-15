@@ -401,4 +401,14 @@ export const TEXTS = {
     checkinToast: (text: string) => `问道所得：${text}`,
     checkinMilestoneToast: (days: number) => `累计问道 ${days} 天，里程碑之礼已入囊中`,
     checkinHint: '每日回来问一句道，连续七日可得周期大礼；中断则从首日重新计起。',
+
+    // ---------- #54 新手引导（M27） ----------
+    guideStep1Title: '第一步 · 求仙缘',
+    guideStep1Body: '机缘是突破的根本。点这里进仙缘宝盒，开箱攒机缘。',
+    guideStep2Title: '第二步 · 开启宝盒',
+    guideStep2Body: '按住可连开，松手即停。开出机缘，够了就能渡劫。',
+    guideStep3Title: '第三步 · 引动天劫',
+    guideStep3Body: '机缘已满！点这里冲击境界，首战有天道庇佑。',
+    /** 气泡右下角常驻：任何时刻都能退出引导 */
+    guideSkip: '跳过引导',
 } as const;
