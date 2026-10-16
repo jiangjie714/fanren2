@@ -204,7 +204,7 @@ describe('M15-T1 奖励表（#47）', () => {
     });
 
     it('M21 第 7 章焚天炎海：配比 5:3:2 且奖励继续爬升', () => {
-        expect(TRAIL_CHAPTERS.length).toBe(8); // ← 章节总数基线：M24 起 8 章
+        expect(TRAIL_CHAPTERS.length).toBeGreaterThanOrEqual(9); // 章节总数下界；精确基线见 M28 用例
         const ch7 = TRAIL_CHAPTERS[6];
         expect(ch7.id).toBe('fentian');
         expect(ch7.monsters.length).toBe(6);
@@ -220,7 +220,7 @@ describe('M15-T1 奖励表（#47）', () => {
     });
 
     it('M24 第 8 章罡风天壑：配比 4:3:2 且奖励按 1.35× 继续爬升', () => {
-        expect(TRAIL_CHAPTERS.length).toBe(8); // ← 章节总数基线：新增第 9 章时改这里
+        expect(TRAIL_CHAPTERS.length).toBeGreaterThanOrEqual(9); // 章节总数下界；精确基线见 M28 用例
         const ch8 = TRAIL_CHAPTERS[7];
         expect(ch8.id).toBe('gangfeng');
         expect(ch8.name).toBe('罡风天壑');
@@ -243,6 +243,48 @@ describe('M15-T1 奖励表（#47）', () => {
         expect(ch8.rewardSections[2]).toEqual([3820, 4980]);
         expect(ch8.bossReward).toEqual([4050, 5580]);
         expect(ch8.bossSlay.xiuwei).toBe(5900);
+    });
+
+    it('M28 第 9 章星陨天墟：配比 4:3:2 且奖励按 1.35× 继续爬升', () => {
+        expect(TRAIL_CHAPTERS.length).toBe(9); // ← 章节总数基线：M28 起 9 章
+        const ch9 = TRAIL_CHAPTERS[8];
+        expect(ch9.id).toBe('xingxu');
+        expect(ch9.name).toBe('星陨天墟');
+        expect(ch9.monsters.length).toBe(6);
+        expect(ch9.boss.id).toBe('xingjun');
+        const count = (g: string) => ch9.typePlan.filter((x) => x === g).length;
+        expect(count('battle')).toBe(4);
+        expect(count('puzzle')).toBe(3);
+        expect(count('match3')).toBe(2);
+        const ch8 = TRAIL_CHAPTERS[7];
+        expect(ch9.rewardSections[2][1]).toBeGreaterThan(ch8.rewardSections[2][1]);
+        expect(ch9.bossReward[1]).toBeGreaterThan(ch8.bossReward[1]);
+        expect(ch9.bossSlay.xiuwei).toBeGreaterThan(ch8.bossSlay.xiuwei);
+        expect(ch9.bossSlay.jiyuan).toBe(160);
+        expect(ch9.fragmentChance).toEqual([0.5, 0.7, 0.9]);
+        expect(ch9.gift.lingshi).toBe(38500);
+        expect(ch9.gift.fragments).toBe(9);
+        // 静态区间锚点（防手滑改值）
+        expect(ch9.rewardSections[0]).toEqual([3650, 4830]);
+        expect(ch9.rewardSections[1]).toEqual([4310, 5640]);
+        expect(ch9.rewardSections[2]).toEqual([5160, 6720]);
+        expect(ch9.bossReward).toEqual([5470, 7530]);
+        expect(ch9.bossSlay.xiuwei).toBe(7960);
+    });
+
+    it('M28 第 9 章派生：层 81–90 归属第 9 章，Boss 关恒 battle 且为天墟星君', () => {
+        expect(chapterOf(81)).toBe(9);
+        expect(chapterOf(90)).toBe(9);
+        expect(deriveBattle(90).isBoss).toBe(true);
+        expect(deriveBattle(90).monsterName).toBe('天墟星君');
+        expect(deriveGame(90)).toBe('battle');
+        // 普通关妖怪全部落在第 9 章池内
+        const pool = TRAIL_CHAPTERS[8].monsters.map((m) => m.name);
+        for (let layer = 81; layer <= 89; layer++) {
+            expect(pool).toContain(deriveBattle(layer).monsterName);
+        }
+        // 第 9 章难度系数 2.10（M24 曲线无封顶，本章不改公式）
+        expect(chapterScale(9)).toBeCloseTo(2.1);
     });
 
     it('M24 chapterScale 分段续爬：第 7 章仍 1.8，第 8 章起 1.8+0.15(ch−7) 无封顶', () => {

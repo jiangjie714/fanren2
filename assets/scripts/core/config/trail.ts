@@ -284,6 +284,34 @@ export const TRAIL_CHAPTERS: readonly TrailChapter[] = [
         bossSlay: { xiuwei: 5900, jiyuan: 130 },
         gift: { lingshi: 28500, mats: { lingcao: 12, lingshi_core: 10, yaodan_core: 8 }, fragments: 8 },
     },
+    {
+        id: 'xingxu',
+        name: '星陨天墟',
+        blurb: '天墟星陨，星煞流光碎魂',
+        bg: 'art/ui/bg_trail_xingxu/spriteFrame',
+        monsters: [
+            { id: 'xinghu', name: '星尘妖狐' },
+            { id: 'yunyuan', name: '陨铁魔猿' },
+            { id: 'xinglu', name: '星纹灵鹿' },
+            { id: 'xumei', name: '虚影星魅' },
+            { id: 'tianlang', name: '天墟狼王' },
+            { id: 'xingkui', name: '星陨傀儡' },
+        ],
+        boss: { id: 'xingjun', name: '天墟星君' },
+        typePlan: [
+            'battle', 'puzzle', 'match3', 'battle', 'puzzle',
+            'battle', 'match3', 'puzzle', 'battle',
+        ],
+        rewardSections: [
+            [3650, 4830],
+            [4310, 5640],
+            [5160, 6720],
+        ],
+        bossReward: [5470, 7530],
+        fragmentChance: [0.5, 0.7, 0.9],
+        bossSlay: { xiuwei: 7960, jiyuan: 160 },
+        gift: { lingshi: 38500, mats: { lingcao: 13, lingshi_core: 11, yaodan_core: 9 }, fragments: 9 },
+    },
 ];
 
 // ---------- 章节/层换算 ----------
