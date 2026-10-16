@@ -69,6 +69,7 @@ async function render(html, outFile) {
 
 /** 拼接顺序：入口 → 基础设施 → 数值配置 → 纯逻辑系统 → UI 库 → 页面 → 生命周期收尾 */
 const SOURCE_ORDER = [
+    // 引擎入口与基础设施层
     'assets/scripts/GameRoot.ts',
     'assets/scripts/infra/Align.ts',
     'assets/scripts/infra/AudioMgr.ts',
@@ -80,9 +81,18 @@ const SOURCE_ORDER = [
     'assets/scripts/infra/Share.ts',
     'assets/scripts/infra/dailyGift.ts',
     'assets/scripts/infra/enterIllusion.ts',
+    // 核心层：基础工具与存档模型
     'assets/scripts/core/rng.ts',
     'assets/scripts/core/runeHit.ts',
+    'assets/scripts/core/bignum.ts',
+    'assets/scripts/core/path.ts',
+    'assets/scripts/core/boxAuto.ts',
     'assets/scripts/core/saveModel.ts',
+    'assets/scripts/core/daoFriends.ts',
+    'assets/scripts/core/checkin.ts',
+    'assets/scripts/core/guide.ts',
+    'assets/scripts/core/launchCheck.ts',
+    // 核心层：数值配置
     'assets/scripts/core/config/realms.ts',
     'assets/scripts/core/config/boxes.ts',
     'assets/scripts/core/config/drops.ts',
@@ -92,29 +102,41 @@ const SOURCE_ORDER = [
     'assets/scripts/core/config/ads.ts',
     'assets/scripts/core/config/alchemy.ts',
     'assets/scripts/core/config/combat.ts',
-    'assets/scripts/core/config/expeditions.ts',
     'assets/scripts/core/config/illusion.ts',
     'assets/scripts/core/config/quests.ts',
     'assets/scripts/core/config/achievements.ts',
     'assets/scripts/core/config/iap.ts',
+    'assets/scripts/core/config/trial.ts',
+    'assets/scripts/core/config/tower.ts',
+    'assets/scripts/core/config/trail.ts',
+    // 核心层：玩法系统
     'assets/scripts/core/systems/BoxSystem.ts',
     'assets/scripts/core/systems/RealmSystem.ts',
     'assets/scripts/core/systems/RainSystem.ts',
     'assets/scripts/core/systems/EconomySystem.ts',
     'assets/scripts/core/systems/CollectionSystem.ts',
     'assets/scripts/core/systems/QuestSystem.ts',
-    'assets/scripts/core/systems/ExpeditionSystem.ts',
     'assets/scripts/core/systems/IllusionSystem.ts',
     'assets/scripts/core/systems/AchievementSystem.ts',
     'assets/scripts/core/systems/CombatSystem.ts',
     'assets/scripts/core/systems/AlchemySystem.ts',
+    'assets/scripts/core/systems/TrialSystem.ts',
+    'assets/scripts/core/systems/TowerSystem.ts',
+    'assets/scripts/core/systems/CheckinSystem.ts',
+    'assets/scripts/core/systems/TrailSystem.ts',
+    'assets/scripts/core/systems/TrailBattleSystem.ts',
+    'assets/scripts/core/systems/TrailMatch3Engine.ts',
+    'assets/scripts/core/systems/TrailPuzzleEngine.ts',
     'assets/scripts/core/systems/SocialRank.ts',
     'assets/scripts/core/systems/StatsRecorder.ts',
+    // UI 组件层
     'assets/scripts/ui/ThemeLib.ts',
     'assets/scripts/ui/StatusBar.ts',
     'assets/scripts/ui/dialog.ts',
     'assets/scripts/ui/infoDialogs.ts',
     'assets/scripts/ui/FrameAnimator.ts',
+    'assets/scripts/ui/GuideLayer.ts',
+    // 场景层
     'assets/scripts/scenes/ProfileScene.ts',
     'assets/scripts/scenes/HomeScene.ts',
     'assets/scripts/scenes/BoxScene.ts',
@@ -122,16 +144,27 @@ const SOURCE_ORDER = [
     'assets/scripts/scenes/ResultScene.ts',
     'assets/scripts/scenes/PlayerScene.ts',
     'assets/scripts/scenes/QuestScene.ts',
-    'assets/scripts/scenes/ExpeditionScene.ts',
+    'assets/scripts/scenes/CheckinScene.ts',
     'assets/scripts/scenes/IllusionResultScene.ts',
     'assets/scripts/scenes/LudaoScene.ts',
     'assets/scripts/scenes/PkBattleScene.ts',
+    'assets/scripts/scenes/DaoFriendScene.ts',
     'assets/scripts/scenes/CollectionScene.ts',
     'assets/scripts/scenes/ShopScene.ts',
     'assets/scripts/scenes/AlchemyScene.ts',
     'assets/scripts/scenes/FortuneScene.ts',
     'assets/scripts/scenes/WeaponScene.ts',
+    'assets/scripts/scenes/TowerScene.ts',
+    'assets/scripts/scenes/TowerBattleScene.ts',
+    'assets/scripts/scenes/TowerResultScene.ts',
+    'assets/scripts/scenes/TrailScene.ts',
+    'assets/scripts/scenes/TrailBattleScene.ts',
+    'assets/scripts/scenes/TrailMatch3Scene.ts',
+    'assets/scripts/scenes/TrailPuzzleScene.ts',
+    'assets/scripts/scenes/TrailResultScene.ts',
+    'assets/scripts/scenes/PathScene.ts',
     'assets/scripts/scenes/SettingsScene.ts',
+    // 全局单例与生命周期
     'assets/scripts/infra/Game.ts',
 ];
 
@@ -222,6 +255,27 @@ async function genSource() {
 
 const SHOT = (n) => join(ROOT, 'docs/screenshots', n);
 
+/** 正文每页最多视觉行数（A4 去内边距约 270mm / 行高 15pt≈5.3mm ≈ 51 行，取 44 留余量） */
+const MANUAL_LINES_PER_PAGE = 44;
+/** 正文行宽折算：内容宽 178mm、10.5pt 汉字 ≈3.7mm → 约 48 个汉字/行（与 lineUnits 的 1.0/0.6 权重一致） */
+const MANUAL_UNITS_PER_LINE = 48;
+
+/**
+ * 截图一律转成 data URI 内嵌，不要用 file:// 路径。
+ * 原因：render() 走 page.setContent()，文档源是 about:blank；Chrome 会拦截
+ * 非 file 源文档里的 file:// 子资源，结果是每页只渲染出一张 14×16 的破图占位
+ * （PDF 体积骤降到 ~700KB、肉眼可见每张图都是空白小图标）。内嵌后彻底不依赖
+ * 本地文件访问权限，换机器/换 Chrome 版本都稳定。
+ */
+const MIME = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg' };
+const shotDataUri = (n) => {
+    // 优先用降采样缓存（tools/softcopyright-shot-cache.py 生成），没有就退回原图
+    const cached = join(ROOT, 'docs/软著申请材料/_shots_cache', `${n.slice(0, n.lastIndexOf('.'))}.jpg`);
+    const file = existsSync(cached) ? cached : SHOT(n);
+    const mime = MIME[file.slice(file.lastIndexOf('.')).toLowerCase()] ?? 'image/png';
+    return `data:${mime};base64,${readFileSync(file).toString('base64')}`;
+};
+
 function manualHtml() {
     const pages = [];
     pages.push(`<section class="page cover">
@@ -239,20 +293,40 @@ function manualHtml() {
 </section>`);
 
     for (const [ci, c] of MANUAL.entries()) {
-        const paras = c.p
-            .map((t) => (/^\d+\.\d+\s/.test(t) ? `<p class="sec">${esc(t)}</p>` : `<p>${esc(t)}</p>`))
-            .join('');
-        pages.push(`<section class="page">
-<h2 class="ph">${esc(c.h)}</h2>
+        // 正文按视觉行打包分页：一章写不下就拆成多页（每页仍 ≥30 行），
+        // 绝不留「只有一行的溢出页」——否则不满足「文档每页不少于 30 行」，
+        // 且页眉页码与实际物理页错位。
+        const chunks = [];
+        let cur = [];
+        let cost = 0;
+        for (const t of c.p) {
+            const n = Math.max(1, Math.ceil(lineUnits(t) / MANUAL_UNITS_PER_LINE));
+            if (cost + n > MANUAL_LINES_PER_PAGE && cur.length) {
+                chunks.push(cur);
+                cur = [];
+                cost = 0;
+            }
+            cur.push(t);
+            cost += n;
+        }
+        if (cur.length) chunks.push(cur);
+
+        chunks.forEach((chunk, ki) => {
+            const paras = chunk
+                .map((t) => (/^\d+\.\d+\s/.test(t) ? `<p class="sec">${esc(t)}</p>` : `<p>${esc(t)}</p>`))
+                .join('');
+            pages.push(`<section class="page">
+<h2 class="ph">${esc(ki === 0 ? c.h : `${c.h}（续）`)}</h2>
 <div class="body">${paras}</div>
 </section>`);
+        });
         const imgs = c.imgs.filter(([f]) => existsSync(SHOT(f)));
         if (imgs.length) {
             const cls = imgs.length === 1 ? 'n1' : imgs.length === 2 ? 'n2' : 'n34';
             pages.push(`<section class="page">
 <h2 class="ph">${esc(c.h)}　界面示意</h2>
 <div class="figs ${cls}">${imgs
-                .map(([f, cap], gi) => `<figure><img src="file://${SHOT(f)}"><figcaption>图 ${ci + 1}-${gi + 1}　${esc(cap)}</figcaption></figure>`)
+                .map(([f, cap], gi) => `<figure><img src="${shotDataUri(f)}"><figcaption>图 ${ci + 1}-${gi + 1}　${esc(cap)}</figcaption></figure>`)
                 .join('')}</div>
 <p class="fig-note">注：以上界面截图均为本软件实际运行画面，具体数值以软件内实际显示为准。</p>
 </section>`);
@@ -266,7 +340,7 @@ function manualHtml() {
 <p>版 本 号：${esc(VERSION)}</p>
 <p>著作权人：${esc(OWNER)}</p>
 <p>编程语言：TypeScript 5.4</p>
-<p>源程序量：10673 行（64 个 TypeScript 源文件）</p>
+<p>源程序量：17491 行（90 个 TypeScript 源文件）</p>
 <p>运行环境：抖音小游戏；Android 8.0 及以上 / iOS 12.0 及以上</p>
 <p>开发完成日期：见《计算机软件著作权登记申请表》</p>
 <p>本手册所述界面与操作以软件实际运行效果为准。</p>
@@ -290,7 +364,7 @@ body { font-family: 'Songti SC', 'SimSun', serif; color: #000; }
 .page:last-child { page-break-after: auto; }
 header { display: flex; justify-content: space-between; font-size: 9pt; border-bottom: 0.5pt solid #999; padding-bottom: 2pt; margin-bottom: 6mm; }
 .ph { font-size: 15pt; text-align: center; margin-bottom: 6mm; }
-.body p { font-size: 10.5pt; line-height: 17pt; text-indent: 2em; margin-bottom: 1.5mm; text-align: justify; }
+.body p { font-size: 10.5pt; line-height: 15pt; text-indent: 2em; margin-bottom: 1.2mm; text-align: justify; }
 .body p.sec { text-indent: 0; font-weight: bold; margin-top: 2mm; }
 .toc li { font-size: 12pt; line-height: 22pt; margin-left: 18mm; }
 .note { font-size: 12pt; margin: 4mm 0 0 18mm; }
@@ -305,7 +379,9 @@ figcaption { font-size: 9pt; color: #333; margin-top: 1mm; }
 .figs.n2 figure { width: 46%; }
 .figs.n2 img { max-height: 150mm; }
 .figs.n34 figure { width: 45%; }
-.figs.n34 img { max-height: 108mm; }
+/* 4 图 = 2 行；每行「图高 + 图注 + 外边距」须让 2 行 + 标题 + 图注整体塞进 270mm，
+   否则图注会被挤到下一页形成一个只有一行的半空页。92mm 是实测留足余量的值。 */
+.figs.n34 img { max-height: 92mm; }
 .cover { display: flex; align-items: center; justify-content: center; }
 .cover-main { text-align: center; }
 .cover h1 { font-size: 28pt; margin-bottom: 10mm; }
