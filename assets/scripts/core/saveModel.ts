@@ -1,4 +1,4 @@
-/** 存档模型 v12：v11 字段 + M30 剧情文本（story，#56）；只存「听过的节拍 id」，文案在配置里 */
+/** 存档模型 v13：v12 字段 + M31 宗门社交（sect，#57）；id 为空 = 未加入，其余全部派生 */
 import { STAMINA_MAX, STAMINA_AD_PER_DAY } from './config/trial';
 import { weekKeyOf } from './config/illusion';
 
@@ -219,8 +219,37 @@ export interface StoryState {
     seen: string[];
 }
 
+// ---------- v13（M31 宗门社交，#57） ----------
+
+/**
+ * 宗门状态。`id` 是唯一事实源（三宗门之一或 null），等级/职位/成员全部派生不存；
+ * `contrib` 是**可花余额**，`totalContrib` 是**累计获得**（职位推导用）——两者分开，
+ * 否则花掉贡献点会把职位降级（「当过长老了不可能贬回弟子」）。
+ */
+export interface SectState {
+    id: string | null;
+    /** 宗门经验（只来自捐献，累计值） */
+    exp: number;
+    /** 累计获得的贡献点（职位推导，只增不减） */
+    totalContrib: number;
+    /** 当前可花贡献点余额 */
+    contrib: number;
+    /** 俸禄已领日键 YYYY-MM-DD；'' = 从未领取 */
+    salaryDay: string;
+    /** 捐献日键（惰性翻新） */
+    donateDay: string;
+    /** 当日已捐献灵石合计（日上限 20000） */
+    donatedToday: number;
+    /** 助力已领日键 */
+    helpedDay: string;
+    /** 商店日限日键（惰性翻新） */
+    shopDay: string;
+    /** 商品 id → 当日已购次数 */
+    bought: Record<string, number>;
+}
+
 export interface SaveData {
-    version: 12;
+    version: 13;
     lingshi: number;
     xiuwei: number;
     jiyuan: number;
@@ -283,10 +312,14 @@ export interface SaveData {
     // ---------- v12（M30） ----------
     /** 剧情节拍进度（#56） */
     story: StoryState;
+    // ---------- v13（M31） ----------
+    /** 宗门社交进度（#57）；id=null = 未加入 */
+    sect: SectState;
 }
 
 import { INITIAL_LINGSHI } from './config/economy';
 import { STORY_BEAT_IDS } from './config/story';
+import { SECT_IDS } from './config/sect';
 
 /**
  * 与 `core/offline.ts` 的 OFFLINE_DAY_CAP 同步。**刻意不 import**：offline.ts 依赖
@@ -297,7 +330,7 @@ const OFFLINE_DAY_CAP_MIRROR = 480;
 
 export function defaultSave(): SaveData {
     return {
-        version: 12,
+        version: 13,
         lingshi: INITIAL_LINGSHI,
         xiuwei: 0,
         jiyuan: 0,
@@ -375,6 +408,19 @@ export function defaultSave(): SaveData {
         offline: { lastAt: Date.now(), day: todayString(), dayMin: 0 },
         // v12 剧情文本：白纸开局 —— 开局节拍条件含 realmIndex===0，新玩家必然听到
         story: { seen: [] },
+        // v13 宗门社交：未加入 —— 进论道页看到三候选，自选加入（不补课）
+        sect: {
+            id: null,
+            exp: 0,
+            totalContrib: 0,
+            contrib: 0,
+            salaryDay: '',
+            donateDay: '',
+            donatedToday: 0,
+            helpedDay: '',
+            shopDay: '',
+            bought: {},
+        },
     };
 }
 
@@ -387,7 +433,7 @@ export function migrate(raw: unknown): SaveData {
     const d = defaultSave();
     if (!raw || typeof raw !== 'object') return d;
     const r = raw as Record<string, unknown>;
-    if (r.version !== 1 && r.version !== 2 && r.version !== 3 && r.version !== 4 && r.version !== 5 && r.version !== 6 && r.version !== 7 && r.version !== 8 && r.version !== 9 && r.version !== 10 && r.version !== 11 && r.version !== 12) return d;
+    if (r.version !== 1 && r.version !== 2 && r.version !== 3 && r.version !== 4 && r.version !== 5 && r.version !== 6 && r.version !== 7 && r.version !== 8 && r.version !== 9 && r.version !== 10 && r.version !== 11 && r.version !== 12 && r.version !== 13) return d;
     const profile = { ...d.profile, ...(r.profile as object ?? {}) };
     const srcTrial = (r.trial as Partial<TrialState>) ?? {};
     return {
@@ -456,7 +502,9 @@ export function migrate(raw: unknown): SaveData {
         // v12：剧情文本（v11 老档无此字段 → 全未听过；老玩家 realmIndex>0 不触发 opening，
         // 境界节拍只在新的成功结算页触发 —— 与剧情擦肩过，仙闻录里留「未听闻」，不补课）
         story: migrateStory(r.story),
-        version: 12,
+        // v13：宗门社交（v12 老档无此字段 → 未加入，进论道页自选，不补课）
+        sect: migrateSect(r.sect),
+        version: 13,
     } as SaveData;
 }
 
@@ -500,6 +548,41 @@ function migrateStory(raw: unknown): StoryState {
     const clean = seen.filter((x): x is string => typeof x === 'string' && STORY_BEAT_IDS.indexOf(x) >= 0);
     const ordered = STORY_BEAT_IDS.filter((id) => clean.indexOf(id) >= 0);
     return { seen: ordered };
+}
+
+/**
+ * v13 宗门字段迁移（防手改存档注入）：
+ * - 非对象 → 全默认（未加入态，与 v12 老档体验一致）；
+ * - `id` 必须命中三宗门白名单（`config/sect.ts` 的 SECT_IDS）—— 未注册 id 一律丢弃，
+ *   否则玩家会顶着一个不存在的宗门名卡在判定层之外；
+ * - exp/totalContrib/contrib/donatedToday 非负整数钳制；
+ * - 四个日键非字符串 → ''（惰性翻新时自然按「未做过」处理）；
+ * - `bought` 非对象 → {}，值非负整数钳制。
+ */
+function migrateSect(raw: unknown): SectState {
+    const d = defaultSave().sect;
+    if (!raw || typeof raw !== 'object') return { ...d, bought: {} };
+    const s = raw as Partial<SectState>;
+    const id = typeof s.id === 'string' && SECT_IDS.indexOf(s.id as (typeof SECT_IDS)[number]) >= 0 ? s.id : null;
+    const dayOf = (v: unknown) => (typeof v === 'string' ? v : '');
+    const boughtRaw = (s.bought ?? {}) as Record<string, unknown>;
+    const bought: Record<string, number> = {};
+    Object.keys(boughtRaw).forEach((k) => {
+        const v = boughtRaw[k];
+        if (typeof v === 'number' && Number.isFinite(v) && v > 0) bought[k] = Math.floor(v);
+    });
+    return {
+        id,
+        exp: clampIntOr(s.exp, 0),
+        totalContrib: clampIntOr(s.totalContrib, 0),
+        contrib: clampIntOr(s.contrib, 0),
+        salaryDay: dayOf(s.salaryDay),
+        donateDay: dayOf(s.donateDay),
+        donatedToday: clampIntOr(s.donatedToday, 0),
+        helpedDay: dayOf(s.helpedDay),
+        shopDay: dayOf(s.shopDay),
+        bought,
+    };
 }
 
 /** v9 签到字段迁移：streak/totalDays 非负整数钳制，milestonesClaimed 去重有序，lastDay 非字符串回退空串 */

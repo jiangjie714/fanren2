@@ -42,7 +42,7 @@ describe('M9a 存档 v3 迁移（v1/v2 无损升级）', () => {
             stats: { opens: 9, breakthroughWins: 1, breakthroughFails: 0 },
         };
         const s = migrate(v1);
-        expect(s.version).toBe(12); // M26 存档 v9：迁移后版本随当前模型
+        expect(s.version).toBe(13); // M26 存档 v9：迁移后版本随当前模型
         expect(s.lingshi).toBe(1234);
         expect(s.realmIndex).toBe(2);
         expect(s.pityCount).toBe(1);
