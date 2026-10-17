@@ -91,6 +91,7 @@ const SOURCE_ORDER = [
     'assets/scripts/core/daoFriends.ts',
     'assets/scripts/core/checkin.ts',
     'assets/scripts/core/guide.ts',
+    'assets/scripts/core/offline.ts',
     'assets/scripts/core/launchCheck.ts',
     // 核心层：数值配置
     'assets/scripts/core/config/realms.ts',
@@ -123,6 +124,7 @@ const SOURCE_ORDER = [
     'assets/scripts/core/systems/TrialSystem.ts',
     'assets/scripts/core/systems/TowerSystem.ts',
     'assets/scripts/core/systems/CheckinSystem.ts',
+    'assets/scripts/core/systems/OfflineSystem.ts',
     'assets/scripts/core/systems/TrailSystem.ts',
     'assets/scripts/core/systems/TrailBattleSystem.ts',
     'assets/scripts/core/systems/TrailMatch3Engine.ts',
@@ -145,6 +147,7 @@ const SOURCE_ORDER = [
     'assets/scripts/scenes/PlayerScene.ts',
     'assets/scripts/scenes/QuestScene.ts',
     'assets/scripts/scenes/CheckinScene.ts',
+    'assets/scripts/scenes/OfflineScene.ts',
     'assets/scripts/scenes/IllusionResultScene.ts',
     'assets/scripts/scenes/LudaoScene.ts',
     'assets/scripts/scenes/PkBattleScene.ts',
