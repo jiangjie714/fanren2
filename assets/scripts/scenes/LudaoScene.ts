@@ -32,9 +32,10 @@ import {
 import { DouyinSocial, encodeIllusionWeek, encodeRealmValue } from '../infra/DouyinSocial';
 import { PkBattleScene } from './PkBattleScene';
 import { DaoFriendScene } from './DaoFriendScene';
+import { SectView } from '../ui/SectView';
 import { PK_DAILY_LIMIT, WEAPONS } from '../core/config/combat';
 
-type LudaoTab = 'rank' | 'illusion' | 'achieve' | 'pk';
+type LudaoTab = 'rank' | 'illusion' | 'achieve' | 'pk' | 'sect';
 
 /** 虚拟道友目标线（排行降级版）：按境界预设的同侪参考值（docs/项目现状与后续规划.md 三、3.1） */
 const PEER_XIUWEI = [300, 1500, 4000, 12000, 30000, 80000];
@@ -97,18 +98,22 @@ export class LudaoScene implements IScene {
             ['rank', TEXTS.ludaoTabRank],
             ['illusion', TEXTS.ludaoTabIllusion],
             ['pk', '论武'],
+            // M31 宗门（#57）：社交 hub 的归属长线，内联渲染（SectView），不占压栈
+            ['sect', TEXTS.sectTab],
             ['achieve', TEXTS.ludaoTabAchieve],
         ];
+        // 5 钮重排：pitch 172→136、宽 164→128（4 钮时间距 172 时 5 钮总宽 5×164+4×8=852 出屏）；
+        // 相邻钮间隙 8px，命中区同层不重叠（spriteButton 高 70 → 命中 88，同排无纵向堆叠）。
         tabs.forEach(([id, name], i) => {
             const active = id === this.tab;
-            const btn = spriteButton(this.tabbar!, 164, 70, name, () => this.switchTab(id), {
-                fontSize: 25,
+            const btn = spriteButton(this.tabbar!, 128, 70, name, () => this.switchTab(id), {
+                fontSize: 22,
                 variant: active ? 'primary' : 'secondary',
                 textColor: active ? THEME.white : THEME.ink,
             });
-            btn.node.setPosition((i - 1.5) * 172, DESIGN_H / 2 - 160, 0);
+            btn.node.setPosition((i - 2) * 136, DESIGN_H / 2 - 160, 0);
             if (id === 'achieve' && Game.ach.claimableCount(Game.save) > 0) {
-                makeRedDot(btn.node, 78, 26);
+                makeRedDot(btn.node, 62, 26);
             }
         });
     }
@@ -148,6 +153,7 @@ export class LudaoScene implements IScene {
         if (this.tab === 'rank') this.renderRank(this.content);
         else if (this.tab === 'illusion') this.renderIllusion(this.content);
         else if (this.tab === 'pk') this.renderPk(this.content);
+        else if (this.tab === 'sect') SectView.buildInto(this.content);
         else this.renderAchievements(this.content);
     }
 

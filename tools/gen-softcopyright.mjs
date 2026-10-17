@@ -93,6 +93,7 @@ const SOURCE_ORDER = [
     'assets/scripts/core/guide.ts',
     'assets/scripts/core/offline.ts',
     'assets/scripts/core/story.ts',
+    'assets/scripts/core/sect.ts',
     'assets/scripts/core/launchCheck.ts',
     // 核心层：数值配置
     'assets/scripts/core/config/realms.ts',
@@ -112,6 +113,7 @@ const SOURCE_ORDER = [
     'assets/scripts/core/config/tower.ts',
     'assets/scripts/core/config/trail.ts',
     'assets/scripts/core/config/story.ts',
+    'assets/scripts/core/config/sect.ts',
     // 核心层：玩法系统
     'assets/scripts/core/systems/BoxSystem.ts',
     'assets/scripts/core/systems/RealmSystem.ts',
@@ -127,6 +129,7 @@ const SOURCE_ORDER = [
     'assets/scripts/core/systems/TowerSystem.ts',
     'assets/scripts/core/systems/CheckinSystem.ts',
     'assets/scripts/core/systems/OfflineSystem.ts',
+    'assets/scripts/core/systems/SectSystem.ts',
     'assets/scripts/core/systems/TrailSystem.ts',
     'assets/scripts/core/systems/TrailBattleSystem.ts',
     'assets/scripts/core/systems/TrailMatch3Engine.ts',
@@ -141,6 +144,7 @@ const SOURCE_ORDER = [
     'assets/scripts/ui/FrameAnimator.ts',
     'assets/scripts/ui/GuideLayer.ts',
     'assets/scripts/ui/StoryLayer.ts',
+    'assets/scripts/ui/SectView.ts',
     // 场景层
     'assets/scripts/scenes/ProfileScene.ts',
     'assets/scripts/scenes/HomeScene.ts',

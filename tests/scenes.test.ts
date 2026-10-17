@@ -436,6 +436,7 @@ import { ResultScene } from '../assets/scripts/scenes/ResultScene';
 import { IllusionResultScene } from '../assets/scripts/scenes/IllusionResultScene';
 import { RainSystem, RainMode, RainResult } from '../assets/scripts/core/systems/RainSystem';
 import { Rng } from '../assets/scripts/core/rng';
+import { todayString } from '../assets/scripts/core/saveModel';
 
 /** 装配一个可用的 Game（走真实 Game.init，顺带验证装配链在桩环境下不崩） */
 function bootGame() {
@@ -1541,3 +1542,169 @@ describe('场景集成：M30 剧情演出层（#56）', () => {
         push.mockRestore();
     });
 });
+
+// ───────────────────────── M31 宗门社交（#57）─────────────────────────
+
+/** 进论道页并切到宗门 tab，返回宗门视图根（内联在 content 下） */
+function enterSectTab(): { view: Node; scene: LudaoScene } {
+    const s = new LudaoScene();
+    s.onEnter();
+    // 必须取**最新**场景的 tab 钮：整文件跑时旧 LudaoScene 实例的按钮记录仍在 registry 里，
+    // find 会命中已销毁场景的钮（点它只会重建旧场景的 content，新场景的 content 是空的）。
+    const tab = lastBtn((b) => b.text === TEXTS.sectTab);
+    expect(tab, 'tabbar 缺少宗门 tab').toBeTruthy();
+    tab!.onClick();
+    const content = s.node.children.find((c) => c.name === 'content');
+    expect(content, '宗门 tab 未建 content').toBeTruthy();
+    const view = content!.children.find((c) => c.name === 'sectView');
+    expect(view, '宗门 tab 未渲染 sectView').toBeTruthy();
+    return { view: view!, scene: s };
+}
+
+/**
+ * 取**最新场景**的第一个加入钮（青云剑宗）。每个宗门场景建 3 个加入钮，
+ * 整文件跑时 registry 会累积多个场景的记录，直接 find 会命中旧场景的钮。
+ */
+function latestJoinBtn() {
+    const arr = h.registry.buttons.filter((b) => b.text === TEXTS.sectJoinBtn);
+    expect(arr.length, '未渲染加入钮').toBeGreaterThanOrEqual(3);
+    return arr[arr.length - 3];
+}
+
+/** 点商店行（裸 Button 整行）：按行内商品名定位所在行节点 */
+function clickShopRow(view: Node, itemName: string) {
+    const hit = h.registry.labels.filter((l) => (l.comp as { string: string }).string === itemName);
+    expect(hit.length, `未找到商品行「${itemName}」`).toBeGreaterThan(0);
+    let n = hit[hit.length - 1].node as Node;
+    for (; n; n = n.parent as Node) {
+        if (n.getComponent(Button)) {
+            n.emit('click');
+            return;
+        }
+    }
+    throw new Error(`商品行「${itemName}」上未挂 Button`);
+}
+
+describe('场景集成：M31 宗门社交 tab（#57）', () => {
+    it('tabbar 4→5 重排：pitch 136 五钮就位，宗门 tab 加入', () => {
+        bootGame();
+        h.reset();
+        const s = new LudaoScene();
+        s.onEnter();
+        const tabs = h.registry.buttons.filter((b) => b.w === 128 && b.h === 70);
+        expect(tabs.length, 'tabbar 应为 5 钮').toBe(5);
+        const xs = tabs.map((b) => (b.node as Node).getPosition().x).sort((a, b) => a - b);
+        expect(xs).toEqual([-272, -136, 0, 136, 272]);
+        expect(tabs.some((b) => b.text === TEXTS.sectTab)).toBe(true);
+    });
+
+    it('未加入态：三宗候选卡 + 加入钮，无日常/宝库', () => {
+        bootGame();
+        h.reset();
+        const { view } = enterSectTab();
+        expect(hasText(TEXTS.sectJoinTitle)).toBe(true);
+        ['青云剑宗', '百草丹宗', '天机阁'].forEach((n) => expect(hasText(n), `候选卡缺 ${n}`).toBe(true));
+        expect(h.registry.buttons.filter((b) => b.text === TEXTS.sectJoinBtn).slice(-3).length, '三张候选卡各一个加入钮').toBe(3);
+        expect(hasText('— 宗门日常 —'), '未加入不应渲染日常卡').toBe(false);
+        expect(hasText('— 宗门宝库 —'), '未加入不应渲染宝库').toBe(false);
+    });
+
+    it('加入流：点加入 → 存档写入 + 主态整窗重建', () => {
+        bootGame();
+        h.reset();
+        const { view } = enterSectTab();
+        latestJoinBtn()!.onClick();
+        expect(Game.save.sect.id, '加入应写入存档').toBe('qingyun');
+        expect(hasText('青云剑宗'), '主态应显示宗门名').toBe(true);
+        expect(hasText('— 宗门日常 —')).toBe(true);
+        expect(lastBtn((b) => b.text === TEXTS.sectSalaryBtn), '主态应有领俸禄钮').toBeTruthy();
+        expect(hasText('— 宗门宝库 —')).toBe(true);
+        expect(lastBtn((b) => b.text === TEXTS.sectInviteBtn), '主态应有邀请钮').toBeTruthy();
+    });
+
+    it('俸禄：一日一次，入账修为 + 贡献点，再领禁用', () => {
+        bootGame();
+        h.reset();
+        enterSectTab();
+        latestJoinBtn()!.onClick();
+        const xw0 = Game.save.xiuwei;
+        lastBtn((b) => b.text === TEXTS.sectSalaryBtn)!.onClick();
+        expect(Game.save.xiuwei - xw0, '青云 1 级俸禄修为 120（加成 1）').toBe(120);
+        expect(Game.save.sect.contrib).toBe(40);
+        expect(Game.save.sect.totalContrib).toBe(40);
+        expect(Game.save.sect.salaryDay).toBe(todayString(new Date()));
+        // 重建后按钮禁用且换文案
+        const done = lastBtn((b) => b.text === TEXTS.sectSalaryDone);
+        expect(done, '已领后应显示已领态').toBeTruthy();
+        expect(done!.enabled, '已领按钮必须禁用').toBe(false);
+        done!.onClick(); // 禁用钮点击不应再入账
+        expect(Game.save.sect.contrib).toBe(40);
+    });
+
+    it('助力：一日一次，修为入账；已助力禁用', () => {
+        bootGame();
+        h.reset();
+        enterSectTab();
+        latestJoinBtn()!.onClick();
+        const xw0 = Game.save.xiuwei;
+        lastBtn((b) => b.text === TEXTS.sectHelpBtn)!.onClick();
+        expect(Game.save.xiuwei - xw0, '助力修为 60+30×1').toBe(90);
+        expect(Game.save.sect.contrib).toBe(30);
+        expect(Game.save.sect.helpedDay).toBe(todayString(new Date()));
+        const done = lastBtn((b) => b.text === TEXTS.sectHelpDone);
+        expect(done!.enabled, '已助力必须禁用').toBe(false);
+    });
+
+    it('捐献：扣灵石 + 返 20% 贡献点 + exp；灵石不足禁用', () => {
+        bootGame();
+        h.reset();
+        Game.save.lingshi = 30000;
+        enterSectTab();
+        latestJoinBtn()!.onClick();
+        lastBtn((b) => b.text === TEXTS.sectDonateBtn(1000))!.onClick();
+        expect(Game.save.lingshi, '捐 1000 扣灵石').toBe(29000);
+        expect(Game.save.sect.contrib, '返 20% 贡献点').toBe(200);
+        expect(Game.save.sect.exp).toBe(1000);
+        expect(Game.save.sect.donatedToday).toBe(1000);
+        // 灵石不足 → 该档禁用
+        Game.save.lingshi = 100;
+        enterSectTab();
+        const poor = lastBtn((b) => b.text === TEXTS.sectDonateBtn(1000));
+        expect(poor!.enabled, '灵石不足必须禁用').toBe(false);
+    });
+
+    it('宝库：整行兑换入账 + 日限后置灰不可点', () => {
+        bootGame();
+        h.reset();
+        Game.save.lingshi = 30000;
+        enterSectTab();
+        latestJoinBtn()!.onClick();
+        lastBtn((b) => b.text === TEXTS.sectDonateBtn(1000))!.onClick(); // contrib 200
+        const ls0 = Game.save.lingshi;
+        clickShopRow(enterSectTabView(), '灵石 ×500');
+        expect(Game.save.lingshi - ls0, '兑换灵石 +500（不吃加成）').toBe(500);
+        expect(Game.save.sect.contrib, '扣 200 贡献点').toBe(0);
+        // 日限 1：再次点击同行无入账（按钮 interactable=false）
+        clickShopRow(enterSectTabView(), '灵石 ×500');
+        expect(Game.save.lingshi - ls0).toBe(500);
+        expect(Game.save.sect.contrib).toBe(0);
+    });
+
+    it('邀请道友：web 无 share 环境 → toast 降级提示', () => {
+        bootGame();
+        h.reset();
+        enterSectTab();
+        latestJoinBtn()!.onClick();
+        lastBtn((b) => b.text === TEXTS.sectInviteBtn)!.onClick();
+        expect(h.registry.toasts.indexOf(TEXTS.sectInviteToast) >= 0, '无 share 环境应 toast 降级').toBe(true);
+    });
+});
+
+/** 宝库用例辅助：重进宗门 tab 拿最新视图根（动作后整窗重建） */
+function enterSectTabView(): Node {
+    const s = new LudaoScene();
+    s.onEnter();
+    lastBtn((b) => b.text === TEXTS.sectTab)!.onClick();
+    const content = s.node.children.find((c) => c.name === 'content')!;
+    return content.children.find((c) => c.name === 'sectView')!;
+}

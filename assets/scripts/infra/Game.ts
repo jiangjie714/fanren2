@@ -7,6 +7,7 @@ import { AlchemySystem } from '../core/systems/AlchemySystem';
 import { BoxSystem } from '../core/systems/BoxSystem';
 import { CheckinSystem } from '../core/systems/CheckinSystem';
 import { OfflineSystem } from '../core/systems/OfflineSystem';
+import { SectSystem } from '../core/systems/SectSystem';
 import { CollectionSystem } from '../core/systems/CollectionSystem';
 import { CombatSystem } from '../core/systems/CombatSystem';
 import { EconomySystem } from '../core/systems/EconomySystem';
@@ -55,6 +56,8 @@ export class Game {
     static checkin: CheckinSystem;
     /** M29 离线吐纳：在线心跳 / 归来结算（#55） */
     static offline: OfflineSystem;
+    /** M31 宗门社交：俸禄 / 捐献 / 助力 / 商店入账（#57） */
+    static sect: SectSystem;
     static social: DouyinSocial;
 
     /**
@@ -102,6 +105,7 @@ export class Game {
         this.ach = new AchievementSystem(this.eco);
         this.checkin = new CheckinSystem(this.eco, this.alchemy);
         this.offline = new OfflineSystem(this.eco);
+        this.sect = new SectSystem(this.eco);
         this.social = new DouyinSocial();
         this.eco.dailyReset();
         this.settleOffline();
