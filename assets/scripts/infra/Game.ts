@@ -27,6 +27,7 @@ import { DouyinSocial } from './DouyinSocial';
 import { SaveStore } from './SaveStore';
 import { SceneStack } from './SceneStack';
 import { GuideLayer } from '../ui/GuideLayer';
+import { StoryLayer } from '../ui/StoryLayer';
 import { HomeScene } from '../scenes/HomeScene';
 import { ProfileScene } from '../scenes/ProfileScene';
 
@@ -130,6 +131,8 @@ export class Game {
         this.stack = new SceneStack(sceneRoot);
         // M27 新手引导层：SceneRoot **之后**添加 → 永远盖在当前页面之上（见 GuideLayer 头注释）。
         GuideLayer.attach(canvas);
+        // M30 剧情演出层：同引导层挂载顺序（后添加者在上）；播放中引导层让位。
+        StoryLayer.attach(canvas);
         // M11：未捏人（含 v3 升档老玩家）先进捏人流，确认道号后再入主页
         this.stack.push(this.save.profile.name ? new HomeScene() : new ProfileScene());
     }
@@ -142,6 +145,10 @@ export class Game {
             this.heartbeatAcc = 0;
             this.offline?.touch(this.save);
         }
+        // M30 剧情演出：同步（开场判定，key 未变零开销）+ 打字机推进（dt 驱动）。
+        // 必须先于引导层 sync：演出开场的同一帧引导就要让位，否则会闪一帧（实测过）。
+        StoryLayer.sync();
+        StoryLayer.tick(dt);
         // M27 新手引导：每帧同步，内部只比一个 key，未变则零开销
         GuideLayer.sync();
     }

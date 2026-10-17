@@ -1,9 +1,11 @@
-import { Graphics, Label, Layers, Node } from 'cc';
+import { Button, Graphics, Label, Layers, Node } from 'cc';
 import { IScene } from '../infra/SceneStack';
 import { Game } from '../infra/Game';
 import { computePathOverview, PathOverview, RealmNode } from '../core/path';
 import { REALMS } from '../core/config/realms';
 import { TEXTS } from '../core/config/texts';
+import { STORY_BEATS, storySeen } from '../core/story';
+import { StoryArchiveScene } from './StoryArchiveScene';
 import { statusBar } from '../ui/StatusBar';
 import {
     THEME,
@@ -17,10 +19,12 @@ import {
     uinode,
 } from '../ui/ThemeLib';
 
-/** M23 修仙之路：五线进度总览（纯只读，无交互）。数据全部来自 computePathOverview。 */
+/** M23 修仙之路：五线进度总览。境界时间轴只读；底部 M30 仙闻录入口卡可点。 */
 export class PathScene implements IScene {
     node: Node;
     private bar = { refresh: () => {} };
+    /** M30 仙闻录入口卡的副标题（听过计数随存档刷新） */
+    private storySub: Label | null = null;
 
     constructor() {
         this.node = new Node('PathScene');
@@ -70,6 +74,26 @@ export class PathScene implements IScene {
             else this.renderEdge(card, node);
             yTop -= h + 6;
         }
+
+        // ── M30 仙闻录入口卡（#56）：最后境界节点（底缘 -314）之下，零坐标冲突 ──
+        // 语义同源：「修仙之路」是进度总览，仙闻录是这条路上听来的故事。
+        // 不放首页左右 rail：M23/M26/M29 已把两侧 rail 占满（4/5 钮），压缩间距会动既有坐标。
+        const entry = spritePanel(n, 660, 88, undefined, THEME.tintPanel);
+        entry.setPosition(0, -410, 0);
+        fadeIn(entry, 10, 0.18);
+        labelL(entry, TEXTS.storyArchiveEntry, 26, { bold: true, color: THEME.goldLight })
+            .setPosition(-300, 0, 0);
+        this.storySub = label(entry, '', 19, {
+            color: THEME.inkSoft, align: 'right', width: 260, shrink: true,
+        }).getComponent(Label)!;
+        // 右对齐标签的位置 = 右缘 − 半宽：右缘收在 320（卡片右缘 330 内 10px），
+        // 居中锚点若按「直觉」放 295，盒右缘会捅到 445 直接出屏（layout-audit E3 抓到的）
+        this.storySub.node.setPosition(190, 0, 0);
+        const eb = entry.addComponent(Button);
+        eb.transition = Button.Transition.SCALE;
+        eb.zoomScale = 0.98;
+        eb.target = entry;
+        entry.on(Button.EventType.CLICK, () => Game.stack.push(new StoryArchiveScene()));
 
         this.refresh();
     }
@@ -131,6 +155,10 @@ export class PathScene implements IScene {
 
     private refresh() {
         this.bar.refresh();
+        // M30：仙闻录听过计数跟随存档（听完故事返回本页即时更新）
+        if (this.storySub) {
+            this.storySub.string = TEXTS.storyArchiveEntrySub(storySeen(Game.save).length, STORY_BEATS.length);
+        }
     }
 }
 

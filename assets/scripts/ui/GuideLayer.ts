@@ -27,6 +27,7 @@ import {
     type GuideStep,
 } from '../core/guide';
 import { THEME, faded, label, spriteButton, uinode, visibleHeight, visibleWidth } from './ThemeLib';
+import { StoryLayer } from './StoryLayer';
 
 /** 遮罩浓度（与 dimLayer 同口径：玄墨紫，不用旧冷蓝灰） */
 const MASK_ALPHA = 170;
@@ -77,7 +78,8 @@ export class GuideLayer {
             canBreakthrough: Game.realm.canBreakthrough(),
         });
         // 只有真的要显示引导时才查锚点/弹层（老玩家 done 后这一步永远不执行，零开销）
-        const anchor = step && top && typeof top.guideAnchor === 'function' && !this.hasModal(top.node)
+        // M30：剧情演出播放中引导让位（开局节拍与引导第一步同在首页，故事优先）
+        const anchor = step && !StoryLayer.isPlaying() && top && typeof top.guideAnchor === 'function' && !this.hasModal(top.node)
             ? top.guideAnchor()
             : null;
 

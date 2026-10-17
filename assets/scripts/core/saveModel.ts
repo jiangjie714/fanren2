@@ -1,4 +1,4 @@
-/** 存档模型 v11：v10 字段 + M29 离线吐纳（offline，#55）；只存「心跳时间戳 + 日额度计数器」，收益一分钟都不落盘 */
+/** 存档模型 v12：v11 字段 + M30 剧情文本（story，#56）；只存「听过的节拍 id」，文案在配置里 */
 import { STAMINA_MAX, STAMINA_AD_PER_DAY } from './config/trial';
 import { weekKeyOf } from './config/illusion';
 
@@ -206,8 +206,21 @@ export interface OfflineState {
     dayMin: number;
 }
 
+// ---------- v12（M30 剧情文本，#56） ----------
+
+/**
+ * 剧情节拍进度（#56）。**刻意放顶层而非 daily**：「听过哪些故事」是跨会话持久语义，
+ * 放进 daily 会被每日重置清掉，玩家每天重听一遍开局。
+ * 只存 `seen`（听过的节拍 id 列表）—— 当前该播哪节由 `core/story.ts` 从存档状态推导，
+ * 文案在 `core/config/story.ts`，存档里不落一句对白。
+ */
+export interface StoryState {
+    /** 已听过（含主动跳过）的节拍 id；迁移时只保留注册表内 id 并去重 */
+    seen: string[];
+}
+
 export interface SaveData {
-    version: 11;
+    version: 12;
     lingshi: number;
     xiuwei: number;
     jiyuan: number;
@@ -267,9 +280,13 @@ export interface SaveData {
     // ---------- v11（M29） ----------
     /** 离线吐纳进度（#55） */
     offline: OfflineState;
+    // ---------- v12（M30） ----------
+    /** 剧情节拍进度（#56） */
+    story: StoryState;
 }
 
 import { INITIAL_LINGSHI } from './config/economy';
+import { STORY_BEAT_IDS } from './config/story';
 
 /**
  * 与 `core/offline.ts` 的 OFFLINE_DAY_CAP 同步。**刻意不 import**：offline.ts 依赖
@@ -280,7 +297,7 @@ const OFFLINE_DAY_CAP_MIRROR = 480;
 
 export function defaultSave(): SaveData {
     return {
-        version: 11,
+        version: 12,
         lingshi: INITIAL_LINGSHI,
         xiuwei: 0,
         jiyuan: 0,
@@ -356,6 +373,8 @@ export function defaultSave(): SaveData {
         tutorial: { done: false },
         // v11 离线吐纳：lastAt 取「此刻」——新玩家不会一进门就收到「离线十年」的假象
         offline: { lastAt: Date.now(), day: todayString(), dayMin: 0 },
+        // v12 剧情文本：白纸开局 —— 开局节拍条件含 realmIndex===0，新玩家必然听到
+        story: { seen: [] },
     };
 }
 
@@ -368,7 +387,7 @@ export function migrate(raw: unknown): SaveData {
     const d = defaultSave();
     if (!raw || typeof raw !== 'object') return d;
     const r = raw as Record<string, unknown>;
-    if (r.version !== 1 && r.version !== 2 && r.version !== 3 && r.version !== 4 && r.version !== 5 && r.version !== 6 && r.version !== 7 && r.version !== 8 && r.version !== 9 && r.version !== 10 && r.version !== 11) return d;
+    if (r.version !== 1 && r.version !== 2 && r.version !== 3 && r.version !== 4 && r.version !== 5 && r.version !== 6 && r.version !== 7 && r.version !== 8 && r.version !== 9 && r.version !== 10 && r.version !== 11 && r.version !== 12) return d;
     const profile = { ...d.profile, ...(r.profile as object ?? {}) };
     const srcTrial = (r.trial as Partial<TrialState>) ?? {};
     return {
@@ -434,7 +453,10 @@ export function migrate(raw: unknown): SaveData {
         tutorial: migrateTutorial(r.tutorial),
         // v11：离线吐纳（v10 老档无此字段 → 从「此刻」起算，不给白条收益）
         offline: migrateOffline(r.offline),
-        version: 11,
+        // v12：剧情文本（v11 老档无此字段 → 全未听过；老玩家 realmIndex>0 不触发 opening，
+        // 境界节拍只在新的成功结算页触发 —— 与剧情擦肩过，仙闻录里留「未听闻」，不补课）
+        story: migrateStory(r.story),
+        version: 12,
     } as SaveData;
 }
 
@@ -463,6 +485,21 @@ function migrateTutorial(raw: unknown): GuideState {
     if (!raw || typeof raw !== 'object') return { done: false };
     const t = raw as Partial<GuideState>;
     return { done: Boolean(t.done) };
+}
+
+/**
+ * v12 剧情字段迁移（防手改存档注入）：
+ * - 非数组 → 空（全未听过，与新档一致）；
+ * - 元素必须是字符串且命中注册表 id（`config/story.ts` 的 STORY_BEAT_IDS）—— 未注册 id 一律丢弃，
+ *   否则仙闻录回看一个不存在的节拍会拿到 null 演出；
+ * - 去重且按注册序排列（保序确定性：列表顺序不依赖玩家乱序点击）。
+ */
+function migrateStory(raw: unknown): StoryState {
+    if (!raw || typeof raw !== 'object' || !Array.isArray((raw as StoryState).seen)) return { seen: [] };
+    const seen = (raw as StoryState).seen;
+    const clean = seen.filter((x): x is string => typeof x === 'string' && STORY_BEAT_IDS.indexOf(x) >= 0);
+    const ordered = STORY_BEAT_IDS.filter((id) => clean.indexOf(id) >= 0);
+    return { seen: ordered };
 }
 
 /** v9 签到字段迁移：streak/totalDays 非负整数钳制，milestonesClaimed 去重有序，lastDay 非字符串回退空串 */

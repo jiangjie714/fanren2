@@ -110,7 +110,7 @@ describe('M27 新手引导：结束条件', () => {
 describe('M27 存档 v10：tutorial 迁移', () => {
     it('defaultSave 是 v10 且带 tutorial{done:false}', () => {
         const s = defaultSave();
-        expect(s.version).toBe(11);
+        expect(s.version).toBe(12);
         expect(s.tutorial).toEqual({ done: false });
         expect(guideDone(s)).toBe(false);
     });
@@ -119,7 +119,7 @@ describe('M27 存档 v10：tutorial 迁移', () => {
         const old = { ...defaultSave(), version: 9 } as unknown as Record<string, unknown>;
         delete old.tutorial;
         const s = migrate(old as never);
-        expect(s.version).toBe(11);
+        expect(s.version).toBe(12);
         expect(s.tutorial.done).toBe(false);
     });
 

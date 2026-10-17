@@ -436,4 +436,26 @@ export const TEXTS = {
     offlineRules: '离线满 5 分钟才结算；单次与每日累计均封顶 480 分钟（8 小时），超出不再累积。吐纳所得只含修为与灵石，不含机缘与灵材。',
     /** 未满额时的提示（还差多少分钟/已达上限） */
     offlineLeftHint: (left: number) => (left > 0 ? `今日还可吐纳 ${left} 分钟` : '今日吐纳已达上限，明日再来'),
+
+    // ---------- #56 剧情文本（M30） ----------
+    /** 对话面板：跳过钮（标记听过并永久收起） */
+    storySkip: '跳过',
+    /** 对话面板：当前行完整显示后的继续提示 */
+    storyContinue: '点按继续 ▸',
+    /** 仙闻录页标题 */
+    storyArchivePageTitle: '仙 闻 录',
+    /** 仙闻录入口副标题（PathScene 底部卡片） */
+    storyArchiveEntry: '仙闻录',
+    storyArchiveEntrySub: (n: number, total: number) => `已听闻 ${n}/${total} 篇 · 路上听来的故事`,
+    /** 仙闻录分组标题 */
+    storyGroupJourney: '启程',
+    storyGroupRealm: '境界',
+    storyGroupTrail: '妖径',
+    /** 仙闻录行状态 */
+    storyUnheard: '未听闻',
+    /** 仙闻录点未听闻行的提示（不剧透） */
+    storyUnheardToast: '未听闻的篇章，不剧透',
+    storyReread: '再 读',
+    /** 仙闻录底部规则说明 */
+    storyArchiveHint: '故事听过一次即入仙闻录，可随时回来再读；未听闻的篇章不剧透。',
 } as const;
