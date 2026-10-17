@@ -92,6 +92,7 @@ const SOURCE_ORDER = [
     'assets/scripts/core/checkin.ts',
     'assets/scripts/core/guide.ts',
     'assets/scripts/core/offline.ts',
+    'assets/scripts/core/story.ts',
     'assets/scripts/core/launchCheck.ts',
     // 核心层：数值配置
     'assets/scripts/core/config/realms.ts',
@@ -110,6 +111,7 @@ const SOURCE_ORDER = [
     'assets/scripts/core/config/trial.ts',
     'assets/scripts/core/config/tower.ts',
     'assets/scripts/core/config/trail.ts',
+    'assets/scripts/core/config/story.ts',
     // 核心层：玩法系统
     'assets/scripts/core/systems/BoxSystem.ts',
     'assets/scripts/core/systems/RealmSystem.ts',
@@ -138,6 +140,7 @@ const SOURCE_ORDER = [
     'assets/scripts/ui/infoDialogs.ts',
     'assets/scripts/ui/FrameAnimator.ts',
     'assets/scripts/ui/GuideLayer.ts',
+    'assets/scripts/ui/StoryLayer.ts',
     // 场景层
     'assets/scripts/scenes/ProfileScene.ts',
     'assets/scripts/scenes/HomeScene.ts',
@@ -166,6 +169,7 @@ const SOURCE_ORDER = [
     'assets/scripts/scenes/TrailPuzzleScene.ts',
     'assets/scripts/scenes/TrailResultScene.ts',
     'assets/scripts/scenes/PathScene.ts',
+    'assets/scripts/scenes/StoryArchiveScene.ts',
     'assets/scripts/scenes/SettingsScene.ts',
     // 全局单例与生命周期
     'assets/scripts/infra/Game.ts',

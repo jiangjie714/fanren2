@@ -15,7 +15,7 @@
 
 ```bash
 npm install            # 安装 vitest / typescript（首次）
-npm test               # 运行 464 个数值/玩法单测（数值核心/导航回归/M7 交互/M8 日常/M9 成就/排行解码/数值护栏/战斗/签到/引导/离线吐纳）
+npm test               # 运行 497 个数值/玩法单测（数值核心/导航回归/M7 交互/M8 日常/M9 成就/排行解码/数值护栏/战斗/签到/引导/离线吐纳/剧情文本）
 npm run build:web      # 构建 web-mobile（本机预览验证用）
 npm run build:douyin   # 构建 bytedance-mini-game（抖音交付物）
 ```
@@ -31,17 +31,17 @@ assets/
 ├── main.scene            # 唯一场景：Canvas + GameRoot，其余 UI 全代码构建
 └── scripts/
     ├── core/             # 纯数值逻辑（零 cc 依赖，可单测）
-    │   ├── config/       # 16 个配置：境界/宝箱/雨滴/经济/灵根/广告/内购/文案
+    │   ├── config/       # 17 个配置：境界/宝箱/雨滴/经济/灵根/广告/内购/文案
     │   │                 #   + M8 任务/幻境 + M9a 成就 + M13 炼丹 + M14 秘境
-    │   │                 #   + M15 妖径 + M22 剑冢 + M25 道友 + M27 引导 + M29 吐纳
+    │   │                 #   + M15 妖径 + M22 剑冢 + M25 道友 + M27 引导 + M29 吐纳 + M30 剧情
     │   ├── systems/      # 20 个系统：Box/Realm/Rain/Economy/Collection
     │   │                 #   + Quest/Illusion/Achievement/StatsRecorder/Combat/Trail/Tower
     │   │                 #   + Trial/Quest/Alchemy/Checkin/Offline 等
-    │   └── *.ts          # 判定层纯函数：checkin / guide / offline / boxAuto / daoFriends / bignum
+    │   └── *.ts          # 判定层纯函数：checkin / guide / offline / story / boxAuto / daoFriends / bignum
     ├── infra/            # Game(装配+生命周期)/存档/广告(模拟+tt)/社交上报桩/音频/场景栈
     ├── ui/               # 程序化国风 UI 库（ThemeLib/弹窗/状态栏/合规弹窗）
-    └── scenes/           # 28 个页面（含签到/吐纳/修行/历练/论道/幻境结算）
-tests/                    # Vitest 31 文件 464 例：core(27)/nav/m7/m8/m9/m9b(8)/balance/combat/checkin/guide/offline
+    └── scenes/           # 29 个页面（含签到/吐纳/修行/历练/论道/幻境结算/仙闻录）
+tests/                    # Vitest 32 文件 497 例：core(28)/nav/m7/m8/m9/m9b(8)/balance/combat/checkin/guide/offline/story
 tools/                    # build.mjs(双端构建+后处理+子域注入) / preview-server.mjs
                           # generate-art.py(美术+meta) / m7|m8|m9-shots.mjs(回归截图) / uuid.mjs
 open-data-context/        # M9b 开放数据域子域（纯 JS 好友榜渲染/对比，构建时自动拷入抖音产物）

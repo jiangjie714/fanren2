@@ -31,6 +31,7 @@ import {
 import { TrailBattleScene } from './TrailBattleScene';
 import { TrailPuzzleScene } from './TrailPuzzleScene';
 import { TrailMatch3Scene } from './TrailMatch3Scene';
+import type { StorySceneCtx } from '../core/story';
 
 /** 妖径页：章节地图 + 关卡格（每格 300×96，两列五行的呼吸布局）。 */
 export class TrailScene implements IScene {
@@ -91,6 +92,14 @@ export class TrailScene implements IScene {
 
     onResume() {
         this.refresh();
+    }
+
+    /**
+     * M30 剧情（#56）：妖径章节地图自报当前章（调用时实时算，不缓存快照）。
+     * 章节节拍按章触发：首次踏入第 N 章地图播 trail_N，听过即不再现。
+     */
+    storyCtx(): StorySceneCtx {
+        return { trailChapter: chapterOf(Game.save.trail.curLayer) };
     }
 
     private makeCell(parent: Node, layer: number, lin: number, x: number, y: number, w: number, h: number) {

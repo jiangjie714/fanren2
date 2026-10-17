@@ -9,6 +9,7 @@ import { DouyinSocial, SOCIAL_KEYS } from '../infra/DouyinSocial';
 import { Share } from '../infra/Share';
 import { MAX_REALM_INDEX, REALMS } from '../core/config/realms';
 import { TEXTS } from '../core/config/texts';
+import type { StorySceneCtx } from '../core/story';
 import {
     ButtonHandle,
     DESIGN_H,
@@ -287,6 +288,15 @@ export class ResultScene implements IScene {
     onResume() {
         // 终局页：UI 全部由构造参数一次性构建，没有需要刷新的动态区块；
         // 也没有子页会压在本页之上。显式 no-op 声明契约（P1-3）。
+    }
+
+    /**
+     * M30 剧情（#56）：渡劫结算页自报上下文。
+     * 境界节拍只在**突破成功**页触发（情绪时刻正确）；失败页 success=false 不命中。
+     * 目标境界取构造参数 targetIndex（= 本次冲击的境界），与 REALMS 同源。
+     */
+    storyCtx(): StorySceneCtx {
+        return { breakthrough: { success: this.p.success, targetIndex: this.p.targetIndex } };
     }
 
     /** 渡劫高光分享（PRD 2.5 素材产出位；抖音端系统分享，Web 端 toast 提示） */

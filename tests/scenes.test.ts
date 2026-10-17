@@ -14,7 +14,7 @@
  * （注意：只能改内容/调方法，不要对返回对象的属性「重新赋值」——那不会
  * 反映到 mock 工厂闭包里，是之前踩过的坑）。
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => {
     // ───────────────────────── cc 内存桩 ─────────────────────────
@@ -403,7 +403,7 @@ vi.mock('cc', () => h.ccStub);
 vi.mock('../assets/scripts/ui/ThemeLib', () => h.themeStub);
 
 import { Game } from '../assets/scripts/infra/Game';
-import { Node, UITransform } from 'cc';
+import { Button, Label, Node, UITransform } from 'cc';
 import { LINGENS } from '../assets/scripts/core/config/lingens';
 import { HomeScene } from '../assets/scripts/scenes/HomeScene';
 import { BoxScene } from '../assets/scripts/scenes/BoxScene';
@@ -424,6 +424,10 @@ import { CheckinScene } from '../assets/scripts/scenes/CheckinScene';
 import { OfflineScene } from '../assets/scripts/scenes/OfflineScene';
 import { PlayerScene } from '../assets/scripts/scenes/PlayerScene';
 import { GuideLayer } from '../assets/scripts/ui/GuideLayer';
+import { StoryLayer } from '../assets/scripts/ui/StoryLayer';
+import { StoryArchiveScene } from '../assets/scripts/scenes/StoryArchiveScene';
+import { STORY_BEATS } from '../assets/scripts/core/story';
+import { SaveStore } from '../assets/scripts/infra/SaveStore';
 import { ProfileScene } from '../assets/scripts/scenes/ProfileScene';
 import { RainScene } from '../assets/scripts/scenes/RainScene';
 import { PkBattleScene } from '../assets/scripts/scenes/PkBattleScene';
@@ -914,6 +918,7 @@ const sceneCases: Array<[string, () => { onEnter(): void; onExit?(): void }]> = 
     ['ShopScene', () => new ShopScene()],
     ['WeaponScene', () => new WeaponScene()],
     ['PathScene', () => new PathScene()],
+    ['StoryArchiveScene', () => new StoryArchiveScene()],
     ['RainScene', () => new RainScene()],
     ['PkBattleScene', () => new PkBattleScene()],
     ['DaoFriendScene', () => new DaoFriendScene()],
@@ -1280,5 +1285,259 @@ describe('场景集成：结算页（ResultScene / IllusionResultScene）', () =
             const ly = worldY(rankLabel!.node as never);
             expect(ly - 26, `${c.name}：段位分行下缘跌破明细面板底边`).toBeGreaterThanOrEqual(detail.bottom);
         }
+    });
+});
+
+// ───────────────────────── M30 剧情文本（#56）─────────────────────────
+
+/** 取剧情演出层（Game.init 挂在 Canvas 下、SceneRoot 之后 → 永远盖在当前页上） */
+function storyLayerOf(canvas: Node): Node {
+    const layer = canvas.getChildByName('StoryLayer');
+    expect(layer, 'Game.init 必须装配剧情演出层').toBeTruthy();
+    return layer!;
+}
+
+/** 演出层下的全屏 dim（点击推进的落点；注意与场景内 showDialog 的 'dim' 区分——那是场景子节点） */
+function storyDimOf(layer: Node): Node {
+    const dim = layer.children.find((c) => c.name === 'dim');
+    expect(dim, '演出层缺少全屏 dim').toBeTruthy();
+    return dim!;
+}
+
+/** 对话面板（spritePanel → ThemeLib 桩落名 'image'，660×300） */
+function storyPanelOf(layer: Node): Node {
+    const panel = layer.children.find((c) => c.name === 'image');
+    expect(panel, '演出层缺少对话面板').toBeTruthy();
+    return panel!;
+}
+
+/** 面板内正文字符串（fontSize 26 的 Label；内容随打字机推进变化，取 comp.string） */
+function storyBodyOf(panel: Node): { string: string } {
+    for (const c of panel.children) {
+        const l = c.getComponent(Label) as { string: string; fontSize: number } | null;
+        if (l && l.fontSize === 26) return l;
+    }
+    throw new Error('面板内未找到正文 Label（fontSize 26）');
+}
+
+/** 面板左上说话者 chip（node 'speaker' 内的 Label，随行切换） */
+function storySpeakerOf(panel: Node): string {
+    const chip = panel.children.find((c) => c.name === 'speaker');
+    expect(chip, '面板缺少说话者 chip').toBeTruthy();
+    const l = chip!.getComponentInChildren(Label) as { string: string } | null;
+    return l ? l.string : '';
+}
+
+/** 收集场景树里全部挂了 Button 的节点（仙闻录行 = 裸 Button，Transition.NONE） */
+function buttonNodesOf(root: Node): Node[] {
+    const out: Node[] = [];
+    const walk = (n: Node) => {
+        if (n.getComponent(Button)) out.push(n);
+        n.children.forEach(walk);
+    };
+    walk(root);
+    return out;
+}
+
+/** 某节点子树里渲染过的文案（labels 记录创建时文本；动态文本看 comp.string） */
+function textsUnder(n: Node): string[] {
+    return h.registry.labels
+        .filter((l) => {
+            for (let p = l.node as Node | null; p; p = p.parent as Node | null) if (p === n) return true;
+            return false;
+        })
+        .map((l) => String(l.text));
+}
+
+describe('场景集成：M30 剧情演出层（#56）', () => {
+    afterEach(() => {
+        // 演出态是模块级静态：跨用例残留会让下一条「isPlaying()===false」误判，统一收场
+        // （finish 非回看会标记 seen + 落盘，但每条用例都重新 bootGame 读新档，无副作用）
+        if (StoryLayer.isPlaying()) (StoryLayer as unknown as { finish(): void }).finish();
+    });
+
+    it('Game.init 装配 StoryLayer：Canvas 子节点，初始收起；非剧情场景 sync 不误开演', () => {
+        const { canvas } = bootGame();
+        const layer = storyLayerOf(canvas);
+        expect(layer.active, '无节拍命中时必须收起').toBe(false);
+        // 栈顶是捏人页（默认档未取名）→ 不是剧情场景
+        StoryLayer.sync();
+        expect(StoryLayer.isPlaying()).toBe(false);
+    });
+
+    it('opening：首页未突破时开演；打字机按帧推进，dim 点击逐行推进、第三行换说话者', () => {
+        const { canvas } = bootGame();
+        h.reset();
+        Game.stack.push(new HomeScene());
+        StoryLayer.sync();
+        const layer = storyLayerOf(canvas);
+        expect(layer.active, '新玩家进首页应播开局节拍').toBe(true);
+        expect(hasText('仙途启程'), '未渲染节拍标题').toBe(true);
+
+        const panel = storyPanelOf(layer);
+        const body = storyBodyOf(panel);
+        expect(body.string, '开演时正文应为空（打字机起点）').toBe('');
+        StoryLayer.tick(0.5);
+        expect(body.string.length, '0.5s × 30 字/秒 ≈ 15 字，应部分显现').toBe(15);
+        StoryLayer.tick(1.0);
+        expect(body.string, '1.5s 应补完全行').toBe('凡尘一梦四十载，你在残卷里翻到半页仙谱。');
+
+        // dim 点击推进：切到第二行并重置打字机
+        storyDimOf(layer).emit('touch-start');
+        expect(body.string, '切到第二行应重置打字机').toBe('');
+        StoryLayer.tick(1.0);
+        expect(body.string).toBe('当夜窗外落雨，雨里带着灵。');
+
+        // 第三行换说话者（老者）——chip 跟随行切换
+        storyDimOf(layer).emit('touch-start');
+        expect(storySpeakerOf(panel), '第三行说话者应为老者').toBe('老者');
+        StoryLayer.tick(1.0);
+        expect(body.string).toBe('既有缘看见，便是缘。仙路自此始——');
+    });
+
+    it('opening 三行听完自动标记听过并落盘；再 sync 不重播（一生一次）', () => {
+        const { canvas } = bootGame();
+        h.reset();
+        Game.stack.push(new HomeScene());
+        StoryLayer.sync();
+        const layer = storyLayerOf(canvas);
+        for (let i = 0; i < 3; i++) {
+            StoryLayer.tick(1.0); // 补完当前行
+            storyDimOf(layer).emit('touch-start'); // 推进（第三次 = 收场）
+        }
+        expect(StoryLayer.isPlaying(), '末行点击应收场').toBe(false);
+        expect(layer.active, '收场后整层收起').toBe(false);
+        expect(Game.save.story.seen, '听完必须标记听过').toContain('opening');
+        expect(SaveStore.load().story.seen, '收场必须落盘（v12 存档）').toContain('opening');
+        // 同一节拍不再播
+        StoryLayer.sync();
+        expect(StoryLayer.isPlaying(), '听过的一生一次').toBe(false);
+    });
+
+    it('演出中引导层让位；剧情跳过后引导恢复（M27/M30 双层叠次序）', () => {
+        const { canvas } = bootGame();
+        h.reset();
+        Game.save.tutorial = { done: false };
+        Game.save.jiyuan = 0;
+        Game.stack.push(new HomeScene());
+        StoryLayer.sync();
+        const guide = canvas.getChildByName('GuideLayer')!;
+        GuideLayer.sync();
+        expect(StoryLayer.isPlaying()).toBe(true);
+        expect(guide.active, '演出中引导必须让位').toBe(false);
+
+        // 跳过剧情（直接收场 + 标记 + 落盘）→ 引导恢复
+        lastBtn((b) => b.text === TEXTS.storySkip)!.onClick();
+        expect(StoryLayer.isPlaying()).toBe(false);
+        expect(Game.save.story.seen, '跳过也标记听过').toContain('opening');
+        GuideLayer.sync();
+        expect(guide.active, '收场后引导应恢复').toBe(true);
+    });
+
+    it('渡劫成功页播 realm_1；失败页不播（境界节拍只在成功页触发）', () => {
+        bootGame();
+        h.reset();
+        const { session, result } = mkRain(1, 'tribulation', 11);
+        Game.stack.push(new ResultScene({ session, result, rate: 0.72, success: true, targetIndex: 1 }));
+        StoryLayer.sync();
+        expect(StoryLayer.isPlaying(), '突破成功页应播境界节拍').toBe(true);
+        expect(hasText('练气 · 第一缕灵气'), '未渲染 realm_1 标题').toBe(true);
+        lastBtn((b) => b.text === TEXTS.storySkip)!.onClick();
+        expect(Game.save.story.seen).toContain('realm_1');
+
+        // 失败页：success=false 不命中（与 seen 无关，单独造一条失败结算）
+        const fail = mkRain(1, 'tribulation', 12);
+        Game.stack.push(new ResultScene({ session: fail.session, result: fail.result, rate: 0.4, success: false, targetIndex: 1 }));
+        StoryLayer.sync();
+        expect(StoryLayer.isPlaying(), '失败页不播剧情').toBe(false);
+    });
+
+    it('妖径第 4 章地图播 trail_4（章节节拍按章触发，TrailScene 自报当前章）', () => {
+        bootGame();
+        h.reset();
+        Game.save.trail.curLayer = 31; // 第 4 章首层（每章 10 层：chapterOf(31) = 4）
+        const s = new TrailScene();
+        Game.stack.push(s);
+        expect(s.storyCtx(), 'TrailScene 应自报当前章').toEqual({ trailChapter: 4 });
+        StoryLayer.sync();
+        expect(StoryLayer.isPlaying(), '踏入第 4 章应播 trail_4').toBe(true);
+        expect(hasText('第4章 · 下面接着的东西'), '未渲染 trail_4 标题').toBe(true);
+    });
+
+    it('仙闻录：三组 15 行；听过行回看不重复标记，未听行不剧透只 Toast', () => {
+        bootGame();
+        h.reset();
+        Game.save.story = { seen: ['opening', 'realm_1'] };
+        const s = new StoryArchiveScene();
+        s.onEnter();
+
+        expect(h.registry.headers.some((x) => x.title === TEXTS.storyArchivePageTitle), '页头应为仙闻录').toBe(true);
+        const rows = buttonNodesOf(s.node);
+        expect(rows.length, '三组 1+5+9 = 15 行').toBe(15);
+
+        // 听过行：真实标题 + 「再读」；tap → 回看开演，seen 不重复、跳过也不标记
+        const heardRow = rows.find((r) => textsUnder(r).indexOf('仙途启程') >= 0);
+        expect(heardRow, '听过行应显示真实标题').toBeTruthy();
+        expect(textsUnder(heardRow!).indexOf(TEXTS.storyReread) >= 0, '听过行状态应为再读').toBe(true);
+        heardRow!.emit('click');
+        expect(StoryLayer.isPlaying(), '回看应开演').toBe(true);
+        expect(Game.save.story.seen.length, '回看不重复标记 seen').toBe(2);
+        lastBtn((b) => b.text === TEXTS.storySkip)!.onClick();
+        expect(StoryLayer.isPlaying()).toBe(false);
+        expect(Game.save.story.seen.length, '回看跳过也不标记').toBe(2);
+
+        // 未听行：'？？？' + 未听闻；tap → 只 Toast 不开演（不剧透）
+        const unheardRow = rows.find((r) => textsUnder(r).indexOf('？？？') >= 0);
+        expect(unheardRow, '未听行应显示？？？').toBeTruthy();
+        expect(textsUnder(unheardRow!).indexOf(TEXTS.storyUnheard) >= 0, '未听行状态应为未听闻').toBe(true);
+        unheardRow!.emit('click');
+        expect(h.registry.toasts.indexOf(TEXTS.storyUnheardToast) >= 0, '未听行应 Toast 不剧透').toBe(true);
+        expect(StoryLayer.isPlaying(), '未听行不能开演').toBe(false);
+    });
+
+    it('M29 归来弹层期间演出让位；弹层消费后再开演（migrate 老玩家双命中）', () => {
+        const { canvas } = bootGame();
+        h.reset();
+        Game.save.realmIndex = 0;
+        Game.offlineResult = { minutes: 60, xiuwei: 96, lingshi: 24 };
+        const home = new HomeScene();
+        Game.stack.push(home);
+        expect(home.node.children.some((c) => c.name === 'dim'), '进门应弹归来弹窗').toBe(true);
+
+        // 弹层存在 → 演出让位（弹层先消费、故事后播）
+        StoryLayer.sync();
+        expect(StoryLayer.isPlaying(), '场景有全屏弹层时必须让位').toBe(false);
+
+        // 消费弹层 → 让位解除，开演
+        button(TEXTS.offlineDialogBtn).onClick();
+        expect(home.node.children.some((c) => c.name === 'dim'), '按钮应关闭弹层').toBe(false);
+        StoryLayer.sync();
+        expect(StoryLayer.isPlaying(), '弹层消失后应开演').toBe(true);
+        expect(hasText('仙途启程')).toBe(true);
+    });
+
+    it('修仙之路页：底部仙闻录入口卡（计数随存档刷新）→ push 仙闻录页', () => {
+        bootGame();
+        h.reset();
+        Game.save.story = { seen: ['opening'] };
+        const s = new PathScene();
+        const push = vi.spyOn(Game.stack, 'push').mockImplementation(() => { });
+        s.onEnter();
+        expect(hasText(TEXTS.storyArchiveEntry), '未渲染仙闻录入口标题').toBe(true);
+        expect(
+            h.registry.labels.some((l) => (l.comp as { string: string }).string === TEXTS.storyArchiveEntrySub(1, STORY_BEATS.length)),
+            '入口副标题应显示已听闻计数',
+        ).toBe(true);
+
+        // 入口卡 = 660×88 @ y=-410 的 spritePanel（Button SCALE，点击进仙闻录）
+        const entry = s.node.children.find((c) => {
+            const ut = c.getComponent(UITransform) as { contentSize: { width: number; height: number } } | null;
+            return !!ut && ut.contentSize.width === 660 && ut.contentSize.height === 88
+                && c.getPosition().y === -410;
+        });
+        expect(entry, '未找到仙闻录入口卡').toBeTruthy();
+        entry!.emit('click');
+        expect(push, '入口卡未进仙闻录页').toHaveBeenLastCalledWith(expect.any(StoryArchiveScene));
+        push.mockRestore();
     });
 });
