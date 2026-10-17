@@ -421,6 +421,7 @@ import { DaoFriendScene } from '../assets/scripts/scenes/DaoFriendScene';
 import { WeaponScene } from '../assets/scripts/scenes/WeaponScene';
 import { PathScene } from '../assets/scripts/scenes/PathScene';
 import { CheckinScene } from '../assets/scripts/scenes/CheckinScene';
+import { OfflineScene } from '../assets/scripts/scenes/OfflineScene';
 import { PlayerScene } from '../assets/scripts/scenes/PlayerScene';
 import { GuideLayer } from '../assets/scripts/ui/GuideLayer';
 import { ProfileScene } from '../assets/scripts/scenes/ProfileScene';
@@ -659,6 +660,67 @@ describe('场景集成：HomeScene 入口接线（导航错乱回归）', () => 
         const afterMs = Game.save.lingshi;
         ms!.onClick();
         expect(Game.save.lingshi, '里程碑重复领取必须幂等').toBe(afterMs);
+    });
+
+    it('M29 吐纳入口（左侧 rail 圆钮 @-286,162，图标 icon_timer）→ 进吐纳页', () => {
+        bootGame();
+        const home = new HomeScene();
+        const push = vi.spyOn(Game.stack, 'push').mockImplementation(() => { });
+        home.onEnter();
+
+        // 插在左侧 rail 的空位：签到 266 与图鉴 58 之间（间距 104，与右 rail 同节律）。
+        // icon_timer 的另一处引用是渡劫 HUD 的 image()，不在 iconButtons 里，故此筛选无歧义。
+        const btn = icon('timer');
+        const pos = (btn.node as { getPosition(): { x: number; y: number } }).getPosition();
+        expect(pos.x, '吐纳钮应在左侧 rail（x=-286）').toBe(-286);
+        expect(pos.y).toBe(162);
+        expect(h.registry.labels.some((l) => (l.comp as { string: string }).string === TEXTS.offlineRail)).toBe(true);
+        btn.onClick();
+        expect(push).toHaveBeenLastCalledWith(expect.any(OfflineScene));
+        push.mockRestore();
+    });
+
+    it('M29 归来弹窗：结算所得进门演一次，重复 onResume 不再弹', () => {
+        bootGame();
+        const home = new HomeScene();
+        // 结算发生在 Game 层（启动/回前台），首页只消费结果做演出
+        Game.offlineResult = { minutes: 207, xiuwei: 331, lingshi: 82 };
+        home.onEnter();
+
+        const texts = () => h.registry.labels.map((l) => (l.comp as { string: string }).string);
+        const titleCount = () => texts().filter((t) => t === TEXTS.offlineDialogTitle).length;
+        expect(titleCount(), '进门应弹「吐纳归来」').toBe(1);
+        expect(texts()).toContain(TEXTS.offlineDuration(3, 27));
+        expect(texts()).toContain(TEXTS.offlineGain(331, 82));
+        expect(Game.offlineResult, '演出后必须消费掉，否则每次返回首页都会重弹').toBeNull();
+
+        home.onResume();
+        expect(titleCount(), '结果已消费，二次进入不该重弹').toBe(1);
+    });
+
+    it('M29 Game.settleOffline：离线 3 小时 realtime 结算入账并暂存结果给首页', () => {
+        bootGame();
+        Game.offlineResult = null;
+        Game.save.realmIndex = 3; // 金丹：0.4 灵石/分、1.6 修为/分
+        Game.save.offline.dayMin = 0;
+        const before = Game.save.lingshi;
+        const beforeXiuwei = Game.save.xiuwei;
+        const now = Date.now();
+        Game.save.offline.lastAt = now - 180 * 60_000;
+        Game.save.offline.day = '';
+
+        const got = Game.settleOffline(now);
+        expect(got, '离线 180 分钟应结算').toBeTruthy();
+        expect(got!.minutes).toBe(180);
+        expect(got!.lingshi, '180 × 0.4 = 72（floor）').toBe(72);
+        expect(got!.xiuwei, '180 × 1.6 = 288').toBe(288);
+        expect(Game.save.lingshi - before).toBe(72);
+        expect(Game.save.xiuwei - beforeXiuwei).toBe(288);
+        expect(Game.offlineResult).toEqual(got);
+        // 心跳必须前移到「回来」那一刻：否则第二次进游戏会把同一段时间再发一遍
+        expect(Game.save.offline.lastAt).toBe(now);
+        expect(Game.settleOffline(now + 60_000), '结算后 1 分钟不够 5 分钟门槛 → 不发').toBeNull();
+        expect(Game.settleOffline(), '同帧重复结算必须幂等').toBeNull();
     });
 
     it('#49 今日引导条（A1）：四态文案 + 去向（状态驱动语境 CTA）', () => {

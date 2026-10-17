@@ -45,6 +45,10 @@ import { PlayerScene } from './PlayerScene';
 import { WeaponScene } from './WeaponScene';
 import { PathScene } from './PathScene';
 import { CheckinScene } from './CheckinScene';
+import { OfflineScene } from './OfflineScene';
+import { OFFLINE_ABSENCE_CAP } from '../core/offline';
+import { AudioMgr } from '../infra/AudioMgr';
+import { showDialog } from '../ui/dialog';
 import { AlchemyScene } from './AlchemyScene';
 import { FortuneScene } from './FortuneScene';
 import { ACTIVITY_CHESTS } from '../core/config/quests';
@@ -317,6 +321,13 @@ export class HomeScene implements IScene {
         railLabel('签到', 214, -286);
         this.checkinDot = makeRedDot(n, -262, 290);
 
+        // M29 离线吐纳入口：插在左侧 rail 的空位（签到 266 与图鉴 58 之间，间距 104
+        // 与右侧 rail 压缩后的节律一致），不动任何既有坐标。图标用 icon_timer（语义
+        // 最贴「挂机计时」）占位，待美术补 icon_offline 后替换（同 M26 签到钮口径）。
+        iconButton(n, 'art/ui/icons/icon_timer/spriteFrame', () => Game.stack.push(new OfflineScene()), 72, 72)
+            .node.setPosition(-286, 162, 0);
+        railLabel(TEXTS.offlineRail, 110, -286);
+
         this.collectionBtn = iconButton(n, 'art/ui/icons/icon_collection/spriteFrame', () => Game.stack.push(new CollectionScene()), 72, 72);
         this.collectionBtn.node.setPosition(-286, 58, 0);
         railLabel('图鉴', 6, -286);
@@ -334,10 +345,40 @@ export class HomeScene implements IScene {
         this.collectionBar.node.setPosition(-286, -50, 0);
 
         this.refresh();
+        // M29 离线吐纳：归来演出（弹窗由 Game 结算的结果驱动，进门/回前台各消费一次）
+        this.maybeShowOfflineDialog();
     }
 
     onResume() {
         this.refresh();
+        this.maybeShowOfflineDialog();
+    }
+
+    /**
+     * M29 归来弹窗：把「离线期间吐纳所得」摊给玩家看。
+     *
+     * 注意结算**不在这里**做 —— `Game.settleOffline()` 在启动 / 回到前台的那一刻
+     * 已经落袋（见 Game.offlineResult 注释：放首页会让从二级页离开的那次收益被
+     * 随后的在线心跳吃掉）。这里只负责一次性消费并演出。
+     */
+    private maybeShowOfflineDialog() {
+        const got = Game.offlineResult;
+        if (!got) return;
+        Game.offlineResult = null;
+        AudioMgr.play('success');
+        const h = Math.floor(got.minutes / 60);
+        const m = got.minutes % 60;
+        const lines: Array<string | { text: string; color?: number }> = [
+            TEXTS.offlineDuration(h, m),
+            { text: TEXTS.offlineGain(got.xiuwei, got.lingshi), color: 1 },
+        ];
+        if (got.minutes >= OFFLINE_ABSENCE_CAP) lines.push(TEXTS.offlineCappedHint);
+        showDialog(this.node, {
+            title: TEXTS.offlineDialogTitle,
+            lines,
+            width: 620,
+            buttons: [{ text: TEXTS.offlineDialogBtn, primary: true }],
+        });
     }
 
     /**

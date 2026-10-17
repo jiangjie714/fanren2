@@ -17,6 +17,7 @@ import { MAINLINE } from '../assets/scripts/core/config/tower';
 import { TRIAL_THEMES, TRIAL_TIERS, RANK_TIERS } from '../assets/scripts/core/config/trial';
 import { CombatSystem } from '../assets/scripts/core/systems/CombatSystem';
 import { CheckinSystem } from '../assets/scripts/core/systems/CheckinSystem';
+import { OfflineSystem } from '../assets/scripts/core/systems/OfflineSystem';
 import { AlchemySystem } from '../assets/scripts/core/systems/AlchemySystem';
 import { BOXES } from '../assets/scripts/core/config/boxes';
 import { PILLS, FORTUNES } from '../assets/scripts/core/config/alchemy';
@@ -122,6 +123,19 @@ describe('数值平衡模拟（打印报告，宽松断言防崩坏）', () => {
             combat.attachAlchemy(alch);
             const matAtStart = sumMaterials(save);
 
+            // M29 离线吐纳（#55）：取**最坏档** —— 离线满 8 小时（单次上限与日累计上限
+            // 同为 480 分钟），回来先落袋。放在开局是因为它会抬高修为小等级 → 之后
+            // 这一整天所有灵石收入都要吃更高的灵石收益加成（乘算，比 192 灵石本身更贵）。
+            const offline = new OfflineSystem(eco);
+            const nowMs = Date.now();
+            save.offline.lastAt = nowMs - 480 * 60_000;
+            save.offline.day = '';
+            save.offline.dayMin = 0;
+            const offGot = offline.settle(save, nowMs);
+            expect(offGot, '离线 8 小时应结算').toBeTruthy();
+            expect(offGot!.minutes).toBe(480);
+            expect(offGot!.lingshi, '金丹 0.4/分 × 480 = 192').toBe(192);
+
             // 开箱 12 次（典型投入时长），三连层数随机（0~3，均值 1.5）
             for (let i = 0; i < 12; i++) {
                 if (!box.canOpen('xiuzhen').ok) break;
@@ -211,8 +225,11 @@ describe('数值平衡模拟（打印报告，宽松断言防崩坏）', () => {
             // #38 终审（M14 后重定基线）：旧口径实测 2620–5137（上限 6000）；
             // 纳入秘境重度口径（三档爬升×劫云1.3×连胜1.5 + 翻倍广告）+1561 后
             // 实测 4181–6410，上限重定 8000（含段位周奖日均摊前余量）；
-            // M22 纳入剑冢日回灌（+1500 封顶，#48）→ 上限重定 9500。
-            expect(net).toBeLessThanOrEqual(9500);
+            // M22 纳入剑冢日回灌（+1500 封顶，#48）→ 上限重定 9500；
+            // M29 纳入离线吐纳满档（#55，实测 8836–10249）→ 上限重定 10800（余量 ≈5%）。
+            // ⚠ 别只看离线自己发的 192 灵石（#55）——那 768 修为会把小等级抬 5 级，
+            // 此后**全天**灵石收入都要多吃 ≈7.5% 加成，这一部分才是主体。
+            expect(net).toBeLessThanOrEqual(10_800);
             expect(jiyuanGranted).toBeLessThanOrEqual(120);
 
             // #38 纳入灵材/丹药消耗口径：当日产出的灵石+灵材投入炼丹/福禄（纯 SINK），
@@ -265,12 +282,45 @@ describe('数值平衡模拟（打印报告，宽松断言防崩坏）', () => {
         expect(m30!.jiyuan).toBe(30);
 
         // 单日机缘增量 40（周期大奖 10 + 30 天档 30），远低于 120 上限；
-        // 灵石 1300 也只占 9500 上限的 13.7%；灵材 8 远低于 37
+        // 灵石 1300 只占 10800 上限的 12%；灵材 8 远低于 40
         expect(save.jiyuan).toBe(40);
         expect(save.jiyuan).toBeLessThanOrEqual(120);
-        expect(save.lingshi).toBeLessThanOrEqual(9500);
+        // #38 日灵石净收入上限（M29 后 10800）：签到最坏单日 +1300 只占 12%
+        expect(save.lingshi).toBeLessThanOrEqual(10_800);
         expect(alch.materialCount(save)).toBe(8);
         expect(save.xiuzhenTickets).toBe(1);
+    });
+
+    /**
+     * M29 离线吐纳最坏单日（#55）：化神境界 × 满 8 小时——它同时打到「单次上限」与
+     * 「日累计上限」，且当日再离线也拿不到第二份。单独拎出来是为了把「挂机究竟值
+     * 多少」钉死在数字上（`core/offline.ts` 的速率表被调就有据可查）。
+     */
+    it('M29 离线吐纳最坏单日：化神满 8 小时 288 灵石，远低于典型一日口径', () => {
+        const save: SaveData = defaultSave();
+        save.realmIndex = REALMS.length - 1; // 化神：速率表最高档
+        const eco = new EconomySystem(save);
+        const sys = new OfflineSystem(eco);
+
+        // 固定到当天 00:30 → +8 小时仍在同自然日，日累计上限才测得到
+        const base = new Date(2026, 9, 17, 0, 30, 0).getTime();
+        save.offline.day = '';
+        save.offline.dayMin = 0;
+        save.offline.lastAt = base - 480 * 60_000;
+        const got = sys.settle(save, base)!;
+        expect(got.lingshi, '0.6/分 × 480 = 288').toBe(288);
+        expect(got.xiuwei, '2.4/分 × 480 = 1152').toBe(1152);
+        expect(save.offline.dayMin).toBe(480);
+
+        // 同一天内再离线 8 小时：日额度已尽 → 不再发放
+        save.offline.lastAt = base;
+        expect(sys.settle(save, base + 480 * 60_000)).toBeNull();
+
+        // 占 #38 日净收入上限（10800）的比例：挂机永远只能是「回来的小惊喜」
+        expect(288).toBeLessThanOrEqual(10_800 * 0.05);
+        // 灵材 / 机缘零发放（#38 灵材上限 40 已被签到占满，离线不碰）
+        expect(save.jiyuan).toBe(0);
+        expect(Object.keys(save.fortune.materials).length).toBe(0);
     });
 
     /**

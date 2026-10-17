@@ -1,10 +1,12 @@
 import { Node, ResolutionPolicy, Widget, view } from 'cc';
 import { Rng } from '../core/rng';
 import { SaveData } from '../core/saveModel';
+import { OfflineGain } from '../core/offline';
 import { AchievementSystem } from '../core/systems/AchievementSystem';
 import { AlchemySystem } from '../core/systems/AlchemySystem';
 import { BoxSystem } from '../core/systems/BoxSystem';
 import { CheckinSystem } from '../core/systems/CheckinSystem';
+import { OfflineSystem } from '../core/systems/OfflineSystem';
 import { CollectionSystem } from '../core/systems/CollectionSystem';
 import { CombatSystem } from '../core/systems/CombatSystem';
 import { EconomySystem } from '../core/systems/EconomySystem';
@@ -50,7 +52,20 @@ export class Game {
     static ach: AchievementSystem;
     /** M26 连续登录签到：七日轮回 + 累计里程碑（#53） */
     static checkin: CheckinSystem;
+    /** M29 离线吐纳：在线心跳 / 归来结算（#55） */
+    static offline: OfflineSystem;
     static social: DouyinSocial;
+
+    /**
+     * M29：本次归来结算出的离线所得（**运行时字段，不落存档**）。
+     *
+     * 为什么不由 HomeScene 自己触发结算：`Game.init` / `onForeground` 才是「回来」
+     * 的唯一确定时刻 —— 若等到首页构建才结算，从二级页离开的那次会被随后一小段
+     * 在线时间把 `lastAt` 推进掉，收益凭空蒸发。这里先落袋，再交给首页做演出。
+     */
+    static offlineResult: OfflineGain | null = null;
+    /** 心跳累加器（秒）—— 每秒刷新一次 lastAt，不必每帧写 */
+    private static heartbeatAcc = 0;
 
     /** root: GameRoot 节点（场景根子节点，非 Canvas 层级） */
     static init(root: Node) {
@@ -85,8 +100,10 @@ export class Game {
         this.trial = new TrialSystem(this.eco, this.alchemy);
         this.ach = new AchievementSystem(this.eco);
         this.checkin = new CheckinSystem(this.eco, this.alchemy);
+        this.offline = new OfflineSystem(this.eco);
         this.social = new DouyinSocial();
         this.eco.dailyReset();
+        this.settleOffline();
         this.illusion.checkWeek(this.save);
         this.trial.checkWeek(this.save); // M14：秘境赛季周键（周一 0 点换周）
         this.eco.claimMonthlyTicket(); // 月卡每日特权：发 1 张修真宝盒券（#14，购买入口待版号）
@@ -119,8 +136,30 @@ export class Game {
 
     static tick(dt: number) {
         this.stack?.update(dt);
+        // M29 离线吐纳：每秒把 lastAt 推到此刻，使「离线时长」只统计真正没在玩的时间
+        this.heartbeatAcc += dt;
+        if (this.heartbeatAcc >= 1) {
+            this.heartbeatAcc = 0;
+            this.offline?.touch(this.save);
+        }
         // M27 新手引导：每帧同步，内部只比一个 key，未变则零开销
         GuideLayer.sync();
+    }
+
+    /**
+     * M29 离线吐纳结算（启动 / 回到前台时调用）：把「回来」这个时刻的离线时长
+     * 一次性落袋，并暂存本次所得供首页做归来弹窗演出。
+     *
+     * 结算本身幂等（额度累加与心跳前移在同一次调用里完成），重复调用最多得到
+     * `null`（没有新的离线时间），不会二次发放。
+     */
+    static settleOffline(now: number = Date.now()): OfflineGain | null {
+        if (!this.save || !this.offline) return null;
+        const got = this.offline.settle(this.save, now);
+        if (!got) return null;
+        this.offlineResult = got;
+        this.persist();
+        return got;
     }
 
     /** 扫描成就：新达成立即落盘并提示（场景层在开箱/结算/合成等关键事件后调用） */
@@ -141,6 +180,8 @@ export class Game {
     /** 回到前台（抖音 onShow / Web visibilitychange）：跨天重置每日状态并刷新当前页 */
     static onForeground() {
         if (!this.save) return;
+        // M29 离线吐纳：回来就结算（无论是否跨天），产出暂存给首页弹窗
+        this.settleOffline();
         const dayChanged = this.eco.dailyReset();
         const weekChanged = this.illusion.checkWeek(this.save) || this.trial.checkWeek(this.save);
         if (dayChanged || weekChanged) {
