@@ -31,10 +31,13 @@ assets/
 ├── main.scene            # 唯一场景：Canvas + GameRoot，其余 UI 全代码构建
 └── scripts/
     ├── core/             # 纯数值逻辑（零 cc 依赖，可单测）
-    │   ├── config/       # 12 个配置：境界/宝箱/雨滴/经济/灵根/广告/内购/文案
-    │   │                 #   + M8 任务/历练/幻境 + M9a 成就
-    │   └── systems/      # 11 个系统：Box/Realm/Rain/Economy/Collection
-    │   │                 #   + Quest/Expedition/Illusion/Achievement/StatsRecorder
+    │   ├── config/       # 16 个配置：境界/宝箱/雨滴/经济/灵根/广告/内购/文案
+    │   │                 #   + M8 任务/幻境 + M9a 成就 + M13 炼丹 + M14 秘境
+    │   │                 #   + M15 妖径 + M22 剑冢 + M25 道友 + M27 引导 + M29 吐纳
+    │   ├── systems/      # 20 个系统：Box/Realm/Rain/Economy/Collection
+    │   │                 #   + Quest/Illusion/Achievement/StatsRecorder/Combat/Trail/Tower
+    │   │                 #   + Trial/Quest/Alchemy/Checkin/Offline 等
+    │   └── *.ts          # 判定层纯函数：checkin / guide / offline / boxAuto / daoFriends / bignum
     ├── infra/            # Game(装配+生命周期)/存档/广告(模拟+tt)/社交上报桩/音频/场景栈
     ├── ui/               # 程序化国风 UI 库（ThemeLib/弹窗/状态栏/合规弹窗）
     └── scenes/           # 14 个页面（含修行/历练/论道/幻境结算）

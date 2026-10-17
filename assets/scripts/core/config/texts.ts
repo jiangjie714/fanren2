@@ -411,4 +411,29 @@ export const TEXTS = {
     guideStep3Body: '机缘已满！点这里冲击境界，首战有天道庇佑。',
     /** 气泡右下角常驻：任何时刻都能退出引导 */
     guideSkip: '跳过引导',
+
+    // ---------- #55 离线吐纳（M29） ----------
+    offlinePageTitle: '洞府吐纳',
+    /** 左侧 rail 入口标签（与右侧 rail 的「法器 / 论道 / 妖径 / 修行」同款短标签） */
+    offlineRail: '吐纳',
+    /** 归来弹窗标题 */
+    offlineDialogTitle: '吐纳归来',
+    /** 归来弹窗首行：离线时长（h/m） */
+    offlineDuration: (h: number, m: number) => (h > 0 ? `离线 ${h} 小时 ${m} 分钟` : `离线 ${m} 分钟`),
+    /** 归来弹窗次行：本次所得（金色数字行） */
+    offlineGain: (xiuwei: number, lingshi: number) => `修为 +${xiuwei} · 灵石 +${lingshi}`,
+    /** 达到上限时追加的提示行 */
+    offlineCappedHint: '（本次已达吐纳上限）',
+    offlineDialogBtn: '知 道 了',
+    /** 吐纳页摘要卡：今日已结算分钟 / 日上限 */
+    offlineToday: (used: number, cap: number) => `今日已吐纳 ${used}/${cap} 分钟`,
+    /** 当前境界速率行 */
+    offlineRateLine: (xiuwei: number, lingshi: number) => `修为 ${xiuwei}/分 · 灵石 ${lingshi}/分`,
+    offlineRateTitle: '当前境界吐纳速率',
+    offlineTableTitle: '各境界速率（每分钟）',
+    offlineTableHead: '境界　修为　灵石',
+    offlineTableRow: (realm: string, xiuwei: number, lingshi: number) => `${realm}　${xiuwei}　${lingshi}`,
+    offlineRules: '离线满 5 分钟才结算；单次与每日累计均封顶 480 分钟（8 小时），超出不再累积。吐纳所得只含修为与灵石，不含机缘与灵材。',
+    /** 未满额时的提示（还差多少分钟/已达上限） */
+    offlineLeftHint: (left: number) => (left > 0 ? `今日还可吐纳 ${left} 分钟` : '今日吐纳已达上限，明日再来'),
 } as const;

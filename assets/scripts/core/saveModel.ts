@@ -1,4 +1,4 @@
-/** 存档模型 v10：v9 字段 + M27 新手引导（tutorial，#54）；引导只存「已完成」布尔，步骤由状态推导 */
+/** 存档模型 v11：v10 字段 + M29 离线吐纳（offline，#55）；只存「心跳时间戳 + 日额度计数器」，收益一分钟都不落盘 */
 import { STAMINA_MAX, STAMINA_AD_PER_DAY } from './config/trial';
 import { weekKeyOf } from './config/illusion';
 
@@ -187,8 +187,27 @@ export interface GuideState {
     done: boolean;
 }
 
+// ---------- v11（M29 离线吐纳，#55） ----------
+
+/**
+ * 离线吐纳进度（#55）。**刻意放顶层而非 daily**：daily 是「每天清一次的开关集合」，
+ * 而 offline 是带时间戳的连续量，且它的跨日重置发生在**结算那一瞬**（惰性），
+ * 与 dailyReset() 的自然日扫描不同步 —— 混在一起就会出现「先结算还是先重置」的竞态。
+ *
+ * 只存三个数：**收益一分钱都不落盘**。最后一帧的速率变了（如境界提升）只会影响
+ * 未来的结算，不会追溯改写已发放的量，也不存在孤立的「待领取池」需要维护。
+ */
+export interface OfflineState {
+    /** 最后一次在线心跳（epoch ms）；在线时每 ~1s 前移，离线期间冻结 */
+    lastAt: number;
+    /** 日累计额度的日键 YYYY-MM-DD（惰性翻新，非 dailyReset 扫描） */
+    day: string;
+    /** 当日已结算分钟数（0..480） */
+    dayMin: number;
+}
+
 export interface SaveData {
-    version: 10;
+    version: 11;
     lingshi: number;
     xiuwei: number;
     jiyuan: number;
@@ -245,13 +264,23 @@ export interface SaveData {
     // ---------- v10（M27） ----------
     /** 新手引导进度（#54） */
     tutorial: GuideState;
+    // ---------- v11（M29） ----------
+    /** 离线吐纳进度（#55） */
+    offline: OfflineState;
 }
 
 import { INITIAL_LINGSHI } from './config/economy';
 
+/**
+ * 与 `core/offline.ts` 的 OFFLINE_DAY_CAP 同步。**刻意不 import**：offline.ts 依赖
+ * 本文件的 SaveData/todayString，反过来引会形成循环依赖；此处镜像由
+ * tests/offline.test.ts 的「配置一致性」用例守护（两处常量必须相等）。
+ */
+const OFFLINE_DAY_CAP_MIRROR = 480;
+
 export function defaultSave(): SaveData {
     return {
-        version: 10,
+        version: 11,
         lingshi: INITIAL_LINGSHI,
         xiuwei: 0,
         jiyuan: 0,
@@ -325,6 +354,8 @@ export function defaultSave(): SaveData {
             milestonesClaimed: [],
         },
         tutorial: { done: false },
+        // v11 离线吐纳：lastAt 取「此刻」——新玩家不会一进门就收到「离线十年」的假象
+        offline: { lastAt: Date.now(), day: todayString(), dayMin: 0 },
     };
 }
 
@@ -337,7 +368,7 @@ export function migrate(raw: unknown): SaveData {
     const d = defaultSave();
     if (!raw || typeof raw !== 'object') return d;
     const r = raw as Record<string, unknown>;
-    if (r.version !== 1 && r.version !== 2 && r.version !== 3 && r.version !== 4 && r.version !== 5 && r.version !== 6 && r.version !== 7 && r.version !== 8 && r.version !== 9 && r.version !== 10) return d;
+    if (r.version !== 1 && r.version !== 2 && r.version !== 3 && r.version !== 4 && r.version !== 5 && r.version !== 6 && r.version !== 7 && r.version !== 8 && r.version !== 9 && r.version !== 10 && r.version !== 11) return d;
     const profile = { ...d.profile, ...(r.profile as object ?? {}) };
     const srcTrial = (r.trial as Partial<TrialState>) ?? {};
     return {
@@ -401,8 +432,30 @@ export function migrate(raw: unknown): SaveData {
         // v10：新手引导（v9 老档无此字段 → 未跳过；老玩家多半 realmIndex > 0，
         // 首次 sync 即被判定「目标已达成」并补写 done，实际不会挡路）
         tutorial: migrateTutorial(r.tutorial),
-        version: 10,
+        // v11：离线吐纳（v10 老档无此字段 → 从「此刻」起算，不给白条收益）
+        offline: migrateOffline(r.offline),
+        version: 11,
     } as SaveData;
+}
+
+/**
+ * v11 离线字段迁移（防手改存档注入）：
+ * - `lastAt` 必须是有限正数，**且不能在未来**（时钟回拨/改系统时间刷收益 → 归为「此刻」）；
+ * - `day` 非日期格式字符串 → 回退今天；
+ * - `dayMin` 钳到 [0, 480]。
+ */
+function migrateOffline(raw: unknown): OfflineState {
+    const now = Date.now();
+    const o = (raw ?? {}) as Partial<OfflineState>;
+    const lastAt = typeof o.lastAt === 'number' && Number.isFinite(o.lastAt) && o.lastAt > 0
+        ? Math.min(o.lastAt, now)
+        : now;
+    const dayStr = typeof o.day === 'string' ? o.day : '';
+    return {
+        lastAt,
+        day: /^\d{4}-\d{2}-\d{2}$/.test(dayStr) ? dayStr : todayString(),
+        dayMin: Math.max(0, Math.min(OFFLINE_DAY_CAP_MIRROR, clampIntOr(o.dayMin, 0))),
+    };
 }
 
 /** v10 引导字段迁移：非对象一律回退 { done: false }，done 取真值布尔（防手改存档注入） */

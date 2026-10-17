@@ -36,7 +36,7 @@ export interface CheckinMilestone {
 
 /**
  * §3.1 七日轮回奖励表。日均摊 ≈307 灵石 / 1.43 机缘 / 0.43 灵材，
- * 占护栏②（#38：9500 灵石 / 37 灵材 / 120 机缘）约 3%，不推爆基线。
+ * 占护栏②（#38：10800 灵石 / 40 灵材 / 120 机缘）约 3%，不推爆基线。
  */
 export const CHECKIN_REWARDS: CheckinReward[] = [
     { lingshi: 100, jiyuan: 0, mats: {} },
