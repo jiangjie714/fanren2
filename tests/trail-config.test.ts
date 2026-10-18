@@ -246,7 +246,7 @@ describe('M15-T1 奖励表（#47）', () => {
     });
 
     it('M28 第 9 章星陨天墟：配比 4:3:2 且奖励按 1.35× 继续爬升', () => {
-        expect(TRAIL_CHAPTERS.length).toBe(9); // ← 章节总数基线：M28 起 9 章
+        expect(TRAIL_CHAPTERS.length).toBeGreaterThanOrEqual(9); // 章节总数下界；精确基线见 M32 用例
         const ch9 = TRAIL_CHAPTERS[8];
         expect(ch9.id).toBe('xingxu');
         expect(ch9.name).toBe('星陨天墟');
@@ -285,6 +285,59 @@ describe('M15-T1 奖励表（#47）', () => {
         }
         // 第 9 章难度系数 2.10（M24 曲线无封顶，本章不改公式）
         expect(chapterScale(9)).toBeCloseTo(2.1);
+    });
+
+    it('M32 第 10 章混沌归墟：配比 4:3:2 且奖励按 1.35× 继续爬升', () => {
+        expect(TRAIL_CHAPTERS.length).toBe(10); // ← 章节总数基线：M32 起 10 章
+        const ch10 = TRAIL_CHAPTERS[9];
+        expect(ch10.id).toBe('hundun');
+        expect(ch10.name).toBe('混沌归墟');
+        expect(ch10.monsters.length).toBe(6);
+        expect(ch10.boss.id).toBe('daojun');
+        const count = (g: string) => ch10.typePlan.filter((x) => x === g).length;
+        expect(count('battle')).toBe(4);
+        expect(count('puzzle')).toBe(3);
+        expect(count('match3')).toBe(2);
+        // 与 8/9 章序列都不同（避免连打三章同序的重复感）
+        expect(ch10.typePlan.join()).not.toBe(TRAIL_CHAPTERS[7].typePlan.join());
+        expect(ch10.typePlan.join()).not.toBe(TRAIL_CHAPTERS[8].typePlan.join());
+        // 无连续两个相同玩法
+        for (let i = 1; i < ch10.typePlan.length; i++) {
+            expect(ch10.typePlan[i]).not.toBe(ch10.typePlan[i - 1]);
+        }
+        const ch9 = TRAIL_CHAPTERS[8];
+        expect(ch10.rewardSections[2][1]).toBeGreaterThan(ch9.rewardSections[2][1]);
+        expect(ch10.bossReward[1]).toBeGreaterThan(ch9.bossReward[1]);
+        expect(ch10.bossSlay.xiuwei).toBeGreaterThan(ch9.bossSlay.xiuwei);
+        expect(ch10.bossSlay.jiyuan).toBe(190);
+        expect(ch10.fragmentChance).toEqual([0.55, 0.75, 0.95]);
+        expect(ch10.gift.lingshi).toBe(52000);
+        expect(ch10.gift.fragments).toBe(10);
+        // 静态区间锚点（防手滑改值；规则 = 第 9 章端点 ×1.35 取整到十位）
+        expect(ch10.rewardSections[0]).toEqual([4930, 6520]);
+        expect(ch10.rewardSections[1]).toEqual([5820, 7610]);
+        expect(ch10.rewardSections[2]).toEqual([6970, 9070]);
+        expect(ch10.bossReward).toEqual([7380, 10170]);
+        expect(ch10.bossSlay.xiuwei).toBe(10750);
+        // gift mats 各 +1
+        expect(ch10.gift.mats).toEqual({ lingcao: 14, lingshi_core: 12, yaodan_core: 10 });
+    });
+
+    it('M32 第 10 章派生：层 91–100 归属第 10 章，Boss 关恒 battle 且为混沌道君', () => {
+        expect(chapterOf(91)).toBe(10);
+        expect(chapterOf(100)).toBe(10);
+        expect(deriveBattle(100).isBoss).toBe(true);
+        expect(deriveBattle(100).monsterName).toBe('混沌道君');
+        expect(deriveGame(100)).toBe('battle');
+        // 普通关妖怪全部落在第 10 章池内
+        const pool = TRAIL_CHAPTERS[9].monsters.map((m) => m.name);
+        for (let layer = 91; layer <= 99; layer++) {
+            expect(pool).toContain(deriveBattle(layer).monsterName);
+        }
+        // 第 10 章难度系数 2.25（M24 曲线无封顶，本章不改公式）
+        expect(chapterScale(10)).toBeCloseTo(2.25);
+        // 首通奖励：Boss 关 fragmentChance 恒为 1（与掉率表无关）
+        expect(firstClearReward(100).fragmentChance).toBe(1);
     });
 
     it('M24 chapterScale 分段续爬：第 7 章仍 1.8，第 8 章起 1.8+0.15(ch−7) 无封顶', () => {

@@ -312,6 +312,34 @@ export const TRAIL_CHAPTERS: readonly TrailChapter[] = [
         bossSlay: { xiuwei: 7960, jiyuan: 160 },
         gift: { lingshi: 38500, mats: { lingcao: 13, lingshi_core: 11, yaodan_core: 9 }, fragments: 9 },
     },
+    {
+        id: 'hundun',
+        name: '混沌归墟',
+        blurb: '墟海混沌，鸿蒙一气碎魂',
+        bg: 'art/ui/bg_trail_hundun/spriteFrame',
+        monsters: [
+            { id: 'hundunjiao', name: '混沌魔蛟' },
+            { id: 'hongmeng', name: '鸿蒙元胎' },
+            { id: 'xudan', name: '虚诞灵螭' },
+            { id: 'yexiao', name: '归墟夜枭' },
+            { id: 'chusheng', name: '初声古兽' },
+            { id: 'shenlong', name: '墟渊蜃龙' },
+        ],
+        boss: { id: 'daojun', name: '混沌道君' },
+        typePlan: [
+            'battle', 'match3', 'puzzle', 'battle', 'puzzle',
+            'battle', 'match3', 'puzzle', 'battle',
+        ],
+        rewardSections: [
+            [4930, 6520],
+            [5820, 7610],
+            [6970, 9070],
+        ],
+        bossReward: [7380, 10170],
+        fragmentChance: [0.55, 0.75, 0.95],
+        bossSlay: { xiuwei: 10750, jiyuan: 190 },
+        gift: { lingshi: 52000, mats: { lingcao: 14, lingshi_core: 12, yaodan_core: 10 }, fragments: 10 },
+    },
 ];
 
 // ---------- 章节/层换算 ----------
