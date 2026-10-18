@@ -35,9 +35,9 @@ assets/
     │   │                 #   + M8 任务/幻境 + M9a 成就 + M13 炼丹 + M14 秘境
     │   │                 #   + M15 妖径 + M22 剑冢 + M25 道友 + M27 引导 + M29 吐纳
     │   │                 #   + M30 剧情 + M31 宗门
-    │   ├── systems/      # 20 个系统：Box/Realm/Rain/Economy/Collection
+    │   ├── systems/      # 21 个系统：Box/Realm/Rain/Economy/Collection
     │   │                 #   + Quest/Illusion/Achievement/StatsRecorder/Combat/Trail/Tower
-    │   │                 #   + Trial/Quest/Alchemy/Checkin/Offline 等
+    │   │                 #   + Trial/Quest/Alchemy/Checkin/Offline/Sect 等
     │   └── *.ts          # 判定层纯函数：checkin / guide / offline / story / sect / boxAuto / daoFriends / bignum
     ├── infra/            # Game(装配+生命周期)/存档/广告(模拟+tt)/社交上报桩/音频/场景栈
     ├── ui/               # 程序化国风 UI 库（ThemeLib/弹窗/状态栏/合规弹窗）
