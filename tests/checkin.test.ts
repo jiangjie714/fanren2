@@ -12,8 +12,13 @@ import {
     checkinView,
     cycleDayOf,
     dayGap,
+    doubleAvailable,
+    doubleCheckin,
+    makeupAvailable,
+    makeupCheckin,
     nextStreakIfClaim,
     rewardForDay,
+    shiftDay,
 } from '../assets/scripts/core/checkin';
 import { CheckinSystem } from '../assets/scripts/core/systems/CheckinSystem';
 import { EconomySystem } from '../assets/scripts/core/systems/EconomySystem';
@@ -141,14 +146,157 @@ describe('M26 签到判定层（core/checkin.ts 纯函数）', () => {
     });
 });
 
-describe('M26 存档 v9 迁移', () => {
-    it('v8 老档 → v9：保留全部数据 + checkin 补缺省（首日即可领第 1 档）', () => {
+describe('A20 补签与双倍签到（core/checkin.ts 扩展，spec 2026-10-18，数值假设 #58）', () => {
+    it('shiftDay：跨月 / 跨年 / 闰年 / 非法输入', () => {
+        expect(shiftDay('2026-03-01', -1)).toBe('2026-02-28');
+        expect(shiftDay('2026-03-01', 0)).toBe('2026-03-01');
+        expect(shiftDay('2026-01-01', -1)).toBe('2025-12-31');
+        expect(shiftDay('2028-02-28', 1)).toBe('2028-02-29'); // 闰年
+        expect(shiftDay('2027-02-28', 1)).toBe('2027-03-01'); // 平年
+        expect(shiftDay('garbage', -1)).toBeNull();
+        expect(shiftDay('', 1)).toBeNull();
+        expect(shiftDay('2026-13-01', -1)).toBeNull();
+    });
+
+    it('补签：恰好漏昨日（gap=2）可补，补领昨日档位完整奖励且连续不断', () => {
+        const s = defaultSave();
+        runDays(s, '2026-03-01', 5); // streak=5，lastDay=03-05
+        // 漏了 03-06，03-07 回来
+        expect(makeupAvailable(s, '2026-03-07')).toBe(true);
+        const r = makeupCheckin(s, '2026-03-07');
+        expect(r).toEqual(CHECKIN_REWARDS[5]); // 补的是「第 6 天」档 350
+        expect(s.checkin.streak).toBe(6);
+        expect(s.checkin.totalDays).toBe(6);
+        expect(s.checkin.lastDay).toBe('2026-03-06');
+        expect(s.checkin.makeupDay).toBe('2026-03-06');
+        // 补后今日照常领 → 第 7 天周期大奖（补+领 = 单日 1150 灵石，护栏②口径）
+        const today = claimCheckin(s, '2026-03-07');
+        expect(today).toEqual(CHECKIN_REWARDS[6]);
+        expect(s.checkin.streak).toBe(7);
+        expect(s.checkin.totalDays).toBe(7);
+        expect(s.checkin.lastDay).toBe('2026-03-07');
+    });
+
+    it('补签：gap=1 无需补 / gap=3 断太久不可补 / 从未领取不可补', () => {
+        const a = defaultSave();
+        claimCheckin(a, '2026-03-01');
+        expect(makeupAvailable(a, '2026-03-02')).toBe(false); // gap=1
+        expect(makeupCheckin(a, '2026-03-02')).toBeNull();
+
+        const b = defaultSave();
+        claimCheckin(b, '2026-03-01');
+        expect(makeupAvailable(b, '2026-03-04')).toBe(false); // gap=3
+        expect(makeupCheckin(b, '2026-03-04')).toBeNull();
+
+        const c = defaultSave();
+        expect(makeupAvailable(c, '2026-03-02')).toBe(false); // lastDay=''
+        expect(makeupCheckin(c, '2026-03-02')).toBeNull();
+    });
+
+    it('补签幂等：补后当日不可再补；手改存档回退 gap=2 也被 makeupDay 拦下', () => {
+        const s = defaultSave();
+        runDays(s, '2026-03-01', 5);
+        makeupCheckin(s, '2026-03-07');
+        expect(makeupAvailable(s, '2026-03-07')).toBe(false); // gap 已变 1
+        expect(makeupCheckin(s, '2026-03-07')).toBeNull();
+        // 手改：把 lastDay 拨回两天前，但 makeupDay 记得这天补过
+        s.checkin.lastDay = '2026-03-05';
+        expect(makeupAvailable(s, '2026-03-07')).toBe(false);
+        expect(makeupCheckin(s, '2026-03-07')).toBeNull();
+    });
+
+    it('补签与「先领今日」互斥：先领则补签入口消失（特性不是 bug，spec R1）', () => {
+        const s = defaultSave();
+        runDays(s, '2026-03-01', 5);
+        claimCheckin(s, '2026-03-07'); // 先领 → streak 归 1，lastDay=today
+        expect(s.checkin.streak).toBe(1);
+        expect(makeupAvailable(s, '2026-03-07')).toBe(false);
+        expect(makeupCheckin(s, '2026-03-07')).toBeNull();
+    });
+
+    it('双倍：今日已领可翻，灵石 = 当日档位、机缘/灵材恒 0、totalDays 不动', () => {
+        const s = defaultSave();
+        runDays(s, '2026-03-01', 7); // 第 7 天已领，streak=7
+        expect(doubleAvailable(s, '2026-03-07')).toBe(true);
+        const beforeTotal = s.checkin.totalDays;
+        const r = doubleCheckin(s, '2026-03-07');
+        expect(r).toEqual({ lingshi: 800, jiyuan: 0, mats: {} });
+        expect(s.checkin.doubledDay).toBe('2026-03-07');
+        expect(s.checkin.totalDays).toBe(beforeTotal); // 不加（防广告刷 30 天里程碑）
+        expect(s.checkin.streak).toBe(7); // 不动
+    });
+
+    it('双倍幂等与前置条件：同日再翻 null / 未领不可翻 / 跨日可再翻', () => {
+        const s = defaultSave();
+        runDays(s, '2026-03-01', 7);
+        doubleCheckin(s, '2026-03-07');
+        expect(doubleAvailable(s, '2026-03-07')).toBe(false);
+        expect(doubleCheckin(s, '2026-03-07')).toBeNull();
+        expect(s.checkin.totalDays).toBe(7);
+
+        const b = defaultSave(); // 未领
+        expect(doubleAvailable(b, '2026-03-07')).toBe(false);
+        expect(doubleCheckin(b, '2026-03-07')).toBeNull();
+
+        // 次日再领（第 8 天 = 轮回第 1 档 100），可再翻
+        claimCheckin(s, '2026-03-08');
+        expect(doubleAvailable(s, '2026-03-08')).toBe(true);
+        expect(doubleCheckin(s, '2026-03-08')).toEqual({ lingshi: 100, jiyuan: 0, mats: {} });
+    });
+
+    it('补签与翻倍互斥：补签态不可翻、翻倍态不可补（同一天二者永不并存）', () => {
+        const s = defaultSave();
+        runDays(s, '2026-03-01', 5);
+        expect(makeupAvailable(s, '2026-03-07')).toBe(true);
+        expect(doubleAvailable(s, '2026-03-07')).toBe(false); // 未领
+        makeupCheckin(s, '2026-03-07');
+        claimCheckin(s, '2026-03-07'); // 今日已领 → 翻倍态
+        expect(doubleAvailable(s, '2026-03-07')).toBe(true);
+        expect(makeupAvailable(s, '2026-03-07')).toBe(false); // gap=1
+    });
+
+    it('view 三态派生：常规态 / 补签态 / 翻倍态', () => {
+        const regular = defaultSave();
+        claimCheckin(regular, '2026-03-01');
+        const v1 = checkinView(regular, '2026-03-02');
+        expect(v1.makeupAvailable).toBe(false);
+        expect(v1.makeupReward).toBeNull();
+        expect(v1.doubleAvailable).toBe(false);
+
+        const mk = defaultSave();
+        runDays(mk, '2026-03-01', 5);
+        const v2 = checkinView(mk, '2026-03-07');
+        expect(v2.makeupAvailable).toBe(true);
+        expect(v2.makeupReward).toEqual(CHECKIN_REWARDS[5]); // 昨日档位预览
+        expect(v2.doubleAvailable).toBe(false);
+
+        const db = defaultSave();
+        runDays(db, '2026-03-01', 7);
+        const v3 = checkinView(db, '2026-03-07');
+        expect(v3.makeupAvailable).toBe(false);
+        expect(v3.makeupReward).toBeNull();
+        expect(v3.doubleAvailable).toBe(true);
+    });
+
+    it('脏数据防线：lastDay 非法时补签/翻倍均按不可用处理（R4）', () => {
+        const s = defaultSave();
+        s.checkin.lastDay = 'garbage';
+        s.checkin.streak = 9;
+        expect(makeupAvailable(s, '2026-03-07')).toBe(false);
+        expect(makeupCheckin(s, '2026-03-07')).toBeNull();
+        expect(doubleAvailable(s, '2026-03-07')).toBe(false);
+        expect(doubleCheckin(s, '2026-03-07')).toBeNull();
+    });
+});
+
+describe('M26 存档迁移（v9 → … → v14 A20 补签/双倍字段）', () => {
+    it('v8 老档 → 最新版：保留全部数据 + checkin 补缺省（首日即可领第 1 档）', () => {
         const old = { ...defaultSave(), version: 8 as const, lingshi: 12345, realmIndex: 3 };
         const s = migrate(JSON.parse(JSON.stringify(old)));
-        expect(s.version).toBe(13);
+        expect(s.version).toBe(14);
         expect(s.lingshi).toBe(12345);
         expect(s.realmIndex).toBe(3);
-        expect(s.checkin).toEqual({ lastDay: '', streak: 0, totalDays: 0, milestonesClaimed: [] });
+        expect(s.checkin).toEqual({ lastDay: '', streak: 0, totalDays: 0, milestonesClaimed: [], makeupDay: '', doubledDay: '' });
         expect(checkinView(s, '2026-10-16').canClaim).toBe(true);
     });
 
@@ -157,24 +305,51 @@ describe('M26 存档 v9 迁移', () => {
             version: 9,
             checkin: { lastDay: 123, streak: -5, totalDays: -1, milestonesClaimed: [15, 7, 7, 'x', -3] },
         });
-        expect(s.version).toBe(13);
+        expect(s.version).toBe(14);
         expect(s.checkin.lastDay).toBe('');
         expect(s.checkin.streak).toBe(0);
         expect(s.checkin.totalDays).toBe(0);
         expect(s.checkin.milestonesClaimed).toEqual([7, 15]);
     });
 
-    it('v1 原始档也能一路迁到 v9', () => {
+    it('v13 老档 → v14：签到数据全保留，makeupDay/doubledDay 补空串（没补过没翻过）', () => {
+        const s = migrate({
+            version: 13,
+            checkin: { lastDay: '2026-10-15', streak: 4, totalDays: 12, milestonesClaimed: [7] },
+        });
+        expect(s.version).toBe(14);
+        expect(s.checkin.lastDay).toBe('2026-10-15');
+        expect(s.checkin.streak).toBe(4);
+        expect(s.checkin.totalDays).toBe(12);
+        expect(s.checkin.milestonesClaimed).toEqual([7]);
+        expect(s.checkin.makeupDay).toBe('');
+        expect(s.checkin.doubledDay).toBe('');
+        // 语义正确：漏了 10-16，10-17 可补
+        expect(makeupAvailable(s, '2026-10-17')).toBe(true);
+        expect(doubleAvailable(s, '2026-10-17')).toBe(false);
+    });
+
+    it('v14 脏值钳制：makeupDay/doubledDay 非字符串回退空串（防手改存档注入）', () => {
+        const s = migrate({
+            version: 13,
+            checkin: { lastDay: '2026-10-15', streak: 4, totalDays: 12, milestonesClaimed: [], makeupDay: 123, doubledDay: null },
+        });
+        expect(s.version).toBe(14);
+        expect(s.checkin.makeupDay).toBe('');
+        expect(s.checkin.doubledDay).toBe('');
+    });
+
+    it('v1 原始档也能一路迁到最新版', () => {
         const s = migrate({ version: 1, lingshi: 500 });
-        expect(s.version).toBe(13);
+        expect(s.version).toBe(14);
         expect(s.lingshi).toBe(500);
         expect(s.checkin.lastDay).toBe('');
     });
 
-    it('损坏档（null / 字符串 / 未知版本）→ 重置为 v9 缺省', () => {
-        expect(migrate(null).version).toBe(13);
-        expect(migrate('oops').version).toBe(13);
-        expect(migrate({ version: 99 }).version).toBe(13);
+    it('损坏档（null / 字符串 / 未知版本）→ 重置为最新版缺省', () => {
+        expect(migrate(null).version).toBe(14);
+        expect(migrate('oops').version).toBe(14);
+        expect(migrate({ version: 99 }).version).toBe(14);
         expect(migrate({ version: 99 }).checkin.streak).toBe(0);
     });
 });
@@ -222,5 +397,45 @@ describe('M26 签到入账（CheckinSystem）', () => {
         expect(s.lingshi).toBe(defaultSave().lingshi);
         expect(s.checkin.streak).toBe(1);
         expect(sys.view(s, new Date(Date.UTC(2026, 2, 1))).canClaim).toBe(false);
+    });
+
+    it('A20 补签入账：灵石按昨日档位（不吃加成），无依赖时只推进状态', () => {
+        const s = defaultSave();
+        s.xiuwei = 6000; // 抬高小等级，若吃加成则入账会被放大
+        const eco = new EconomySystem(s);
+        const sys = new CheckinSystem(eco, new AlchemySystem(eco));
+        for (let i = 1; i <= 5; i++) sys.claim(s, new Date(Date.UTC(2026, 2, i)));
+        const before = s.lingshi;
+        const earnedBefore = s.stats.lingshiEarned;
+        // 漏 03-06，03-07 补签
+        expect(sys.makeup(s, new Date(Date.UTC(2026, 2, 7)))!.lingshi).toBe(350);
+        expect(s.lingshi - before).toBe(350);
+        expect(s.stats.lingshiEarned - earnedBefore).toBe(350);
+        expect(sys.makeup(s, new Date(Date.UTC(2026, 2, 7)))).toBeNull(); // 幂等
+
+        const pure = defaultSave();
+        const pureSys = new CheckinSystem();
+        runDays(pure, '2026-03-01', 5);
+        expect(pureSys.makeup(pure, new Date(Date.UTC(2026, 2, 7)))!.lingshi).toBe(350);
+        expect(pure.lingshi).toBe(defaultSave().lingshi); // 不入账
+        expect(pure.checkin.lastDay).toBe('2026-03-06'); // 但推进状态
+    });
+
+    it('A20 双倍入账：仅灵石一份（机缘/灵材不翻倍），totalDays 不动', () => {
+        const s = defaultSave();
+        const eco = new EconomySystem(s);
+        const alch = new AlchemySystem(eco);
+        const sys = new CheckinSystem(eco, alch);
+        for (let i = 1; i <= 7; i++) sys.claim(s, new Date(Date.UTC(2026, 2, i)));
+        expect(s.jiyuan).toBe(10); // 第 7 天档机缘已入账一次
+        const before = s.lingshi;
+        const totalBefore = s.checkin.totalDays;
+        const r = sys.double(s, new Date(Date.UTC(2026, 2, 7)));
+        expect(r).toEqual({ lingshi: 800, jiyuan: 0, mats: {} });
+        expect(s.lingshi - before).toBe(800);
+        expect(s.jiyuan).toBe(10); // 不翻倍
+        expect(alch.materialOf(s, 'lingcao')).toBe(2); // 不翻倍
+        expect(s.checkin.totalDays).toBe(totalBefore);
+        expect(sys.double(s, new Date(Date.UTC(2026, 2, 7)))).toBeNull(); // 幂等
     });
 });

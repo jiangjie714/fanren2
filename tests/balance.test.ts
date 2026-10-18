@@ -232,7 +232,12 @@ describe('数值平衡模拟（打印报告，宽松断言防崩坏）', () => {
             // M31 宗门（#57）**不纳入本口径**：俸禄零灵石（修为+贡献点+碎片），捐献是纯沉没
             // （只返 20% 贡献点），商店灵石回流 ≤500/日 → 宗门对日灵石净收入只减不增；
             // 机缘仅商店日限 3（≈95 < 120），灵材零触碰。故护栏数值不动，口径记于此。
-            expect(net).toBeLessThanOrEqual(10_800);
+            // A20 补签/双倍（#58）：**上限重定 10800 → 11600**。补签最坏 +350（补第 6 天
+            // 350 + 领第 7 天 800，典型一日最坏 10249 → 10599，不爆）；双倍最坏 +800
+            // （第 7 天灵石 ×2，10249 → 11049，爆旧上限 249）→ 抬到 11600（余量 ≈551，
+            // ≈4.8%，与 M29 同档）。灵材 40 / 机缘 120 **不动**：两个功能最坏档对这两项
+            // 增量均为 0（补签永远拿不到两个第 7 天档；双倍刻意只翻灵石）。
+            expect(net).toBeLessThanOrEqual(11_600);
             expect(jiyuanGranted).toBeLessThanOrEqual(120);
 
             // #38 纳入灵材/丹药消耗口径：当日产出的灵石+灵材投入炼丹/福禄（纯 SINK），
@@ -285,13 +290,82 @@ describe('数值平衡模拟（打印报告，宽松断言防崩坏）', () => {
         expect(m30!.jiyuan).toBe(30);
 
         // 单日机缘增量 40（周期大奖 10 + 30 天档 30），远低于 120 上限；
-        // 灵石 1300 只占 10800 上限的 12%；灵材 8 远低于 40
+        // 灵石 1300 只占 11600 上限的 11%；灵材 8 远低于 40
         expect(save.jiyuan).toBe(40);
         expect(save.jiyuan).toBeLessThanOrEqual(120);
-        // #38 日灵石净收入上限（M29 后 10800）：签到最坏单日 +1300 只占 12%
-        expect(save.lingshi).toBeLessThanOrEqual(10_800);
+        // #38 日灵石净收入上限（M29 后 10800，A20 补签/双倍后 11600）：签到最坏单日 +1300 只占 11%
+        expect(save.lingshi).toBeLessThanOrEqual(11_600);
         expect(alch.materialCount(save)).toBe(8);
         expect(save.xiuzhenTickets).toBe(1);
+    });
+
+    /**
+     * A20 补签最坏单日（#58）：漏登一天 → 补第 6 天档 + 领第 7 天大奖 + 30 天里程碑同日。
+     * 这是补签对灵石压力最大的一天：补+领 = 单模块 1150（+350 vs 不补），
+     * 典型一日最坏 10249 → 10599（≤10800 旧上限，不爆）；机缘/灵材 +0（补的第 6 天档
+     * 两者皆为 0，永远拿不到两个第 7 天档——补的昨日是第 7 天时今日必是轮回第 1 天）。
+     */
+    it('A20 补签最坏单日：补第 6 天 + 领第 7 天 + 30 天里程碑同日仍在 #38 上限内', () => {
+        const save: SaveData = defaultSave();
+        const eco = new EconomySystem(save);
+        const alch = new AlchemySystem(eco);
+        const ck = new CheckinSystem(eco, alch);
+
+        // 昨日（1969-12-31）漏登：lastDay 停在两天前 + streak=5 + totalDays=28
+        // （补 +1、领 +1 → 当日正好满 30 天，三条里程碑同日全领 = 最坏）
+        save.checkin.lastDay = '1969-12-30';
+        save.checkin.streak = 5;
+        save.checkin.totalDays = 28;
+        expect(ck.makeup(save, new Date(0))!.lingshi, '补的是「第 6 天」档').toBe(350);
+        const r = ck.claim(save, new Date(0));
+        expect(r!.lingshi, '补后今日照常领 = 第 7 天大奖').toBe(800);
+        expect(save.checkin.streak).toBe(7);
+        expect(save.checkin.totalDays).toBe(30);
+
+        ck.claimMilestone(save, 7);
+        ck.claimMilestone(save, 15);
+        expect(ck.claimMilestone(save, 30)!.jiyuan).toBe(30);
+
+        // 灵石 1850（初始 200 + 补 350 + 领 800 + 里程碑 500）只占 11600 的 16%；
+        // 机缘 40（大奖 10 + 30 天档 30）/ 灵材 8 与 M26 最坏日完全相同（+0）
+        expect(save.lingshi).toBe(1850);
+        expect(save.lingshi).toBeLessThanOrEqual(11_600);
+        expect(save.jiyuan).toBe(40);
+        expect(save.jiyuan).toBeLessThanOrEqual(120);
+        expect(alch.materialCount(save)).toBe(8);
+        expect(alch.materialCount(save)).toBeLessThanOrEqual(40);
+    });
+
+    /**
+     * A20 双倍最坏单日（#58）：第 7 天大奖 + 灵石翻倍 + 30 天里程碑同日。
+     * 双倍是灵石上限 10800 → 11600 的**唯一理由**（+800）：单模块 1600，
+     * 典型一日最坏 10249 → 11049（爆旧上限 249）。机缘/灵材 +0（只翻灵石）。
+     */
+    it('A20 双倍最坏单日：第 7 天大奖 + 翻倍 + 30 天里程碑同日仍在 #38 上限内', () => {
+        const save: SaveData = defaultSave();
+        const eco = new EconomySystem(save);
+        const alch = new AlchemySystem(eco);
+        const ck = new CheckinSystem(eco, alch);
+
+        save.checkin.lastDay = '1969-12-31';
+        save.checkin.streak = 6;
+        save.checkin.totalDays = 29;
+        expect(ck.claim(save, new Date(0))!.lingshi).toBe(800);
+        expect(ck.double(save, new Date(0)), '今日已领 → 可翻倍').toEqual({ lingshi: 800, jiyuan: 0, mats: {} });
+        expect(save.checkin.totalDays, '翻倍不计登录天数').toBe(30);
+
+        ck.claimMilestone(save, 7);
+        ck.claimMilestone(save, 15);
+        expect(ck.claimMilestone(save, 30)!.jiyuan).toBe(30);
+
+        // 灵石 2300（初始 200 + 大奖 800 + 翻倍 800 + 里程碑 500）只占 11600 的 20%；
+        // 机缘 40 / 灵材 8 与 M26 最坏日完全相同（翻倍只翻灵石，+0）
+        expect(save.lingshi).toBe(2300);
+        expect(save.lingshi).toBeLessThanOrEqual(11_600);
+        expect(save.jiyuan).toBe(40);
+        expect(save.jiyuan).toBeLessThanOrEqual(120);
+        expect(alch.materialCount(save)).toBe(8);
+        expect(alch.materialCount(save)).toBeLessThanOrEqual(40);
     });
 
     /**
@@ -319,8 +393,8 @@ describe('数值平衡模拟（打印报告，宽松断言防崩坏）', () => {
         save.offline.lastAt = base;
         expect(sys.settle(save, base + 480 * 60_000)).toBeNull();
 
-        // 占 #38 日净收入上限（10800）的比例：挂机永远只能是「回来的小惊喜」
-        expect(288).toBeLessThanOrEqual(10_800 * 0.05);
+        // 占 #38 日净收入上限（A20 后 11600）的比例：挂机永远只能是「回来的小惊喜」
+        expect(288).toBeLessThanOrEqual(11_600 * 0.05);
         // 灵材 / 机缘零发放（#38 灵材上限 40 已被签到占满，离线不碰）
         expect(save.jiyuan).toBe(0);
         expect(Object.keys(save.fortune.materials).length).toBe(0);

@@ -8,6 +8,9 @@
  * 发奖统一复用既有账本，**不开新的加钱口子**：
  * - 灵石走 `addLingshi(n, false)` —— 免费发放不吃小等级加成（与灵石救济 #19 同口径）；
  * - 机缘走 `addJiyuan`；灵材走 `AlchemySystem.addMaterial`；券走 `save.xiuzhenTickets`。
+ *
+ * A20（#58）：`makeup`（补领昨日档位）/ `double`（今日灵石翻倍）两个广告触发入口，
+ * 奖励同样全部来自既有七日轮回表，入账路径与 `claim` 完全同构。
  */
 import { SaveData, todayString } from '../saveModel';
 import {
@@ -17,6 +20,8 @@ import {
     checkinView,
     claimCheckin,
     claimMilestone,
+    doubleCheckin,
+    makeupCheckin,
 } from '../checkin';
 import { EconomySystem } from './EconomySystem';
 import { AlchemySystem } from './AlchemySystem';
@@ -54,6 +59,28 @@ export class CheckinSystem {
         this.grant(save, m);
         if (m.tickets > 0) save.xiuzhenTickets += m.tickets;
         return m;
+    }
+
+    /**
+     * A20 补签并入账（看广告触发）：补领昨日档位完整奖励，连续不断。
+     * 不可补（gap≠2 / 已领今日 / 补过）返回 null（幂等）。
+     */
+    makeup(save: SaveData, now: Date = new Date()): CheckinReward | null {
+        const r = makeupCheckin(save, todayString(now));
+        if (!r) return null;
+        this.grant(save, r);
+        return r;
+    }
+
+    /**
+     * A20 双倍签到并入账（看广告触发）：今日灵石奖励再得一份（机缘/灵材不翻倍）。
+     * 今日未领 / 已翻倍过返回 null（幂等）。
+     */
+    double(save: SaveData, now: Date = new Date()): CheckinReward | null {
+        const r = doubleCheckin(save, todayString(now));
+        if (!r) return null;
+        this.grant(save, r);
+        return r;
     }
 
     private grant(save: SaveData, r: Grantable): void {

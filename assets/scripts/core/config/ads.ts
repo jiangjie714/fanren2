@@ -1,12 +1,14 @@
 /** 表 4：广告配置表（PRD 2.5 / 附件表4 + M11 论武蓄力 + M14 秘境三件套 + M15 妖径）
  *  M14-5（#46）：移除 illusionExtra（幻境加次——次数经济已被体力制取代，无调用方），
  *  新增 trialStamina / trialRevive / doubleReward，总数 7 → 9。
- *  M15（#47）：移除 expeditionRecall（旧历练挂机召回——挂机玩法退役，无调用方），
+ * M15（#47）：移除 expeditionRecall（旧历练挂机召回——挂机玩法退役，无调用方），
  *  新增 trailRevive（妖径失败回魂，单局限 1 次）/ trailHint（妖径凝神一瞥/洗牌，
  *  M16/M17 玩法接入后启用），总数 9 → 10。
- *  M22（#48）：新增 towerRevive（剑冢回魂再战，每局 3 次），总数 10 → 11。
- *  M22b（#51）：新增 towerDouble（剑冢本局煞晶翻倍，每局 1 次增益位），总数 11 → 12。 */
-export type AdPlace = 'dailyGift' | 'purify' | 'protect' | 'doubleXiuwei' | 'pkCharge' | 'trialRevive' | 'trialStamina' | 'doubleReward' | 'trailRevive' | 'trailHint' | 'towerRevive' | 'towerDouble';
+ * M22（#48）：新增 towerRevive（剑冢回魂再战，每局 3 次），总数 10 → 11。
+ * M22b（#51）：新增 towerDouble（剑冢本局煞晶翻倍，每局 1 次增益位），总数 11 → 12。
+ * A20（#58）：新增 checkinMakeup（昨日补签，漏登 1 天的有价补救）/ checkinDouble
+ *  （签到翻倍，今日灵石 ×2），总数 12 → 14。 */
+export type AdPlace = 'dailyGift' | 'purify' | 'protect' | 'doubleXiuwei' | 'pkCharge' | 'trialRevive' | 'trialStamina' | 'doubleReward' | 'trailRevive' | 'trailHint' | 'towerRevive' | 'towerDouble' | 'checkinMakeup' | 'checkinDouble';
 
 export interface AdPlaceConfig {
     place: AdPlace;
@@ -31,6 +33,8 @@ export const AD_PLACES: Record<AdPlace, AdPlaceConfig> = {
     trailHint:        { place: 'trailHint',        name: '凝神一瞥', location: '妖径拼图/三消关', dailyLimit: 3, reward: '看完整原图 1 秒 / 洗牌重排（M16/M17 接入）' },
     towerRevive:      { place: 'towerRevive',      name: '剑冢回魂', location: '剑冢战斗页', dailyLimit: -1, reward: '剑罡回满重打本层，本局剑气 ×1.25（每局 3 次）' },
     towerDouble:      { place: 'towerDouble',      name: '剑冢翻倍', location: '剑冢首页',   dailyLimit: -1, reward: '本局通关煞晶产出 ×2（每局 1 次增益位）' },
+    checkinMakeup:    { place: 'checkinMakeup',    name: '昨日补签', location: '签到页',    dailyLimit: 1,  reward: '补领昨日签到档位奖励，连续天数不断' },
+    checkinDouble:    { place: 'checkinDouble',    name: '签到翻倍', location: '签到页',    dailyLimit: 1,  reward: '今日签到灵石奖励再得一份' },
 };
 
 /** 抖音激励广告位 ID（上线前在字节后台申请后填入） */
@@ -47,4 +51,6 @@ export const DOUYIN_AD_UNIT_IDS: Record<AdPlace, string> = {
     trailHint: '',
     towerRevive: '',
     towerDouble: '',
+    checkinMakeup: '',
+    checkinDouble: '',
 };

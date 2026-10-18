@@ -15,7 +15,7 @@
 
 ```bash
 npm install            # 安装 vitest / typescript（首次）
-npm test               # 运行 530 个数值/玩法单测（数值核心/导航回归/M7 交互/M8 日常/M9 成就/排行解码/数值护栏/战斗/签到/引导/离线吐纳/剧情文本/宗门社交）
+npm test               # 运行 544 个数值/玩法单测（数值核心/导航回归/M7 交互/M8 日常/M9 成就/排行解码/数值护栏/战斗/签到/引导/离线吐纳/剧情文本/宗门社交）
 npm run build:web      # 构建 web-mobile（本机预览验证用）
 npm run build:douyin   # 构建 bytedance-mini-game（抖音交付物）
 ```
@@ -42,7 +42,7 @@ assets/
     ├── infra/            # Game(装配+生命周期)/存档/广告(模拟+tt)/社交上报桩/音频/场景栈
     ├── ui/               # 程序化国风 UI 库（ThemeLib/弹窗/状态栏/合规弹窗）
     └── scenes/           # 29 个页面（含签到/吐纳/修行/历练/论道/幻境结算/仙闻录）
-tests/                    # Vitest 33 文件 530 例：core(29)/nav/m7/m8/m9/m9b(8)/balance/combat/checkin/guide/offline/story/sect
+tests/                    # Vitest 33 文件 544 例：core(29)/nav/m7/m8/m9/m9b(8)/balance/combat/checkin/guide/offline/story/sect
 tools/                    # build.mjs(双端构建+后处理+子域注入) / preview-server.mjs
                           # generate-art.py(美术+meta) / m7|m8|m9-shots.mjs(回归截图) / uuid.mjs
 open-data-context/        # M9b 开放数据域子域（纯 JS 好友榜渲染/对比，构建时自动拷入抖音产物）
@@ -51,7 +51,7 @@ build/bytedance-mini-game/  # 抖音交付物（game.json 等，构建生成）
 
 ## 广告位接入（上线前必填）
 
-`assets/scripts/core/config/ads.ts` → `DOUYIN_AD_UNIT_IDS`，**12 个广告位**（每日仙缘 / 净化劫雨 / 渡劫护道 / 修为加倍 / 论武蓄力 / 道心护持 / 体力补给 / 奖励翻倍 / 回魂再战 / 凝神一瞥 / 剑冢回魂 / 剑冢翻倍）上线前在字节小游戏后台申请并填入；`node tools/launch-check.mjs` 一键核对漏配。未填 ID 时广告点击自动降级为"跳过"（不发奖），不会报错。
+`assets/scripts/core/config/ads.ts` → `DOUYIN_AD_UNIT_IDS`，**14 个广告位**（每日仙缘 / 净化劫雨 / 渡劫护道 / 修为加倍 / 论武蓄力 / 道心护持 / 体力补给 / 奖励翻倍 / 回魂再战 / 凝神一瞥 / 剑冢回魂 / 剑冢翻倍 / 昨日补签 / 签到翻倍）上线前在字节小游戏后台申请并填入；`node tools/launch-check.mjs` 一键核对漏配。未填 ID 时广告点击自动降级为"跳过"（不发奖），不会报错。补签/翻倍两个新位（A20）的 UI 接线待 B1 ID 就绪后落地（T4），配置与判定层已就绪。
 
 Web 调试端使用模拟广告弹窗（3 秒倒计时自动成功），所有广告均由玩家主动点击触发（合规要求）。
 
@@ -69,7 +69,7 @@ Web 调试端使用模拟广告弹窗（3 秒倒计时自动成功），所有�
 2. **字节小程序开发者账号 + 小游戏 AppID**：开发/上传必需（AppID 已配置在 `tools/build.mjs`，构建时自动注入产物）
 3. **游戏软著**：抖音小游戏上线审核必需材料
 4. **版号**：仅当要开启内购（仙尊月卡/外观）时必需；无版号保持 `core/config/iap.ts` 的 `IAP_ENABLED = false`（内购入口自动隐藏，纯广告变现合规）
-5. **流量主/广告位**：上线且满足流量条件后申请 12 个激励视频广告位 ID（见上节）
+5. **流量主/广告位**：上线且满足流量条件后申请 14 个激励视频广告位 ID（见上节）
 6. **用户协议 / 隐私政策页面 URL**：设置页与首页底部需要外链（当前为占位文案）
 7. **包体积**：✅ 已达标（2026-10-05）——美术迁入 `subres` 分包（构建扩展自动重组产物）+ 功能裁剪关闭 physics-2d/spine/dragon-bones 等零依赖模块 + 面板任务持久化引擎分离，**主包 1.18MB + 分包 0.95MB（总 2.12MB）**，远低于主包 4MB/单分包 4MB 硬限。真机调试/提审产物用 `node tools/douyin-editor-build.mjs` 一键构建（前置：编辑器带 `--remote-debugging-port=9333` 打开工程）；`npm run build:douyin` 的 CLI 产物含全部注入但无引擎分离（≈4.5MB，预览可用）。分包目录的 `game.js` 入口桩由构建扩展自动生成（抖音校验器硬性要求）
 8. **合规自查**（PRD 红线，代码已满足）：无赌博暗示词汇、概率公示（设置页/首页底部）、广告不强制弹出、内购不影响突破概率

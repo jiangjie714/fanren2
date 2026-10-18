@@ -164,6 +164,9 @@ export interface TowerState {
  * 签到进度。**刻意放顶层而非 daily**：连续天数是跨日持久语义，
  * 放进 daily 会让「每日状态」与「连续状态」混淆（daily 语义是「每天清一次」）。
  * `lastDay` 同时承担「今日是否已领」的判定（=== today 即已领），故无需额外布尔字段。
+ *
+ * v14（A20 补签/双倍，#58）：新增 `makeupDay`/`doubledDay` 两个日键幂等字段，
+ * 空串 = 从未补过/翻过——老档（v13）迁移时无脑补空串即正确语义。
  */
 export interface CheckinState {
     /** 上次领取日期 YYYY-MM-DD；'' = 从未领取（首日即可领第 1 档） */
@@ -174,6 +177,10 @@ export interface CheckinState {
     totalDays: number;
     /** 已领取的里程碑天数（幂等） */
     milestonesClaimed: number[];
+    /** 上次补签补的是哪一天（'' = 从未补签）；UI 展示 + 防重复补 */
+    makeupDay: string;
+    /** 上次双倍签到发生在哪一天（'' = 从未翻倍）；幂等键，同 claimedToday 范式 */
+    doubledDay: string;
 }
 
 /**
@@ -249,7 +256,7 @@ export interface SectState {
 }
 
 export interface SaveData {
-    version: 13;
+    version: 14;
     lingshi: number;
     xiuwei: number;
     jiyuan: number;
@@ -330,7 +337,7 @@ const OFFLINE_DAY_CAP_MIRROR = 480;
 
 export function defaultSave(): SaveData {
     return {
-        version: 13,
+        version: 14,
         lingshi: INITIAL_LINGSHI,
         xiuwei: 0,
         jiyuan: 0,
@@ -402,6 +409,9 @@ export function defaultSave(): SaveData {
             streak: 0,
             totalDays: 0,
             milestonesClaimed: [],
+            // v14 A20：没补过没翻过
+            makeupDay: '',
+            doubledDay: '',
         },
         tutorial: { done: false },
         // v11 离线吐纳：lastAt 取「此刻」——新玩家不会一进门就收到「离线十年」的假象
@@ -433,7 +443,7 @@ export function migrate(raw: unknown): SaveData {
     const d = defaultSave();
     if (!raw || typeof raw !== 'object') return d;
     const r = raw as Record<string, unknown>;
-    if (r.version !== 1 && r.version !== 2 && r.version !== 3 && r.version !== 4 && r.version !== 5 && r.version !== 6 && r.version !== 7 && r.version !== 8 && r.version !== 9 && r.version !== 10 && r.version !== 11 && r.version !== 12 && r.version !== 13) return d;
+    if (r.version !== 1 && r.version !== 2 && r.version !== 3 && r.version !== 4 && r.version !== 5 && r.version !== 6 && r.version !== 7 && r.version !== 8 && r.version !== 9 && r.version !== 10 && r.version !== 11 && r.version !== 12 && r.version !== 13 && r.version !== 14) return d;
     const profile = { ...d.profile, ...(r.profile as object ?? {}) };
     const srcTrial = (r.trial as Partial<TrialState>) ?? {};
     return {
@@ -504,7 +514,8 @@ export function migrate(raw: unknown): SaveData {
         story: migrateStory(r.story),
         // v13：宗门社交（v12 老档无此字段 → 未加入，进论道页自选，不补课）
         sect: migrateSect(r.sect),
-        version: 13,
+        // v14：补签/双倍幂等日键（v13 老档无此字段 → 空串，见 migrateCheckin）
+        version: 14,
     } as SaveData;
 }
 
@@ -585,7 +596,8 @@ function migrateSect(raw: unknown): SectState {
     };
 }
 
-/** v9 签到字段迁移：streak/totalDays 非负整数钳制，milestonesClaimed 去重有序，lastDay 非字符串回退空串 */
+/** v9 签到字段迁移：streak/totalDays 非负整数钳制，milestonesClaimed 去重有序，lastDay 非字符串回退空串；
+ *  v14（A20）：makeupDay/doubledDay 非字符串钳制为空串（老档无此字段 → 没补过没翻过） */
 function migrateCheckin(raw: unknown): CheckinState {
     const d = defaultSave().checkin;
     const c = (raw ?? {}) as Partial<CheckinState>;
@@ -599,6 +611,8 @@ function migrateCheckin(raw: unknown): CheckinState {
         streak: clampIntOr(c.streak, 0),
         totalDays: clampIntOr(c.totalDays, 0),
         milestonesClaimed: ms,
+        makeupDay: typeof c.makeupDay === 'string' ? c.makeupDay : d.makeupDay,
+        doubledDay: typeof c.doubledDay === 'string' ? c.doubledDay : d.doubledDay,
     };
 }
 
