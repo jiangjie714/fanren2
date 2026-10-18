@@ -436,6 +436,17 @@ export const TEXTS = {
     checkinMilestoneToast: (days: number) => `累计问道 ${days} 天，里程碑之礼已入囊中`,
     checkinHint: '每日回来问一句道，连续七日可得周期大礼；中断则从首日重新计起。',
 
+    // ---------- #58 补签 / 双倍签到（A20） ----------
+    checkinMakeupTitle: '昨日断签',
+    checkinMakeupDesc: (day: number, lingshi: number) => `补领第 ${day} 天档 · 灵石 ${lingshi}，连续不断`,
+    checkinMakeupWarn: '若先领今日，则无法再补昨日',
+    checkinMakeupBtn: '看广告 · 补领昨日',
+    checkinMakeupToast: (text: string) => `补领昨日所得：${text}`,
+    checkinDoubleBtn: '看广告 · 今日灵石翻倍',
+    checkinDoubleDone: '今日已翻倍',
+    checkinDoubleToast: (lingshi: number) => `今日问道之礼已翻倍：灵石 ${lingshi} 再得一份`,
+    checkinAdSkip: '广告未看完，明日再来',
+
     // ---------- #54 新手引导（M27） ----------
     guideStep1Title: '第一步 · 求仙缘',
     guideStep1Body: '机缘是突破的根本。点这里进仙缘宝盒，开箱攒机缘。',

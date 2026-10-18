@@ -333,14 +333,22 @@ function manualHtml() {
         });
         const imgs = c.imgs.filter(([f]) => existsSync(SHOT(f)));
         if (imgs.length) {
-            const cls = imgs.length === 1 ? 'n1' : imgs.length === 2 ? 'n2' : 'n34';
-            pages.push(`<section class="page">
-<h2 class="ph">${esc(c.h)}　界面示意</h2>
-<div class="figs ${cls}">${imgs
-                .map(([f, cap], gi) => `<figure><img src="${shotDataUri(f)}"><figcaption>图 ${ci + 1}-${gi + 1}　${esc(cap)}</figcaption></figure>`)
-                .join('')}</div>
+            // 每页最多 4 张（n34 网格 2×2）；超出必须拆成多个图页——全塞一个 section
+            // 会溢出成物理两页，而页眉页码是按 section 注入的，续页会缺页眉、页码断档
+            // （A20 签到章 6 图踩过，53 页手册第 21 页无页眉）。每图页独立 section。
+            const imgPages = Math.ceil(imgs.length / 4);
+            for (let gi0 = 0; gi0 < imgs.length; gi0 += 4) {
+                const group = imgs.slice(gi0, gi0 + 4);
+                const cls = group.length === 1 ? 'n1' : group.length === 2 ? 'n2' : 'n34';
+                const suffix = imgPages > 1 ? `　界面示意（${gi0 / 4 + 1}/${imgPages}）` : '　界面示意';
+                pages.push(`<section class="page">
+<h2 class="ph">${esc(c.h)}${suffix}</h2>
+<div class="figs ${cls}">${group
+        .map(([f, cap], gi) => `<figure><img src="${shotDataUri(f)}"><figcaption>图 ${ci + 1}-${gi0 + gi + 1}　${esc(cap)}</figcaption></figure>`)
+        .join('')}</div>
 <p class="fig-note">注：以上界面截图均为本软件实际运行画面，具体数值以软件内实际显示为准。</p>
 </section>`);
+            }
         }
     }
 
@@ -351,7 +359,7 @@ function manualHtml() {
 <p>版 本 号：${esc(VERSION)}</p>
 <p>著作权人：${esc(OWNER)}</p>
 <p>编程语言：TypeScript 5.4</p>
-<p>源程序量：17491 行（90 个 TypeScript 源文件）</p>
+<p>源程序量：19854 行（101 个 TypeScript 源文件）</p>
 <p>运行环境：抖音小游戏；Android 8.0 及以上 / iOS 12.0 及以上</p>
 <p>开发完成日期：见《计算机软件著作权登记申请表》</p>
 <p>本手册所述界面与操作以软件实际运行效果为准。</p>

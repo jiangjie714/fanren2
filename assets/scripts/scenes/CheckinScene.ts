@@ -2,7 +2,8 @@ import { Layers, Node, UIOpacity } from 'cc';
 import { IScene } from '../infra/SceneStack';
 import { Game } from '../infra/Game';
 import { AudioMgr } from '../infra/AudioMgr';
-import { CHECKIN_REWARDS, CheckinMilestone, CheckinReward, CheckinView } from '../core/checkin';
+import { Ads } from '../infra/Ads';
+import { CHECKIN_REWARDS, CheckinMilestone, CheckinReward, CheckinView, cycleDayOf } from '../core/checkin';
 import { MATERIALS } from '../core/config/alchemy';
 import { TEXTS } from '../core/config/texts';
 import { statusBar } from '../ui/StatusBar';
@@ -21,6 +22,9 @@ import {
 
 /**
  * M26 连续登录签到（#53）：七日轮回 + 累计里程碑，纯展示 + 两个领取按钮。
+ * A20（#58）：补签卡 / 翻倍钮三态布局（spec §4.4）——
+ *   常规态（gap=1 或从未领取）与存量完全一致；补签态插入补签卡并把主按钮
+ *   下移至 -340；翻倍态主按钮保持 -245、新增翻倍钮 -345。三态互斥。
  *
  * 布局（statusBar 底缘 370 → 内容从 364 起，安全区下限 -585）：
  *   摘要卡 y=306 → 七格面板 y=140 → 里程碑三行 15/-69/-153 → 主按钮 -245 → 底部提示 -330
@@ -55,11 +59,15 @@ export class CheckinScene implements IScene {
         this.renderSummary(n, v);
         this.renderBoard(n, v);
         this.renderMilestones(n, v);
+        // A20 三态：补签卡（未领且 gap=2）/ 翻倍钮（已领）互斥插入，常规态零感知
+        if (v.makeupAvailable) this.renderMakeupCard(n, v);
         this.renderClaimBtn(n, v);
+        if (v.claimedToday) this.renderDoubleBtn(n, v);
 
+        const hintY = v.makeupAvailable ? -445 : v.claimedToday ? -440 : -330;
         labelL(n, TEXTS.checkinHint, 17, {
             color: faded(THEME.inkSoft, 200), width: 600, shrink: true,
-        }).setPosition(-300, -330, 0);
+        }).setPosition(-300, hintY, 0);
     }
 
     // ── 顶部摘要卡：连续天数 + 累计天数 + 轮回提示 ──
@@ -146,7 +154,7 @@ export class CheckinScene implements IScene {
         });
     }
 
-    // ── 主按钮：领取今日 ──
+    // ── 主按钮：领取今日（补签态下移让位补签卡）──
     private renderClaimBtn(n: Node, v: CheckinView) {
         const canClaim = v.canClaim && !!v.pending;
         const text = canClaim ? TEXTS.checkinClaim(v.pending!.lingshi) : TEXTS.checkinClaimDone;
@@ -155,8 +163,46 @@ export class CheckinScene implements IScene {
             variant: 'primary',
             textColor: canClaim ? THEME.void : THEME.disabled,
         });
-        btn.node.setPosition(0, -245, 0);
+        btn.node.setPosition(0, v.makeupAvailable ? -340 : -245, 0);
         if (!canClaim) dimNode(btn.node, 130);
+    }
+
+    // ── A20 补签卡：恰好漏昨日时可看广告补领（与主领取互斥：先领则本卡消失）──
+    private renderMakeupCard(n: Node, v: CheckinView) {
+        const card = spritePanel(n, 660, 72, undefined, THEME.tintPanel);
+        card.setPosition(0, -235, 0);
+        fadeIn(card, 12, 0.09);
+
+        label(card, TEXTS.checkinMakeupTitle, 20, { bold: true, color: THEME.goldLight })
+            .setPosition(-300, 18, 0);
+        // 补领的是「昨日档位」= 当前连续天数的下一档（补后今日照常领 = 再下一档）
+        labelL(card, TEXTS.checkinMakeupDesc(cycleDayOf(v.streak + 1), v.makeupReward!.lingshi), 15, {
+            color: THEME.inkSoft, width: 380, shrink: true,
+        }).setPosition(-300, -6, 0);
+        // 顺序警示：单向选择（先领今日则无法补昨日），防玩家误操作后以为 bug（spec §5 R1）
+        labelL(card, TEXTS.checkinMakeupWarn, 12, {
+            color: faded(THEME.ash, 220), width: 380, shrink: true,
+        }).setPosition(-300, -26, 0);
+
+        const btn = spriteButton(card, 210, 64, TEXTS.checkinMakeupBtn, () => this.onMakeup(), {
+            fontSize: 19,
+            variant: 'primary',
+            textColor: THEME.void,
+        });
+        btn.node.setPosition(215, 0, 0);
+    }
+
+    // ── A20 翻倍钮：今日已领后可看广告把今日灵石再得一份（翻过后置灰展示）──
+    private renderDoubleBtn(n: Node, v: CheckinView) {
+        const active = v.doubleAvailable;
+        const btn = spriteButton(n, 420, 72, active ? TEXTS.checkinDoubleBtn : TEXTS.checkinDoubleDone, () => this.onDouble(), {
+            fontSize: 26,
+            variant: 'secondary',
+            textColor: active ? THEME.goldLight : THEME.disabled,
+        });
+        btn.node.setPosition(0, -345, 0);
+        // 置灰只压透明度：setEnabled(false) 会让回调一并失效（M22 踩过）
+        if (!active) dimNode(btn.node, 130);
     }
 
     private onClaim() {
@@ -180,6 +226,46 @@ export class CheckinScene implements IScene {
         toast(this.node, TEXTS.checkinMilestoneToast(days));
         Game.persist();
         this.build();
+    }
+
+    /** A20 补签：看广告补领昨日档位（onSkip 不发奖不推进；onSuccess 入账后重建） */
+    private onMakeup() {
+        const v = Game.checkin.view(Game.save);
+        if (!v.makeupAvailable) {
+            toast(this.node, TEXTS.checkinAdSkip);
+            return;
+        }
+        Ads.show('checkinMakeup', this.node, {
+            onSuccess: () => {
+                const r = Game.checkin.makeup(Game.save);
+                if (!r) return;
+                AudioMgr.play('success');
+                toast(this.node, TEXTS.checkinMakeupToast(rewardText(r)));
+                Game.persist();
+                this.build();
+            },
+            onSkip: () => toast(this.node, TEXTS.checkinAdSkip),
+        });
+    }
+
+    /** A20 双倍：看广告把今日灵石再得一份（仅灵石；doubledDay 幂等由判定层保证） */
+    private onDouble() {
+        const v = Game.checkin.view(Game.save);
+        if (!v.doubleAvailable) {
+            toast(this.node, TEXTS.checkinDoubleDone);
+            return;
+        }
+        Ads.show('checkinDouble', this.node, {
+            onSuccess: () => {
+                const r = Game.checkin.double(Game.save);
+                if (!r) return;
+                AudioMgr.play('success');
+                toast(this.node, TEXTS.checkinDoubleToast(r.lingshi));
+                Game.persist();
+                this.build();
+            },
+            onSkip: () => toast(this.node, TEXTS.checkinAdSkip),
+        });
     }
 }
 

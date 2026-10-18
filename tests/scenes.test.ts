@@ -421,6 +421,8 @@ import { DaoFriendScene } from '../assets/scripts/scenes/DaoFriendScene';
 import { WeaponScene } from '../assets/scripts/scenes/WeaponScene';
 import { PathScene } from '../assets/scripts/scenes/PathScene';
 import { CheckinScene } from '../assets/scripts/scenes/CheckinScene';
+import { Ads } from '../assets/scripts/infra/Ads';
+import { shiftDay } from '../assets/scripts/core/checkin';
 import { OfflineScene } from '../assets/scripts/scenes/OfflineScene';
 import { PlayerScene } from '../assets/scripts/scenes/PlayerScene';
 import { GuideLayer } from '../assets/scripts/ui/GuideLayer';
@@ -665,6 +667,193 @@ describe('场景集成：HomeScene 入口接线（导航错乱回归）', () => 
         const afterMs = Game.save.lingshi;
         ms!.onClick();
         expect(Game.save.lingshi, '里程碑重复领取必须幂等').toBe(afterMs);
+    });
+
+    // ── A20 补签 / 双倍签到（#58，spec 2026-10-18 §4.4 三态布局）──
+    describe('A20 签到页三态：补签卡 / 翻倍钮 / 常规态', () => {
+        /** 可控 provider：只记录 place 与回调，不弹窗 */
+        let adCalls: Array<{ place: string; cb: { onSuccess: () => void; onSkip?: () => void } }> = [];
+
+        beforeEach(() => {
+            adCalls = [];
+            Ads.setProvider({
+                show: (place, _host, cb) => {
+                    adCalls.push({ place: place as string, cb });
+                },
+            });
+            Ads.setSimAuto(false);
+        });
+
+        afterEach(() => {
+            // 结算未完成的广告，防 inFlight 单飞守卫泄漏到下一用例
+            const last = adCalls[adCalls.length - 1];
+            if (last) last.cb.onSuccess();
+            adCalls = [];
+        });
+
+        /** 取最后一次匹配的按钮世界坐标 y（场景重建会留旧记录） */
+        function btnY(pred: (b: { text: string }) => boolean): number | undefined {
+            const b = lastBtn(pred);
+            return b ? (b.node as { getPosition(): { y: number } }).getPosition().y : undefined;
+        }
+
+        /**
+         * 重建后只检查**新渲染**的按钮/文案：mock 的 removeAllChildren 不销毁旧节点，
+         * registry 会累积历史记录（M31 lastBtn 教训），故先记标记再切片。
+         */
+        function freshAfter(mark: number) {
+            return {
+                btns: h.registry.buttons.slice(mark),
+                texts: h.registry.labels.slice(mark).map((l) => (l.comp as { string: string }).string),
+            };
+        }
+
+        it('补签态（gap=2）：渲染补签卡 + 顺序警示，主按钮下移 -340，看广告入账后补签入口消失', () => {
+            bootGame();
+            const today = todayString(new Date());
+            const yesterday = shiftDay(today, -1)!;
+            // streak=5、恰好漏昨日（gap=2）→ 可补第 6 天档（350）
+            Game.save.checkin.lastDay = shiftDay(today, -2)!;
+            Game.save.checkin.streak = 5;
+            Game.save.checkin.totalDays = 5;
+
+            const scene = new CheckinScene();
+            scene.onEnter();
+
+            // 补签卡：标题 + 「补领第 6 天档 · 灵石 350」+ 顺序警示（防误操作投诉）
+            const labels = h.registry.labels.map((l) => (l.comp as { string: string }).string);
+            expect(labels, '应渲染补签卡标题').toContain(TEXTS.checkinMakeupTitle);
+            expect(labels).toContain(TEXTS.checkinMakeupDesc(6, 350));
+            expect(labels, '必须含顺序警示（先领今日则无法补昨日）').toContain(TEXTS.checkinMakeupWarn);
+            // 主按钮下移到 -340（给补签卡让位），仍是可领态
+            expect(btnY((b) => b.text.includes('领取今日')), '补签态主按钮应下移 -340').toBe(-340);
+
+            const makeupBtn = lastBtn((b) => b.text === TEXTS.checkinMakeupBtn);
+            expect(makeupBtn, '未渲染「看广告 · 补领昨日」按钮').toBeTruthy();
+
+            // 看广告 → provider 记录 checkinMakeup；onSuccess 后完整入账
+            makeupBtn!.onClick();
+            expect(adCalls, '应触发 checkinMakeup 广告位').toHaveLength(1);
+            expect(adCalls[0].place).toBe('checkinMakeup');
+            const before = Game.save.lingshi;
+            const mark = h.registry.buttons.length;
+            adCalls[0].cb.onSuccess();
+
+            expect(Game.save.lingshi - before, '补领第 6 天档应为 350 灵石').toBe(350);
+            expect(Game.save.checkin.streak, '补签后连续天数 +1').toBe(6);
+            expect(Game.save.checkin.totalDays).toBe(6);
+            expect(Game.save.checkin.lastDay, 'lastDay 改写为昨日（今日照常可领）').toBe(yesterday);
+            expect(Game.save.checkin.makeupDay).toBe(yesterday);
+
+            // 重建后补签入口消失（gap 变 1），主按钮回到 -245 且显示第 7 天档 800
+            const fresh = freshAfter(mark);
+            expect(fresh.btns.some((b) => b.text === TEXTS.checkinMakeupBtn), '补领后补签卡必须消失').toBe(false);
+            const claimAfter = fresh.btns.filter((b) => b.text.includes('领取今日')).pop();
+            expect(claimAfter, '补领后主按钮应仍在').toBeTruthy();
+            expect((claimAfter!.node as { getPosition(): { y: number } }).getPosition().y, '常规态主按钮应回 -245').toBe(-245);
+            expect(claimAfter!.text, '补后今日应领第 7 天档 800').toContain('800');
+        });
+
+        it('补签 onSkip：广告未看完 → 不发奖不推进状态', () => {
+            bootGame();
+            const today = todayString(new Date());
+            Game.save.checkin.lastDay = shiftDay(today, -2)!;
+            Game.save.checkin.streak = 3;
+
+            const scene = new CheckinScene();
+            scene.onEnter();
+            const makeupBtn = lastBtn((b) => b.text === TEXTS.checkinMakeupBtn);
+            makeupBtn!.onClick();
+            const before = Game.save.lingshi;
+            adCalls[0].cb.onSkip?.();
+
+            expect(Game.save.lingshi, 'onSkip 不得发奖').toBe(before);
+            expect(Game.save.checkin.streak, 'onSkip 不得推进连续天数').toBe(3);
+            expect(Game.save.checkin.makeupDay, 'onSkip 不得写 makeupDay').toBe('');
+            scene.onResume();
+            expect(lastBtn((b) => b.text === TEXTS.checkinMakeupBtn), 'onSkip 后补签入口应仍在').toBeTruthy();
+        });
+
+        it('先领今日则补签入口消失（单向选择）→ 领完翻倍钮出现', () => {
+            bootGame();
+            const today = todayString(new Date());
+            Game.save.checkin.lastDay = shiftDay(today, -2)!;
+            Game.save.checkin.streak = 5;
+
+            const scene = new CheckinScene();
+            scene.onEnter();
+            expect(lastBtn((b) => b.text === TEXTS.checkinMakeupBtn), '未领时应可补').toBeTruthy();
+
+            // 先领今日 → 重建 → 补签卡消失、翻倍钮出现（互斥三态不会打架）
+            const mark = h.registry.buttons.length;
+            lastBtn((b) => b.text.includes('领取今日'))!.onClick();
+            expect(Game.save.checkin.streak, '先领今日 = 断签重置后的第 1 档').toBe(1);
+            const fresh = freshAfter(mark);
+            expect(fresh.btns.some((b) => b.text === TEXTS.checkinMakeupBtn), '先领后补签入口必须消失').toBe(false);
+
+            const dbl = fresh.btns.filter((b) => b.text === TEXTS.checkinDoubleBtn).pop();
+            expect(dbl, '今日已领后应出现翻倍钮').toBeTruthy();
+            expect((dbl!.node as { getPosition(): { y: number } }).getPosition().y, '翻倍钮 y 应为 -345').toBe(-345);
+            expect(btnY((b) => b.text.includes('今日已问道')), '翻倍态主按钮保持 -245').toBe(-245);
+        });
+
+        it('翻倍态：看广告今日灵石翻倍（仅灵石）→ doubledDay 幂等，重复入账被拒', () => {
+            bootGame();
+            const today = todayString(new Date());
+            // 今日已领第 7 天档（streak=7 → 800）
+            Game.save.checkin.lastDay = today;
+            Game.save.checkin.streak = 7;
+            Game.save.checkin.totalDays = 7;
+
+            const scene = new CheckinScene();
+            scene.onEnter();
+            const dbl = lastBtn((b) => b.text === TEXTS.checkinDoubleBtn);
+            expect(dbl, '今日已领未翻倍时应渲染翻倍钮').toBeTruthy();
+
+            dbl!.onClick();
+            expect(adCalls).toHaveLength(1);
+            expect(adCalls[0].place).toBe('checkinDouble');
+            const before = Game.save.lingshi;
+            const earnedBefore = Game.save.stats.lingshiEarned;
+            const mark = h.registry.buttons.length;
+            adCalls[0].cb.onSuccess();
+
+            expect(Game.save.lingshi - before, '翻倍应再得一份今日档位灵石 800').toBe(800);
+            expect(Game.save.stats.lingshiEarned - earnedBefore).toBe(800);
+            expect(Game.save.checkin.doubledDay).toBe(today);
+            expect(Game.save.checkin.totalDays, '翻倍不得加累计天数（防广告刷里程碑）').toBe(7);
+
+            // 重建 → 翻倍钮转「今日已翻倍」置灰态；再点不触发广告、不入账
+            const fresh = freshAfter(mark);
+            const done = fresh.btns.filter((b) => b.text === TEXTS.checkinDoubleDone).pop();
+            expect(done, '翻倍后应显示已翻倍态').toBeTruthy();
+            expect(done!.enabled, '置灰不得停用回调').toBe(true);
+            const after = Game.save.lingshi;
+            done!.onClick();
+            expect(adCalls, '已翻倍后不得再触发广告').toHaveLength(1);
+            expect(Game.save.lingshi).toBe(after);
+        });
+
+        it('常规态（gap=1 / 从未领取）：无补签卡无翻倍钮，布局与存量完全一致', () => {
+            bootGame();
+            const today = todayString(new Date());
+            Game.save.checkin.lastDay = shiftDay(today, -1)!;
+            Game.save.checkin.streak = 4;
+
+            const scene = new CheckinScene();
+            scene.onEnter();
+            expect(lastBtn((b) => b.text === TEXTS.checkinMakeupBtn), 'gap=1 不应出现补签卡').toBeFalsy();
+            expect(lastBtn((b) => b.text === TEXTS.checkinDoubleBtn), '未领不应出现翻倍钮').toBeFalsy();
+            expect(btnY((b) => b.text.includes('领取今日')), '常规态主按钮保持 -245').toBe(-245);
+
+            // 从未领取同样零感知
+            Game.save.checkin.lastDay = '';
+            Game.save.checkin.streak = 0;
+            scene.onResume();
+            expect(lastBtn((b) => b.text === TEXTS.checkinMakeupBtn)).toBeFalsy();
+            expect(lastBtn((b) => b.text === TEXTS.checkinDoubleBtn)).toBeFalsy();
+            expect(btnY((b) => b.text.includes('领取今日'))).toBe(-245);
+        });
     });
 
     it('M29 吐纳入口（左侧 rail 圆钮 @-286,162，图标 icon_timer）→ 进吐纳页', () => {
