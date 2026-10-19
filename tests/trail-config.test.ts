@@ -289,7 +289,7 @@ describe('M15-T1 奖励表（#47）', () => {
     });
 
     it('M32 第 10 章混沌归墟：配比 4:3:2 且奖励按 1.35× 继续爬升', () => {
-        expect(TRAIL_CHAPTERS.length).toBeGreaterThanOrEqual(10); // 章节总数下界；精确基线见 M33 用例
+        expect(TRAIL_CHAPTERS.length).toBeGreaterThanOrEqual(10); // 章节总数下界；精确基线见 M34 用例
         const ch10 = TRAIL_CHAPTERS[9];
         expect(ch10.id).toBe('hundun');
         expect(ch10.name).toBe('混沌归墟');
@@ -342,7 +342,7 @@ describe('M15-T1 奖励表（#47）', () => {
     });
 
     it('M33 第 11 章溯光长河：配比 4:2:3 且奖励按 1.35× 继续爬升', () => {
-        expect(TRAIL_CHAPTERS.length).toBe(11); // ← 章节总数基线：M33 起 11 章
+        expect(TRAIL_CHAPTERS.length).toBeGreaterThanOrEqual(11); // 章节总数下界；精确基线见 M34 用例
         const ch11 = TRAIL_CHAPTERS[10];
         expect(ch11.id).toBe('sugang');
         expect(ch11.name).toBe('溯光长河');
@@ -399,6 +399,67 @@ describe('M15-T1 奖励表（#47）', () => {
         // 普通关第三段触顶 1.00（spec §3.1）
         expect(firstClearReward(107).fragmentChance).toBe(1);
         expect(firstClearReward(107).lingshi).toEqual([9410, 12240]);
+    });
+
+    it('M34 第 12 章道心魔渊：配比 3:3:3 且奖励按 1.35× 继续爬升', () => {
+        expect(TRAIL_CHAPTERS.length).toBe(12); // ← 章节总数基线：M34 起 12 章
+        const ch12 = TRAIL_CHAPTERS[11];
+        expect(ch12.id).toBe('daoxin');
+        expect(ch12.name).toBe('道心魔渊');
+        expect(ch12.monsters.length).toBe(6);
+        expect(ch12.boss.id).toBe('mowo');
+        const count = (g: string) => ch12.typePlan.filter((x) => x === g).length;
+        expect(count('battle')).toBe(3);
+        expect(count('puzzle')).toBe(3);
+        expect(count('match3')).toBe(3);
+        // 与既有 11 章序列全都不同（最深章纯三轮换，第 3 章 b,m,p 起是另一种排布）
+        for (let i = 0; i < 11; i++) {
+            expect(ch12.typePlan.join()).not.toBe(TRAIL_CHAPTERS[i].typePlan.join());
+        }
+        // 无连续两个相同玩法
+        for (let i = 1; i < ch12.typePlan.length; i++) {
+            expect(ch12.typePlan[i]).not.toBe(ch12.typePlan[i - 1]);
+        }
+        const ch11 = TRAIL_CHAPTERS[10];
+        expect(ch12.rewardSections[2][1]).toBeGreaterThan(ch11.rewardSections[2][1]);
+        expect(ch12.bossReward[1]).toBeGreaterThan(ch11.bossReward[1]);
+        expect(ch12.bossSlay.xiuwei).toBeGreaterThan(ch11.bossSlay.xiuwei);
+        expect(ch12.bossSlay.jiyuan).toBe(250);
+        // 碎片掉率：第 11 章触顶 1.00 后封顶不变（spec §3.1 决策：概率无设计空间 + 等距结构保持）
+        expect(ch12.fragmentChance).toEqual([0.6, 0.8, 1]);
+        expect(ch12.gift.lingshi).toBe(94770);
+        expect(ch12.gift.fragments).toBe(12);
+        // 静态区间锚点（防手滑改值；规则 = 第 11 章端点 ×1.35 取整到十位）
+        expect(ch12.rewardSections[0]).toEqual([8990, 11880]);
+        expect(ch12.rewardSections[1]).toEqual([10610, 13860]);
+        expect(ch12.rewardSections[2]).toEqual([12700, 16520]);
+        expect(ch12.bossReward).toEqual([13450, 18540]);
+        expect(ch12.bossSlay.xiuwei).toBe(19590);
+        // gift mats 各 +1
+        expect(ch12.gift.mats).toEqual({ lingcao: 16, lingshi_core: 14, yaodan_core: 12 });
+    });
+
+    it('M34 第 12 章派生：层 111–120 归属第 12 章，Boss 关恒 battle 且为魔我道尊', () => {
+        expect(chapterOf(111)).toBe(12);
+        expect(chapterOf(120)).toBe(12);
+        expect(deriveBattle(120).isBoss).toBe(true);
+        expect(deriveBattle(120).monsterName).toBe('魔我道尊');
+        expect(deriveGame(120)).toBe('battle');
+        // 普通关妖怪全部落在第 12 章池内
+        const pool = TRAIL_CHAPTERS[11].monsters.map((m) => m.name);
+        for (let layer = 111; layer <= 119; layer++) {
+            expect(pool).toContain(deriveBattle(layer).monsterName);
+        }
+        // 第 12 章难度系数 2.55（M24 曲线无封顶，本章不改公式）
+        expect(chapterScale(12)).toBeCloseTo(2.55);
+        // 拼图 60s 触底维持 / 三消 HP 38 封顶维持（第 12 章 72 → 钳 38）
+        expect(derivePuzzle(115).timeLimitSec).toBe(60);
+        expect(deriveMatch3(115).hp).toBe(38);
+        // 首通奖励：Boss 关 fragmentChance 恒为 1（与掉率表无关）
+        expect(firstClearReward(120).fragmentChance).toBe(1);
+        // 普通关第三段封顶 1.00（spec §3.1 触顶后不再增长）
+        expect(firstClearReward(117).fragmentChance).toBe(1);
+        expect(firstClearReward(117).lingshi).toEqual([12700, 16520]);
     });
 
     it('M24 chapterScale 分段续爬：第 7 章仍 1.8，第 8 章起 1.8+0.15(ch−7) 无封顶', () => {

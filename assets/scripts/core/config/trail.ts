@@ -4,6 +4,8 @@
  * 玩法引擎分期接入：M15 battle；M16 puzzle（妖像拼图）；M17 match3（妖影三消）。
  * M33（#47 续）：追加第 11 章「溯光长河」（层 101–110），曲线/存档/护栏零改动；
  * fragmentChance +0.05/章规律触顶 1.00（spec 2026-10-19 §3.1 决策）。
+ * M34（#47 续）：追加第 12 章「道心魔渊」（层 111–120），曲线/存档/护栏零改动；
+ * fragmentChance 触顶后封顶不再增长（spec 2026-10-20 §3.1 决策）。
  */
 
 export const TRAIL_LAYERS_PER_CHAPTER = 10;
@@ -369,6 +371,35 @@ export const TRAIL_CHAPTERS: readonly TrailChapter[] = [
         fragmentChance: [0.6, 0.8, 1],
         bossSlay: { xiuwei: 14510, jiyuan: 220 },
         gift: { lingshi: 70200, mats: { lingcao: 15, lingshi_core: 13, yaodan_core: 11 }, fragments: 11 },
+    },
+    {
+        id: 'daoxin',
+        name: '道心魔渊',
+        blurb: '渊心照影，敌影皆我',
+        bg: 'art/ui/bg_trail_daoxin/spriteFrame',
+        monsters: [
+            { id: 'sheying', name: '惧影兽' },
+            { id: 'chenzhu', name: '嗔心蛛' },
+            { id: 'chiteng', name: '痴魂藤' },
+            { id: 'wangou', name: '妄念偶' },
+            { id: 'duxi', name: '妒火蜥' },
+            { id: 'aoyi', name: '傲意鹤' },
+        ],
+        boss: { id: 'mowo', name: '魔我道尊' },
+        // 配比 3:3:3（纯三轮换，与既有 11 章序列全都不同）；无连续同玩法
+        typePlan: [
+            'puzzle', 'battle', 'match3', 'puzzle', 'battle', 'match3',
+            'puzzle', 'battle', 'match3',
+        ],
+        rewardSections: [
+            [8990, 11880],
+            [10610, 13860],
+            [12700, 16520],
+        ],
+        bossReward: [13450, 18540],
+        fragmentChance: [0.6, 0.8, 1],
+        bossSlay: { xiuwei: 19590, jiyuan: 250 },
+        gift: { lingshi: 94770, mats: { lingcao: 16, lingshi_core: 14, yaodan_core: 12 }, fragments: 12 },
     },
 ];
 
