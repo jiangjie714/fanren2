@@ -15,6 +15,7 @@ import {
     deriveBattle,
     deriveGame,
     deriveMatch3,
+    derivePuzzle,
     firstClearReward,
     layerInChapter,
     repeatLingshi,
@@ -288,7 +289,7 @@ describe('M15-T1 奖励表（#47）', () => {
     });
 
     it('M32 第 10 章混沌归墟：配比 4:3:2 且奖励按 1.35× 继续爬升', () => {
-        expect(TRAIL_CHAPTERS.length).toBe(10); // ← 章节总数基线：M32 起 10 章
+        expect(TRAIL_CHAPTERS.length).toBeGreaterThanOrEqual(10); // 章节总数下界；精确基线见 M33 用例
         const ch10 = TRAIL_CHAPTERS[9];
         expect(ch10.id).toBe('hundun');
         expect(ch10.name).toBe('混沌归墟');
@@ -338,6 +339,66 @@ describe('M15-T1 奖励表（#47）', () => {
         expect(chapterScale(10)).toBeCloseTo(2.25);
         // 首通奖励：Boss 关 fragmentChance 恒为 1（与掉率表无关）
         expect(firstClearReward(100).fragmentChance).toBe(1);
+    });
+
+    it('M33 第 11 章溯光长河：配比 4:2:3 且奖励按 1.35× 继续爬升', () => {
+        expect(TRAIL_CHAPTERS.length).toBe(11); // ← 章节总数基线：M33 起 11 章
+        const ch11 = TRAIL_CHAPTERS[10];
+        expect(ch11.id).toBe('sugang');
+        expect(ch11.name).toBe('溯光长河');
+        expect(ch11.monsters.length).toBe(6);
+        expect(ch11.boss.id).toBe('shenzhu');
+        const count = (g: string) => ch11.typePlan.filter((x) => x === g).length;
+        expect(count('battle')).toBe(4);
+        expect(count('puzzle')).toBe(2);
+        expect(count('match3')).toBe(3);
+        // 与 9/10 章序列都不同（避免连打三章同序的重复感）
+        expect(ch11.typePlan.join()).not.toBe(TRAIL_CHAPTERS[8].typePlan.join());
+        expect(ch11.typePlan.join()).not.toBe(TRAIL_CHAPTERS[9].typePlan.join());
+        // 无连续两个相同玩法
+        for (let i = 1; i < ch11.typePlan.length; i++) {
+            expect(ch11.typePlan[i]).not.toBe(ch11.typePlan[i - 1]);
+        }
+        const ch10 = TRAIL_CHAPTERS[9];
+        expect(ch11.rewardSections[2][1]).toBeGreaterThan(ch10.rewardSections[2][1]);
+        expect(ch11.bossReward[1]).toBeGreaterThan(ch10.bossReward[1]);
+        expect(ch11.bossSlay.xiuwei).toBeGreaterThan(ch10.bossSlay.xiuwei);
+        expect(ch11.bossSlay.jiyuan).toBe(220);
+        // 碎片掉率 +0.05/章规律的自然终点：第 11 章第三段触顶 1.00（spec §3.1 决策）
+        expect(ch11.fragmentChance).toEqual([0.6, 0.8, 1]);
+        expect(ch11.gift.lingshi).toBe(70200);
+        expect(ch11.gift.fragments).toBe(11);
+        // 静态区间锚点（防手滑改值；规则 = 第 10 章端点 ×1.35 取整到十位）
+        expect(ch11.rewardSections[0]).toEqual([6660, 8800]);
+        expect(ch11.rewardSections[1]).toEqual([7860, 10270]);
+        expect(ch11.rewardSections[2]).toEqual([9410, 12240]);
+        expect(ch11.bossReward).toEqual([9960, 13730]);
+        expect(ch11.bossSlay.xiuwei).toBe(14510);
+        // gift mats 各 +1
+        expect(ch11.gift.mats).toEqual({ lingcao: 15, lingshi_core: 13, yaodan_core: 11 });
+    });
+
+    it('M33 第 11 章派生：层 101–110 归属第 11 章，Boss 关恒 battle 且为光阴蜃主', () => {
+        expect(chapterOf(101)).toBe(11);
+        expect(chapterOf(110)).toBe(11);
+        expect(deriveBattle(110).isBoss).toBe(true);
+        expect(deriveBattle(110).monsterName).toBe('光阴蜃主');
+        expect(deriveGame(110)).toBe('battle');
+        // 普通关妖怪全部落在第 11 章池内
+        const pool = TRAIL_CHAPTERS[10].monsters.map((m) => m.name);
+        for (let layer = 101; layer <= 109; layer++) {
+            expect(pool).toContain(deriveBattle(layer).monsterName);
+        }
+        // 第 11 章难度系数 2.40（M24 曲线无封顶，本章不改公式）
+        expect(chapterScale(11)).toBeCloseTo(2.4);
+        // 拼图 60s 触底维持 / 三消 HP 38 封顶维持（第 11 章 68 → 钳 38）
+        expect(derivePuzzle(105).timeLimitSec).toBe(60);
+        expect(deriveMatch3(105).hp).toBe(38);
+        // 首通奖励：Boss 关 fragmentChance 恒为 1（与掉率表无关）
+        expect(firstClearReward(110).fragmentChance).toBe(1);
+        // 普通关第三段触顶 1.00（spec §3.1）
+        expect(firstClearReward(107).fragmentChance).toBe(1);
+        expect(firstClearReward(107).lingshi).toEqual([9410, 12240]);
     });
 
     it('M24 chapterScale 分段续爬：第 7 章仍 1.8，第 8 章起 1.8+0.15(ch−7) 无封顶', () => {

@@ -44,7 +44,7 @@ const CHAPTER_MONSTER_ART = [
     'art/monsters/monster_migu/spriteFrame',
     'art/monsters/monster_gudong/spriteFrame',
 ];
-/** 妖怪专属立绘（M15-T9 两批共 18 只全覆盖；wulang2 复用雾狼、shimo_boss 复用石魔） */
+/** 妖怪专属立绘（M15-T9 起历批扩容，M33 后共 25 只全覆盖；wulang2 复用雾狼、shimo_boss 复用石魔） */
 const MONSTER_ART: Record<string, string> = {
     yaoshu: 'art/ui/trail/monsters/trail_yaoshu/spriteFrame',
     shanyan: 'art/ui/trail/monsters/trail_shanyan/spriteFrame',
@@ -116,6 +116,13 @@ const MONSTER_ART: Record<string, string> = {
     chusheng: 'art/ui/trail/monsters/trail_chusheng/spriteFrame',
     shenlong: 'art/ui/trail/monsters/trail_shenlong/spriteFrame',
     daojun: 'art/ui/trail/monsters/trail_daojun/spriteFrame',
+    shilin: 'art/ui/trail/monsters/trail_shilin/spriteFrame',
+    gudeng: 'art/ui/trail/monsters/trail_gudeng/spriteFrame',
+    shenying: 'art/ui/trail/monsters/trail_shenying/spriteFrame',
+    chudie: 'art/ui/trail/monsters/trail_chudie/spriteFrame',
+    chenzhou: 'art/ui/trail/monsters/trail_chenzhou/spriteFrame',
+    duobei: 'art/ui/trail/monsters/trail_duobei/spriteFrame',
+    shenzhu: 'art/ui/trail/monsters/trail_shenzhu/spriteFrame',
 };
 
 export class TrailBattleScene implements IScene {

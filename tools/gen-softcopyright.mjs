@@ -359,7 +359,7 @@ function manualHtml() {
 <p>版 本 号：${esc(VERSION)}</p>
 <p>著作权人：${esc(OWNER)}</p>
 <p>编程语言：TypeScript 5.4</p>
-<p>源程序量：20122 行（101 个 TypeScript 源文件）</p>
+<p>源程序量：20160 行（101 个 TypeScript 源文件）</p>
 <p>运行环境：抖音小游戏；Android 8.0 及以上 / iOS 12.0 及以上</p>
 <p>开发完成日期：见《计算机软件著作权登记申请表》</p>
 <p>本手册所述界面与操作以软件实际运行效果为准。</p>

@@ -2,6 +2,8 @@
  * M15 妖径配置：章节外壳 + 层内确定性派生 + 奖励表（数值假设 #47）。
  * 纯函数、无渲染、无外部随机源——同层号任何时刻派生结果一致（防退出重进刷局）。
  * 玩法引擎分期接入：M15 battle；M16 puzzle（妖像拼图）；M17 match3（妖影三消）。
+ * M33（#47 续）：追加第 11 章「溯光长河」（层 101–110），曲线/存档/护栏零改动；
+ * fragmentChance +0.05/章规律触顶 1.00（spec 2026-10-19 §3.1 决策）。
  */
 
 export const TRAIL_LAYERS_PER_CHAPTER = 10;
@@ -339,6 +341,34 @@ export const TRAIL_CHAPTERS: readonly TrailChapter[] = [
         fragmentChance: [0.55, 0.75, 0.95],
         bossSlay: { xiuwei: 10750, jiyuan: 190 },
         gift: { lingshi: 52000, mats: { lingcao: 14, lingshi_core: 12, yaodan_core: 10 }, fragments: 10 },
+    },
+    {
+        id: 'sugang',
+        name: '溯光长河',
+        blurb: '长河溯光，逝我今我相逢',
+        bg: 'art/ui/bg_trail_sugang/spriteFrame',
+        monsters: [
+            { id: 'shilin', name: '时鳞鱼龙' },
+            { id: 'gudeng', name: '古灯浮魂' },
+            { id: 'shenying', name: '溯流蜃影' },
+            { id: 'chudie', name: '流光川蝶' },
+            { id: 'chenzhou', name: '沉舟水魅' },
+            { id: 'duobei', name: '断碑碑灵' },
+        ],
+        boss: { id: 'shenzhu', name: '光阴蜃主' },
+        typePlan: [
+            'battle', 'match3', 'puzzle', 'battle', 'match3',
+            'battle', 'puzzle', 'match3', 'battle',
+        ],
+        rewardSections: [
+            [6660, 8800],
+            [7860, 10270],
+            [9410, 12240],
+        ],
+        bossReward: [9960, 13730],
+        fragmentChance: [0.6, 0.8, 1],
+        bossSlay: { xiuwei: 14510, jiyuan: 220 },
+        gift: { lingshi: 70200, mats: { lingcao: 15, lingshi_core: 13, yaodan_core: 11 }, fragments: 11 },
     },
 ];
 
