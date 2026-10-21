@@ -1,4 +1,4 @@
-import { Layers, Node } from 'cc';
+import { Button, Layers, Node } from 'cc';
 import { IScene } from '../infra/SceneStack';
 import { Game } from '../infra/Game';
 import { WEAPONS } from '../core/config/combat';
@@ -18,6 +18,7 @@ import {
     uinode,
 } from '../ui/ThemeLib';
 import { WeaponScene } from './WeaponScene';
+import { ProfileScene } from './ProfileScene';
 
 /**
  * 个人属性页（M11b 细化）：道体档案 + 攻防战力 + 当前法器 + 福禄一览。
@@ -65,6 +66,14 @@ export class PlayerScene implements IScene {
             .setPosition(-244, 0, 0);
         labelL(profileCard, profile.name || '无名修士', 34, { bold: true, color: THEME.goldLight })
             .setPosition(-140, 52, 0);
+        // D1-60s（#59）：道号行即「道友档案」编辑入口（开局不再捏人，改名入口常驻）
+        label(profileCard, '›', 32, { bold: true, color: THEME.inkSoft })
+            .setPosition(290, 52, 0);
+        const profileBtn = profileCard.addComponent(Button);
+        profileBtn.transition = Button.Transition.SCALE;
+        profileBtn.zoomScale = 0.98;
+        profileBtn.target = profileCard;
+        profileCard.on(Button.EventType.CLICK, () => Game.stack.push(new ProfileScene('edit')));
         labelL(profileCard, `${gender === 'f' ? '女修' : '男修'} · ${REALMS[save.realmIndex].name}境`, 23, {
             bold: true, color: THEME.paper,
         }).setPosition(-140, 10, 0);

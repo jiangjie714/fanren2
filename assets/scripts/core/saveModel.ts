@@ -65,7 +65,7 @@ export interface AchievementState {
 export interface ProfileState {
     /** 'm' | 'f'，影响首页与捏人立绘 */
     gender: 'm' | 'f';
-    /** 道号（2~6 字，空串 = 尚未捏人，启动时进 ProfileScene） */
+    /** 道号（2~6 字，空串 = 尚未建档；D1-60s 起新号启动时由系统自动生成，不再进捏人流） */
     name: string;
     createdAt: number;
 }

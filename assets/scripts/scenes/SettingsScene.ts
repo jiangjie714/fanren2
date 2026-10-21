@@ -17,6 +17,7 @@ import {
     uinode,
 } from '../ui/ThemeLib';
 import { DouyinSocial } from '../infra/DouyinSocial';
+import { ProfileScene } from './ProfileScene';
 import { Ads } from '../infra/Ads';
 import { AD_PLACES } from '../core/config/ads';
 import { buildLaunchReport } from '../core/launchCheck';
@@ -73,18 +74,21 @@ export class SettingsScene implements IScene {
             AudioMgr.setBgm(on);
         });
 
-        // ---------- 分组 2：公约与公示 ----------
-        label(n, '— 公约与公示 —', 22, { bold: true, color: THEME.goldLight })
-            .setPosition(0, 82, 0);
+        // ---------- 分组 2：档案 · 公约与公示 ----------
+        label(n, '— 档案 · 公约与公示 —', 22, { bold: true, color: THEME.goldLight })
+            .setPosition(0, 104, 0);
 
-        const docPanel = spritePanel(n, panelW, 216, undefined, THEME.tintPanel);
-        docPanel.setPosition(0, -58, 0);
+        const docPanel = spritePanel(n, panelW, 240, undefined, THEME.tintPanel);
+        docPanel.setPosition(0, -40, 0);
 
-        this.buildLinkItem(docPanel, 58, TEXTS.settingsProbability, () => this.showProbability());
-        this.buildDivider(docPanel, 18, 580);
-        this.buildLinkItem(docPanel, -14, TEXTS.settingsUserAgreement, () => this.showAgreement());
-        this.buildDivider(docPanel, -48, 580);
-        this.buildLinkItem(docPanel, -76, TEXTS.settingsPrivacy, () => this.showPrivacy());
+        // D1-60s（#59）：道友档案编辑入口（改道号/道体；新号不再有开局捏人流）
+        this.buildLinkItem(docPanel, 50, TEXTS.profileEditEntry, () => Game.stack.push(new ProfileScene('edit')));
+        this.buildDivider(docPanel, 20, 580);
+        this.buildLinkItem(docPanel, -10, TEXTS.settingsProbability, () => this.showProbability());
+        this.buildDivider(docPanel, -40, 580);
+        this.buildLinkItem(docPanel, -70, TEXTS.settingsUserAgreement, () => this.showAgreement());
+        this.buildDivider(docPanel, -100, 580);
+        this.buildLinkItem(docPanel, -130, TEXTS.settingsPrivacy, () => this.showPrivacy());
 
         // ---------- 分组 3：版本与技术信息 ----------
         const vpanel = spritePanel(n, panelW, 126, undefined, THEME.tintPanel);

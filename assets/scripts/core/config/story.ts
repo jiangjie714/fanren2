@@ -29,11 +29,13 @@ export interface StoryLine {
 
 /**
  * 判定用的最小存档切片（结构类型，不 import saveModel —— 保持本配置零依赖）。
- * `realmIndex` 给开局节拍用；`seen` 由判定层传入。
+ * `realmIndex` 给开局节拍用；`seen` 由判定层传入；`starterDone` = D1-60s（#59）
+ * 新手流已走完（新号 60 秒流程：直进主页 → 三连开箱 → 首战 → 首胜回主页）。
  */
 export interface StorySaveSlice {
     realmIndex: number;
     seen: string[];
+    starterDone: boolean;
 }
 
 /** 场景自报 + 渲染层补全的判定上下文 */
@@ -64,7 +66,7 @@ const NARRATOR = '旁白';
 const ELDER = '老者';
 
 export const STORY_BEATS: readonly StoryBeat[] = [
-    // ---------- 启程：开局（首页，未突破过） ----------
+    // ---------- 启程：开局（首页，新手流走完后作为回忆） ----------
     {
         id: 'opening',
         at: STORY_SCENE_HOME,
@@ -75,7 +77,11 @@ export const STORY_BEATS: readonly StoryBeat[] = [
             { speaker: NARRATOR, text: '当夜窗外落雨，雨里带着灵。' },
             { speaker: ELDER, text: '既有缘看见，便是缘。仙路自此始——' },
         ],
-        when: (save) => save.realmIndex === 0 && !seen(save, 'opening'),
+        // D1-60s（#59 P4）：原条件 `realmIndex === 0` 首访即播，会冲掉 60 秒首日流程
+        // （新号 1.5s 落主页就弹剧情层）。spec 原文「when 增加 save.starter.done 条件」——
+        // 若与原条件叠加，首胜归来时 realmIndex 已 = 1，永远打不上；故按 spec 正文语义
+        // （首次突破成功后下一次回主页播，作为回忆）整体替换为 starterDone 门。
+        when: (save) => save.starterDone && !seen(save, 'opening'),
     },
     // ---------- 境界：每次大境界突破成功（渡劫结算页） ----------
     {

@@ -23,38 +23,46 @@ type Gender = 'm' | 'f';
 const BTN_W = 280;
 
 /**
- * 捏人开局（M11 #32）：择性别、取道号。
- * 存档 profile.name 为空时由 Game.init 引导至此，确认后 swap 进主页。
- * 老玩家升级到 v4 存档也会先走一次（进度全保留，仅补档案）。
+ * 道号档案页。**D1-60s（#59 P0）后不再是开局必经流**：新号由 Game.init 自动生成道号
+ * 直进主页，本页退化为「道友档案」编辑页（`mode='edit'`），入口在设置页与属性页道号行。
+ * `mode='onboarding'` 为旧捏人径保留（无调用方；如未来恢复开局捏人可再用）。
  */
 export class ProfileScene implements IScene {
     node: Node;
+    /** 'edit' = 道友档案编辑页（确认后 pop 回上层）；'onboarding' = 旧捏人开局（确认后 swap 进主页） */
+    private mode: 'onboarding' | 'edit';
     private gender: Gender = 'm';
     private cards = new Map<Gender, Node>();
     private editBox!: EditBox;
     /** 是否点过「随机道号」：只传布尔，不传道号本身（隐私） */
     private usedRandom = false;
 
-    constructor() {
+    constructor(mode: 'onboarding' | 'edit' = 'onboarding') {
+        this.mode = mode;
         this.node = new Node('ProfileScene');
         this.node.layer = Layers.Enum.UI_2D;
     }
 
     onEnter() {
         const n = this.node;
+        const edit = this.mode === 'edit';
         pageBackground(n, 'art/ui/bg_home/spriteFrame');
 
-        label(n, TEXTS.profileTitle, 48, {
+        label(n, edit ? TEXTS.profileEditTitle : TEXTS.profileTitle, 48, {
             bold: true,
             color: THEME.goldLight,
             shadow: true,
             shadowColor: THEME.shadow,
         }).setPosition(0, 380, 0);
-        label(n, TEXTS.profileHint, 22, { color: THEME.paperDim, width: 560, shrink: true })
+        label(n, edit ? TEXTS.profileEditHint : TEXTS.profileHint, 22, { color: THEME.paperDim, width: 560, shrink: true })
             .setPosition(0, 320, 0);
 
+        // 编辑模式：预填当前道号与性别（改多少存多少，不做的部分原样保留）
+        if (edit) {
+            this.gender = Game.save.profile.gender;
+        }
         this.renderCards();
-        this.renderNameInput();
+        this.renderNameInput(edit);
         this.renderLinks();
         fadeIn(n, 16);
         Analytics.track('onboarding_profile_view', {});
@@ -124,7 +132,7 @@ export class ProfileScene implements IScene {
         });
     }
 
-    private renderNameInput() {
+    private renderNameInput(edit: boolean) {
         const n = this.node;
         // 输入框底板：标准玄墨 9-slice，EditBox 直接挂同一节点。
         // 不要自建 textLabel/placeholderLabel 再赋值——实测引擎（3.8 web impl）在
@@ -135,6 +143,7 @@ export class ProfileScene implements IScene {
         this.editBox = input.addComponent(EditBox);
         this.editBox.maxLength = 6;
         this.editBox.inputMode = EditBox.InputMode.SINGLE_LINE;
+        if (edit) this.editBox.string = Game.save.profile.name;
 
         // 两颗按钮同款：均 primary 明金底 + 27px + 同宽 280 对称排布（中心 ±148，间隙 16）。
         // 注意不要给 primary 再传 textColor: goldLight —— 金字压金底对比仅 1.4:1 会糊，
@@ -145,7 +154,7 @@ export class ProfileScene implements IScene {
         }, { fontSize: 27, variant: 'primary' });
         rnd.node.setPosition(-148, -330, 0);
 
-        const go = spriteButton(n, BTN_W, 76, TEXTS.profileConfirm, () => this.confirm(), {
+        const go = spriteButton(n, BTN_W, 76, edit ? TEXTS.profileSave : TEXTS.profileConfirm, () => this.confirm(), {
             fontSize: 27,
             variant: 'primary',
         });
@@ -190,8 +199,13 @@ export class ProfileScene implements IScene {
             toast(this.node, TEXTS.profileNameInvalid);
             return;
         }
-        Game.save.profile = { gender: this.gender, name, createdAt: Date.now() };
+        Game.save.profile = { gender: this.gender, name, createdAt: Game.save.profile.createdAt || Date.now() };
         Game.persist();
+        if (this.mode === 'edit') {
+            // 编辑页：弹回上层（设置页 onResume 重建 / 属性页 render 刷新，道号行自然更新）
+            Game.stack.pop();
+            return;
+        }
         Analytics.track('onboarding_profile_complete', {
             gender: this.gender,
             name_len: name.length,

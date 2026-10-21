@@ -403,7 +403,7 @@ vi.mock('cc', () => h.ccStub);
 vi.mock('../assets/scripts/ui/ThemeLib', () => h.themeStub);
 
 import { Game } from '../assets/scripts/infra/Game';
-import { Button, Label, Node, UITransform } from 'cc';
+import { Button, Label, Node, sys, UITransform } from 'cc';
 import { LINGENS } from '../assets/scripts/core/config/lingens';
 import { HomeScene } from '../assets/scripts/scenes/HomeScene';
 import { BoxScene } from '../assets/scripts/scenes/BoxScene';
@@ -925,9 +925,11 @@ describe('场景集成：HomeScene 入口接线（导航错乱回归）', () => 
 
         // 引导条 = 主 CTA 那条带（500×102 @ y=-68）——位置与旧「冲击境界」完全一致，
         // 只是文案与去向随存档状态走。onResume() → refresh() → refreshGuide() 重算。
-        const guide = () => h.registry.buttons.find(
+        // D1-60s T2 起 bootGame() 的 init 也会推一个 HomeScene（同样注册 y=-68 按钮），
+        // 必须取最后一个匹配 = 本用例手工创建、onResume 刷新过的实例（init 那个是陈旧文本）。
+        const guide = () => h.registry.buttons.filter(
             (b) => (b.node as { getPosition(): { y: number } }).getPosition().y === -68,
-        )!;
+        ).pop()!;
         const save = Game.save;
         const hasLabel = (needle: string) =>
             h.registry.labels.some((l) => (l.comp as { string: string }).string.includes(needle));
@@ -1210,10 +1212,97 @@ describe('场景集成：捏人页（拜入仙门）两颗按钮样式一致', (
 });
 
 /**
- * 长屏适配：FIXED_WIDTH 下宽恒 720、高按机型比例延伸（全面屏 ≈1560），而模态遮罩
- * 若按设计高度 1280 固定，上下各会露出约 140px —— 那段既没压暗、也不拦截点击，
- * 玩家点上去会穿透触发下层按钮。这里断言所有全屏遮罩铺满「可见」高度。
+ * D1-60s T2（#59）：跳捏人 + 道友档案编辑。
+ * P0「最大的一刀」——新号 0 表单直进主页，ProfileScene 退化为编辑页。
  */
+describe('场景集成：D1-60s 跳捏人 + 道友档案编辑', () => {
+    /** 预置一档 v14 老玩家存档（有道号有进度），走 SaveStore 真实加载链路 */
+    function seedOldSave() {
+        sys.localStorage.setItem('fanren_save_v1', JSON.stringify({
+            version: 14,
+            lingshi: 5000,
+            realmIndex: 3,
+            profile: { gender: 'f', name: '旧道号', createdAt: 1729000000000 },
+            stats: { opens: 40, breakthroughWins: 3, breakthroughFails: 1 },
+        }));
+    }
+
+    it('新号（无道号）init 后自动生成道号直进主页：栈底即 HomeScene，无表单', () => {
+        bootGame();
+        expect(Game.save.profile.name.length, '自动道号应为 2~6 字').toBeGreaterThanOrEqual(2);
+        expect(Game.save.profile.name.length).toBeLessThanOrEqual(6);
+        expect(Game.save.profile.gender).toBe('m');
+        expect(Game.save.profile.createdAt, '建档时间应为此刻').toBeGreaterThan(0);
+        expect(Game.stack.top).toBeInstanceOf(HomeScene);
+        expect(Game.stack.top).not.toBeInstanceOf(ProfileScene);
+    });
+
+    it('老玩家（v14 有道号）init 直进主页，道号与道体不被改写', () => {
+        seedOldSave();
+        bootGame();
+        expect(Game.save.profile.name).toBe('旧道号');
+        expect(Game.save.profile.gender).toBe('f');
+        expect(Game.stack.top).toBeInstanceOf(HomeScene);
+    });
+
+    it('设置页有「道友档案」入口，点击 push 编辑页', () => {
+        bootGame();
+        Game.stack.push(new SettingsScene());
+        // buildLinkItem 走 label + item Button（非 spriteButton），从标签树反查入口行
+        const linkLabel = h.registry.labels.filter((l) => l.text.includes(TEXTS.profileEditEntry)).pop();
+        expect(linkLabel, '设置页缺少道友档案入口').toBeDefined();
+        const item = (linkLabel!.node as unknown as { parent: { emit(ev: string): void } }).parent;
+        item.emit('click');
+        expect(Game.stack.top).toBeInstanceOf(ProfileScene);
+    });
+
+    it('编辑页：确认钮为「保存」、预填当前道号；改名后 pop 回上层并落档', () => {
+        bootGame();
+        const settings = new SettingsScene();
+        Game.stack.push(settings);
+        Game.stack.push(new ProfileScene('edit'));
+        const p = Game.stack.top as ProfileScene;
+
+        const saveBtn = h.registry.buttons.filter((b) => b.text === TEXTS.profileSave).pop();
+        expect(saveBtn, '编辑页确认钮应为「保存」').toBeDefined();
+        // 预填当前道号（白盒取 editBox：ThemeLib 桩不登记 EditBox）
+        const box = (p as unknown as { editBox: { string: string } }).editBox;
+        expect(box.string).toBe(Game.save.profile.name);
+
+        const depth = (Game.stack as unknown as { stack: unknown[] }).stack.length;
+        box.string = '新道号';
+        saveBtn!.onClick();
+        expect(Game.save.profile.name).toBe('新道号');
+        expect((Game.stack as unknown as { stack: unknown[] }).stack.length, '编辑页应 pop 回上层而非 swap').toBe(depth - 1);
+        expect(Game.stack.top).toBe(settings);
+    });
+
+    it('编辑页：道号非法（1 字）toast 拦截，不退出不落档', () => {
+        bootGame();
+        Game.stack.push(new SettingsScene());
+        Game.stack.push(new ProfileScene('edit'));
+        const p = Game.stack.top as ProfileScene;
+        const before = Game.save.profile.name;
+        const box = (p as unknown as { editBox: { string: string } }).editBox;
+        box.string = '一';
+        const saveBtn = h.registry.buttons.filter((b) => b.text === TEXTS.profileSave).pop();
+        saveBtn!.onClick();
+        expect(Game.save.profile.name).toBe(before);
+        expect(Game.stack.top).toBe(p);
+        expect(h.registry.toasts).toContain(TEXTS.profileNameInvalid);
+    });
+
+    it('属性页道号行可点进编辑页', () => {
+        bootGame();
+        Game.stack.push(new PlayerScene());
+        // 道号行尾的「›」标签挂在档案卡上；档案卡整体可点（白色 Box 取标签反查）
+        const arrow = h.registry.labels.filter((l) => l.text === '\u203a').pop();
+        expect(arrow, '属性页道号行缺少编辑入口箭头').toBeDefined();
+        const profileCard = (arrow!.node as unknown as { parent: { emit(ev: string): void } }).parent;
+        profileCard.emit('click');
+        expect(Game.stack.top).toBeInstanceOf(ProfileScene);
+    });
+});
 describe('场景集成：长屏模态遮罩铺满（FIXED_WIDTH 穿透点击回归）', () => {
     const LONG_H = 1560; // iPhone 14 Pro 等全面屏在 720 宽下的可见高度
 
@@ -1550,14 +1639,15 @@ describe('场景集成：M30 剧情演出层（#56）', () => {
         const { canvas } = bootGame();
         const layer = storyLayerOf(canvas);
         expect(layer.active, '无节拍命中时必须收起').toBe(false);
-        // 栈顶是捏人页（默认档未取名）→ 不是剧情场景
+        // D1-60s T2 起 init 直推主页（新号不捏人）；但 starter.done=false → opening 门未开
         StoryLayer.sync();
         expect(StoryLayer.isPlaying()).toBe(false);
     });
 
-    it('opening：首页未突破时开演；打字机按帧推进，dim 点击逐行推进、第三行换说话者', () => {
+    it('opening：新手流走完后回首页开演；打字机按帧推进，dim 点击逐行推进、第三行换说话者', () => {
         const { canvas } = bootGame();
         h.reset();
+        Game.save.starter = { done: true, jiyuanGranted: true };
         Game.stack.push(new HomeScene());
         StoryLayer.sync();
         const layer = storyLayerOf(canvas);
@@ -1588,6 +1678,7 @@ describe('场景集成：M30 剧情演出层（#56）', () => {
     it('opening 三行听完自动标记听过并落盘；再 sync 不重播（一生一次）', () => {
         const { canvas } = bootGame();
         h.reset();
+        Game.save.starter = { done: true, jiyuanGranted: true };
         Game.stack.push(new HomeScene());
         StoryLayer.sync();
         const layer = storyLayerOf(canvas);
@@ -1609,6 +1700,7 @@ describe('场景集成：M30 剧情演出层（#56）', () => {
         h.reset();
         Game.save.tutorial = { done: false };
         Game.save.jiyuan = 0;
+        Game.save.starter = { done: true, jiyuanGranted: true };
         Game.stack.push(new HomeScene());
         StoryLayer.sync();
         const guide = canvas.getChildByName('GuideLayer')!;
@@ -1690,6 +1782,9 @@ describe('场景集成：M30 剧情演出层（#56）', () => {
         h.reset();
         Game.save.realmIndex = 0;
         Game.offlineResult = { minutes: 60, xiuwei: 96, lingshi: 24 };
+        // D1-60s #59：opening 门改为 starter.done——老玩家迁移口径 realmIndex>0 → done=true，
+        // 这里 realmIndex 已置 0，显式补播种模拟「走完新手流的老玩家回主页」
+        Game.save.starter = { done: true, jiyuanGranted: true };
         const home = new HomeScene();
         Game.stack.push(home);
         expect(home.node.children.some((c) => c.name === 'dim'), '进门应弹归来弹窗').toBe(true);

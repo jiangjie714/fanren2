@@ -31,7 +31,6 @@ import { SceneStack } from './SceneStack';
 import { GuideLayer } from '../ui/GuideLayer';
 import { StoryLayer } from '../ui/StoryLayer';
 import { HomeScene } from '../scenes/HomeScene';
-import { ProfileScene } from '../scenes/ProfileScene';
 
 /** 全局游戏上下文：装配基础设施与数值系统，页面统一通过 Game.xxx 访问。 */
 export class Game {
@@ -141,8 +140,15 @@ export class Game {
         GuideLayer.attach(canvas);
         // M30 剧情演出层：同引导层挂载顺序（后添加者在上）；播放中引导层让位。
         StoryLayer.attach(canvas);
-        // M11：未捏人（含 v3 升档老玩家）先进捏人流，确认道号后再入主页
-        this.stack.push(this.save.profile.name ? new HomeScene() : new ProfileScene());
+        // D1-60s（#59 P0「最大的一刀」）：新号 0 表单直进主页——道号由系统随机生成
+        // （首屏表单是抖音泛用户最大的流失点，名字可后改：设置页/属性页「道友档案」）。
+        // profile.createdAt 保留「首次建档时间」语义，不影响现有存档/成就。
+        // 老玩家（v14 迁移过来必有道号）不受影响，直进主页。
+        if (!this.save.profile.name) {
+            this.save.profile = { gender: 'm', name: this.combat.randomName(), createdAt: Date.now() };
+            this.persist();
+        }
+        this.stack.push(new HomeScene());
     }
 
     static tick(dt: number) {

@@ -36,7 +36,7 @@ export interface StoryHost {
 }
 
 /** 判定所需的最小存档切片 */
-type StorySave = Pick<SaveData, 'realmIndex' | 'story'>;
+type StorySave = Pick<SaveData, 'realmIndex' | 'story' | 'starter'>;
 
 /** 已听过的节拍 id（脏档安全：缺字段按空数组） */
 export function storySeen(save: StorySave): string[] {
@@ -63,7 +63,12 @@ export function storyHeard(save: StorySave, id: string): boolean {
  * 任一刻度最多命中一个（场景门互斥），不存在叠放；播完标记 seen 后下一次才可能命中下一个。
  */
 export function storyBeatFor(save: StorySave, ctx: StoryCtx): StoryBeat | null {
-    const slice: StorySaveSlice = { realmIndex: save.realmIndex, seen: storySeen(save) };
+    const slice: StorySaveSlice = {
+        realmIndex: save.realmIndex,
+        seen: storySeen(save),
+        // 脏档安全：starter 缺字段（未迁移老档直读）按未走完，不误开演（D1-60s #59）
+        starterDone: Boolean(save.starter && save.starter.done),
+    };
     for (const b of STORY_BEATS) {
         if (b.at !== ctx.scene) continue;
         if (slice.seen.indexOf(b.id) >= 0) continue;

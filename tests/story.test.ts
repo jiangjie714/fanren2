@@ -82,28 +82,32 @@ describe('剧情注册表自洽（#56）', () => {
     });
 });
 
-describe('开局节拍 opening（#56）', () => {
-    it('新档首次进首页 → 播放 opening', () => {
-        const save = saveOf({ realmIndex: 0 });
+describe('开局节拍 opening（#56 / D1-60s #59 延后到新手流后）', () => {
+    it('新手流走完（starter.done）后首次回首页 → 播放 opening', () => {
+        const save = saveOf({ realmIndex: 0, starter: { done: true, jiyuanGranted: true } });
         const beat = storyBeatFor(save, homeCtx);
         expect(beat?.id).toBe('opening');
         expect(beat?.lines[0].speaker).toBe('旁白');
     });
 
     it('听过即不再现（跳过/播完都标记 seen）', () => {
-        const save = saveOf({ realmIndex: 0 });
+        const save = saveOf({ realmIndex: 0, starter: { done: true, jiyuanGranted: true } });
         markStorySeen(save, 'opening');
         expect(storyBeatFor(save, homeCtx)).toBeNull();
         expect(storyHeard(save, 'opening')).toBe(true);
     });
 
-    it('已突破过（realmIndex > 0）不触发 —— 老玩家与开局擦肩过，不补课', () => {
-        const save = saveOf({ realmIndex: 1 });
-        expect(storyBeatFor(save, homeCtx)).toBeNull();
+    it('新手流未走完（starter.done=false）不播 —— 60 秒首日流程内无剧情弹层；走完后含突破后作为回忆播', () => {
+        // D1-60s #59：新号 1.5s 落主页，若此时开演会冲掉首日流程；必须等 starter 三连 + 首胜回主页
+        const fresh = saveOf({ realmIndex: 0 });
+        expect(storyBeatFor(fresh, homeCtx)).toBeNull();
+        // 老玩家迁移口径：veteran 的 starter.done=true → 回主页补播作为回忆（spec P4 正文语义）
+        const veteran = saveOf({ realmIndex: 1, starter: { done: true, jiyuanGranted: true } });
+        expect(storyBeatFor(veteran, homeCtx)?.id).toBe('opening');
     });
 
     it('场景门：只在首页播，结算页/妖径页不播', () => {
-        const save = saveOf({ realmIndex: 0 });
+        const save = saveOf({ realmIndex: 0, starter: { done: true, jiyuanGranted: true } });
         expect(storyBeatFor(save, resultCtx(true, 1))?.id).toBe('realm_1');
         expect(storyBeatFor(save, trailCtx(1))?.id).toBe('trail_1');
         expect(storyBeatFor(save, { scene: 'BoxScene' })).toBeNull();
@@ -156,7 +160,7 @@ describe('妖径节拍 trail_N（#56）', () => {
 
 describe('一次只播一个节拍 + 幂等标记（#56）', () => {
     it('同屏多条件命中时按注册序只返回第一个（opening 优先于其它）', () => {
-        const save = saveOf({ realmIndex: 0 });
+        const save = saveOf({ realmIndex: 0, starter: { done: true, jiyuanGranted: true } });
         // 首页：opening 条件命中；即使 trailChapter 也报上，opening 先播
         const beat = storyBeatFor(save, { scene: STORY_SCENE_HOME, trailChapter: 1 });
         expect(beat?.id).toBe('opening');

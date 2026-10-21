@@ -266,6 +266,11 @@ export const TEXTS = {
     profileRandomName: '随机道号',
     profileConfirm: '踏 入 仙 途',
     profileNameInvalid: '道号需 2~6 个字',
+    // D1-60s（#59）：捏人流退化为「道友档案」编辑页（设置页/属性页入口）
+    profileEditEntry: '道友档案',
+    profileEditHint: '修改道号与道体',
+    profileEditTitle: '道 友 档 案',
+    profileSave: '保 存',
     // M11 攻防属性（#33）
     statAtk: '攻击',
     statDef: '防御',
