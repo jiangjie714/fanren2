@@ -6,6 +6,9 @@
  * fragmentChance +0.05/章规律触顶 1.00（spec 2026-10-19 §3.1 决策）。
  * M34（#47 续）：追加第 12 章「道心魔渊」（层 111–120），曲线/存档/护栏零改动；
  * fragmentChance 触顶后封顶不再增长（spec 2026-10-20 §3.1 决策）。
+ * M35（#47 续）：追加第 13 章「飞升天阙」（层 121–130），曲线/存档/护栏零改动；
+ * 第 12 章收束凡人篇（心魔劫），本章开启仙界篇（飞升/道成）；fragmentChance
+ * 继续封顶（M34 §3.1 决策：续产第 13 章无需再议）。
  */
 
 export const TRAIL_LAYERS_PER_CHAPTER = 10;
@@ -400,6 +403,35 @@ export const TRAIL_CHAPTERS: readonly TrailChapter[] = [
         fragmentChance: [0.6, 0.8, 1],
         bossSlay: { xiuwei: 19590, jiyuan: 250 },
         gift: { lingshi: 94770, mats: { lingcao: 16, lingshi_core: 14, yaodan_core: 12 }, fragments: 12 },
+    },
+    {
+        id: 'feisheng',
+        name: '飞升天阙',
+        blurb: '云阙洞开，仙路终启',
+        bg: 'art/ui/bg_trail_feisheng/spriteFrame',
+        monsters: [
+            { id: 'yunshou', name: '云绶灵蛇' },
+            { id: 'liuli', name: '琉璃精' },
+            { id: 'zhusha', name: '朱砂鹤' },
+            { id: 'duoxian', name: '堕仙残念' },
+            { id: 'jiejin', name: '劫烬鸦' },
+            { id: 'tianque', name: '天阙石卫' },
+        ],
+        boss: { id: 'tianjue', name: '天阙御尊' },
+        // 配比 3:3:3（错序编排，全系列首次 b,p,b 开局）；无连续同玩法
+        typePlan: [
+            'battle', 'puzzle', 'battle', 'match3', 'puzzle',
+            'battle', 'match3', 'puzzle', 'match3',
+        ],
+        rewardSections: [
+            [12140, 16040],
+            [14320, 18710],
+            [17150, 22300],
+        ],
+        bossReward: [18160, 25030],
+        fragmentChance: [0.6, 0.8, 1],
+        bossSlay: { xiuwei: 26450, jiyuan: 340 },
+        gift: { lingshi: 127940, mats: { lingcao: 17, lingshi_core: 15, yaodan_core: 13 }, fragments: 13 },
     },
 ];
 

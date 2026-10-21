@@ -44,7 +44,7 @@ const CHAPTER_MONSTER_ART = [
     'art/monsters/monster_migu/spriteFrame',
     'art/monsters/monster_gudong/spriteFrame',
 ];
-/** 妖怪专属立绘（M15-T9 起历批扩容，M34 后共 32 只全覆盖；wulang2 复用雾狼、shimo_boss 复用石魔） */
+/** 妖怪专属立绘（M15-T9 起历批扩容，M35 后共 39 只全覆盖；wulang2 复用雾狼、shimo_boss 复用石魔） */
 const MONSTER_ART: Record<string, string> = {
     yaoshu: 'art/ui/trail/monsters/trail_yaoshu/spriteFrame',
     shanyan: 'art/ui/trail/monsters/trail_shanyan/spriteFrame',
@@ -130,6 +130,13 @@ const MONSTER_ART: Record<string, string> = {
     duxi: 'art/ui/trail/monsters/trail_duxi/spriteFrame',
     aoyi: 'art/ui/trail/monsters/trail_aoyi/spriteFrame',
     mowo: 'art/ui/trail/monsters/trail_mowo/spriteFrame',
+    yunshou: 'art/ui/trail/monsters/trail_yunshou/spriteFrame',
+    liuli: 'art/ui/trail/monsters/trail_liuli/spriteFrame',
+    zhusha: 'art/ui/trail/monsters/trail_zhusha/spriteFrame',
+    duoxian: 'art/ui/trail/monsters/trail_duoxian/spriteFrame',
+    jiejin: 'art/ui/trail/monsters/trail_jiejin/spriteFrame',
+    tianque: 'art/ui/trail/monsters/trail_tianque/spriteFrame',
+    tianjue: 'art/ui/trail/monsters/trail_tianjue/spriteFrame',
 };
 
 export class TrailBattleScene implements IScene {

@@ -402,7 +402,7 @@ describe('M15-T1 奖励表（#47）', () => {
     });
 
     it('M34 第 12 章道心魔渊：配比 3:3:3 且奖励按 1.35× 继续爬升', () => {
-        expect(TRAIL_CHAPTERS.length).toBe(12); // ← 章节总数基线：M34 起 12 章
+        expect(TRAIL_CHAPTERS.length).toBeGreaterThanOrEqual(12); // 章节总数下界；精确基线见 M35 用例
         const ch12 = TRAIL_CHAPTERS[11];
         expect(ch12.id).toBe('daoxin');
         expect(ch12.name).toBe('道心魔渊');
@@ -460,6 +460,69 @@ describe('M15-T1 奖励表（#47）', () => {
         // 普通关第三段封顶 1.00（spec §3.1 触顶后不再增长）
         expect(firstClearReward(117).fragmentChance).toBe(1);
         expect(firstClearReward(117).lingshi).toEqual([12700, 16520]);
+    });
+
+    it('M35 第 13 章飞升天阙：配比 3:3:3 且奖励按 1.35× 继续爬升', () => {
+        expect(TRAIL_CHAPTERS.length).toBe(13); // ← 章节总数基线：M35 起 13 章
+        const ch13 = TRAIL_CHAPTERS[12];
+        expect(ch13.id).toBe('feisheng');
+        expect(ch13.name).toBe('飞升天阙');
+        expect(ch13.monsters.length).toBe(6);
+        expect(ch13.boss.id).toBe('tianjue');
+        const count = (g: string) => ch13.typePlan.filter((x) => x === g).length;
+        expect(count('battle')).toBe(3);
+        expect(count('puzzle')).toBe(3);
+        expect(count('match3')).toBe(3);
+        // 与既有 12 章序列全都不同（全系列首次 b,p,b 开局）
+        for (let i = 0; i < 12; i++) {
+            expect(ch13.typePlan.join()).not.toBe(TRAIL_CHAPTERS[i].typePlan.join());
+        }
+        // 无连续两个相同玩法
+        for (let i = 1; i < ch13.typePlan.length; i++) {
+            expect(ch13.typePlan[i]).not.toBe(ch13.typePlan[i - 1]);
+        }
+        const ch12 = TRAIL_CHAPTERS[11];
+        expect(ch13.rewardSections[2][1]).toBeGreaterThan(ch12.rewardSections[2][1]);
+        expect(ch13.bossReward[1]).toBeGreaterThan(ch12.bossReward[1]);
+        expect(ch13.bossSlay.xiuwei).toBeGreaterThan(ch12.bossSlay.xiuwei);
+        expect(ch13.bossSlay.jiyuan).toBe(340);
+        // 碎片掉率：触顶后封顶不变（M34 §3.1 决策：续产第 13 章继续封顶）
+        expect(ch13.fragmentChance).toEqual([0.6, 0.8, 1]);
+        expect(ch13.gift.lingshi).toBe(127940);
+        expect(ch13.gift.fragments).toBe(13);
+        // 静态区间锚点（防手滑改值；规则 = 第 12 章端点 ×1.35 取整到十位）
+        expect(ch13.rewardSections[0]).toEqual([12140, 16040]);
+        expect(ch13.rewardSections[1]).toEqual([14320, 18710]);
+        expect(ch13.rewardSections[2]).toEqual([17150, 22300]);
+        expect(ch13.bossReward).toEqual([18160, 25030]);
+        expect(ch13.bossSlay.xiuwei).toBe(26450);
+        // gift mats 各 +1
+        expect(ch13.gift.mats).toEqual({ lingcao: 17, lingshi_core: 15, yaodan_core: 13 });
+    });
+
+    it('M35 第 13 章派生：层 121–130 归属第 13 章，Boss 关恒 battle 且为天阙御尊', () => {
+        expect(chapterOf(121)).toBe(13);
+        expect(chapterOf(130)).toBe(13);
+        expect(deriveBattle(130).isBoss).toBe(true);
+        expect(deriveBattle(130).monsterName).toBe('天阙御尊');
+        expect(deriveGame(130)).toBe('battle');
+        // 普通关妖怪全部落在第 13 章池内
+        const pool = TRAIL_CHAPTERS[12].monsters.map((m) => m.name);
+        for (let layer = 121; layer <= 129; layer++) {
+            expect(pool).toContain(deriveBattle(layer).monsterName);
+        }
+        // 第 13 章难度系数 2.70（M24 曲线无封顶，本章不改公式）
+        expect(chapterScale(13)).toBeCloseTo(2.7);
+        // 拼图 60s 触底维持 / 三消 HP 38 封顶维持（第 13 章 76 → 钳 38）
+        expect(derivePuzzle(125).timeLimitSec).toBe(60);
+        expect(deriveMatch3(125).hp).toBe(38);
+        // 首通奖励：Boss 关 fragmentChance 恒为 1（与掉率表无关）
+        expect(firstClearReward(130).fragmentChance).toBe(1);
+        // 普通关第三段封顶 1.00（M34 §3.1 触顶后不再增长）
+        expect(firstClearReward(127).fragmentChance).toBe(1);
+        expect(firstClearReward(127).lingshi).toEqual([17150, 22300]);
+        // 首层 battle（typePlan[0]）：第 1 层格直进战斗局（回归 M28/M32/M33 口径）
+        expect(deriveGame(121)).toBe('battle');
     });
 
     it('M24 chapterScale 分段续爬：第 7 章仍 1.8，第 8 章起 1.8+0.15(ch−7) 无封顶', () => {
