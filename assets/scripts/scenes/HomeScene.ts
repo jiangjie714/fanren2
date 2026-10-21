@@ -1,6 +1,7 @@
 import { Graphics, Label, Layers, Node, Tween, UIOpacity, tween, Vec3 } from 'cc';
 import { IScene } from '../infra/SceneStack';
 import { Game } from '../infra/Game';
+import { Analytics } from '../infra/Analytics';
 import { SaveStore } from '../infra/SaveStore';
 import { claimDailyGift } from '../infra/dailyGift';
 import { enterIllusion } from '../infra/enterIllusion';
@@ -107,6 +108,11 @@ export class HomeScene implements IScene {
 
     onEnter() {
         const n = this.node;
+        // 60 秒漏斗起点：一次安装只发一次 first_home（老玩家也会补发一次，用于历史基线）
+        Analytics.trackOnce('first_home', 'first_home', {
+            realm_index: Game.save.realmIndex,
+            total_opens: Game.save.stats.opens,
+        });
         pageBackground(n, 'art/ui/bg_home/spriteFrame');
 
         // 坏档提示（P1-5）：SaveStore.load 发现损坏时备份原档并重置，

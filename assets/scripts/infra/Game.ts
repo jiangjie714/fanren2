@@ -22,6 +22,7 @@ import { TEXTS } from '../core/config/texts';
 import { toast, uinode } from '../ui/ThemeLib';
 import { ALIGN } from './Align';
 import { Ads } from './Ads';
+import { Analytics } from './Analytics';
 import { AudioMgr } from './AudioMgr';
 import { DouyinAdProvider, isDouyinRuntime } from './DouyinAd';
 import { DouyinSocial } from './DouyinSocial';
@@ -84,6 +85,9 @@ export class Game {
 
         // 存档与系统装配
         this.save = SaveStore.load();
+        // 埋点：首开日/新老用户/进度快照（必须在任何页面构建前初始化，
+        // 否则 first_home/first_box 会缺 day_index 公共参数）
+        Analytics.init(this.save);
         this.rng = new Rng();
         this.eco = new EconomySystem(this.save);
         this.combat = new CombatSystem(this.eco, this.rng);

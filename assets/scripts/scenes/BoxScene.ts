@@ -2,6 +2,7 @@ import { Color, EventTouch, Graphics, Input, Label, Layers, Node, Sprite, Tween,
 import { IScene } from '../infra/SceneStack';
 import { Game } from '../infra/Game';
 import { Ads } from '../infra/Ads';
+import { Analytics } from '../infra/Analytics';
 import { AudioMgr } from '../infra/AudioMgr';
 import { BoxConfig, BoxId, getBox, BOXES, PITY_THRESHOLD } from '../core/config/boxes';
 import {
@@ -442,6 +443,7 @@ export class BoxScene implements IScene {
         }
         // 数值完全走原路径：连开只是「替玩家重复开箱」，不改概率 / 保底 / 奖励
         const r = Game.box.open(boxId);
+        this.trackBoxOpen(r, boxId, 'auto');
         Game.quests.progress(Game.save, 'openBoxes');
         Game.checkAchievements(this.node);
         Game.persist();
@@ -632,11 +634,33 @@ export class BoxScene implements IScene {
         } else {
             r = Game.box.open(boxId, { resonate: resonated });
         }
+        this.trackBoxOpen(r, boxId, mode);
         // M8 任务进度：淬体（开箱）；M9a 成就扫描
         Game.quests.progress(Game.save, 'openBoxes');
         Game.checkAchievements(this.node);
         Game.persist();
         this.showRunePhase(boxId, (layers, items) => this.showResult(r, layers, items));
+    }
+
+    /**
+     * 开箱埋点：每次开箱都发（含连开/求索），首箱额外发一次性事件。
+     * `mode` 区分主动单开 / 继续求索 / 长按连开，便于看首日开箱行为差异。
+     */
+    private trackBoxOpen(r: BoxResult, boxId: BoxId, mode: 'open' | 'seek' | 'auto'): void {
+        Analytics.track('box_open', {
+            box_id: boxId,
+            tier: r.tier,
+            mode,
+            cost: getBox(boxId)?.cost ?? 0,
+            resonated: r.resonated ? 1 : 0,
+            pity: r.pityTriggered ? 1 : 0,
+            jiyuan: r.jiyuan,
+            opens: Game.save.stats.opens,
+            used_ticket: r.usedTicket ? 1 : 0,
+        });
+        if (Game.save.stats.opens === 1) {
+            Analytics.trackOnce('first_box', 'first_box', { box_id: boxId, tier: r.tier });
+        }
     }
 
     /** V2 A3：圆满三连——2.5s 内依序点亮符文，点亮数决定追加奖励。 */

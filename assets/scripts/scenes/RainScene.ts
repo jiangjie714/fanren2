@@ -2,10 +2,12 @@ import { Color, EventTouch, Graphics, Input, Label, Layers, Node, tween, UIOpaci
 import { IScene } from '../infra/SceneStack';
 import { Game } from '../infra/Game';
 import { Ads } from '../infra/Ads';
+import { Analytics } from '../infra/Analytics';
 import { AudioMgr } from '../infra/AudioMgr';
 import { RainMode, RainSession, RAIN_FIELD, RainDrop } from '../core/systems/RainSystem';
 import { recordIllusion, recordTribulation } from '../core/systems/StatsRecorder';
 import { comboBonus, RAIN_WAVES, waveAt } from '../core/config/drops';
+import { REALMS } from '../core/config/realms';
 import { TEXTS } from '../core/config/texts';
 import {
     ButtonHandle,
@@ -81,6 +83,14 @@ export class RainScene implements IScene {
         this.session = Game.rain.createSession(targetIndex, Game.eco.monthCardActive, this.mode, undefined, firstBattle);
         // 炼丹「速度」四维：放大角色跟随手指的惯性系数（#39，乘算）
         this.session.followLerp *= 1 + Game.alchemy.speedMoveBonus(Game.save);
+        if (this.mode === 'tribulation') {
+            Analytics.track('breakthrough_start', {
+                target_realm: targetIndex,
+                base_rate: REALMS[targetIndex].baseRate,
+                first_battle: this.session.firstBattle ? 1 : 0,
+                daoxin: Game.save.daoxin,
+            });
+        }
 
         // 秘境按今日主题换背景（#42：灵雨=金绿云海 / 劫云=紫红雷劫 / 幻心=青玉幻境）
         pageBackground(n, this.session.theme?.bg ?? 'art/ui/bg_rain/spriteFrame');

@@ -4,6 +4,7 @@
  */
 import { Color, Label, Node, tween } from 'cc';
 import { AD_PLACES, AdPlace, DOUYIN_AD_UNIT_IDS } from '../core/config/ads';
+import { Analytics } from './Analytics';
 import { TEXTS } from '../core/config/texts';
 import { dimLayer, label, spriteButton, spritePanel, THEME, uinode } from '../ui/ThemeLib';
 
@@ -132,9 +133,11 @@ export class Ads {
                 return;
             }
             this.inFlight = true;
+            const startedAt = this.trackAdStart(place);
             console.warn(`[fanren] 广告模拟直通：place=${place} 视为已播完`);
             setTimeout(() => {
                 this.inFlight = false;
+                this.trackAdEnd(place, 'success', startedAt);
                 cb.onSuccess();
             }, 0);
             return;
@@ -147,10 +150,17 @@ export class Ads {
             return;
         }
         this.inFlight = true;
+        const startedAt = this.trackAdStart(place);
+        let ended = false;
         const settle = () => { this.inFlight = false; };
+        const finish = (result: 'success' | 'skip' | 'error') => {
+            if (ended) return;
+            ended = true;
+            this.trackAdEnd(place, result, startedAt);
+        };
         const wrapped: AdCallbacks = {
-            onSuccess: () => { settle(); cb.onSuccess(); },
-            onSkip: () => { settle(); cb.onSkip?.(); },
+            onSuccess: () => { settle(); finish('success'); cb.onSuccess(); },
+            onSkip: () => { settle(); finish('skip'); cb.onSkip?.(); },
         };
         try {
             this.provider.show(place, host, wrapped);
@@ -160,8 +170,33 @@ export class Ads {
             // 静态字段不随场景重建）。真机触发场景：tt.createRewardedVideoAd 在
             // 广告位 ID 非法 / 未开通流量主 / 部分机型上会同步抛错。
             settle();
+            finish('error');
             console.error(`[fanren] ad provider threw, place=${place}`, e);
             wrapped.onSkip();
+        }
+    }
+
+    /** 广告请求埋点：configured=0 说明后台没配 ID（首发零广告期常见） */
+    private static trackAdStart(place: AdPlace): number {
+        Analytics.track('ad_request', {
+            place,
+            configured: DOUYIN_AD_UNIT_IDS[place] ? 1 : 0,
+            sim: this.simAuto ? 1 : 0,
+            limit: AD_PLACES[place]?.dailyLimit ?? -1,
+        });
+        return Date.now();
+    }
+
+    /** 广告结果埋点：success/skip/error 三态 + 耗时，用于算填充率与完播率 */
+    private static trackAdEnd(place: AdPlace, result: 'success' | 'skip' | 'error', startedAt: number): void {
+        Analytics.track('ad_result', {
+            place,
+            result,
+            duration_ms: Math.max(0, Date.now() - startedAt),
+            sim: this.simAuto ? 1 : 0,
+        });
+        if (result === 'success' && !this.simAuto) {
+            Analytics.trackOnce('first_ad_success', 'first_ad_success', { place });
         }
     }
 

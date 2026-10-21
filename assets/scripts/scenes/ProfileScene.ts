@@ -1,6 +1,7 @@
 import { EditBox, Graphics, Label, Layers, Node, Sprite } from 'cc';
 import { IScene } from '../infra/SceneStack';
 import { Game } from '../infra/Game';
+import { Analytics } from '../infra/Analytics';
 import { TEXTS } from '../core/config/texts';
 import {
     THEME,
@@ -31,6 +32,8 @@ export class ProfileScene implements IScene {
     private gender: Gender = 'm';
     private cards = new Map<Gender, Node>();
     private editBox!: EditBox;
+    /** 是否点过「随机道号」：只传布尔，不传道号本身（隐私） */
+    private usedRandom = false;
 
     constructor() {
         this.node = new Node('ProfileScene');
@@ -54,6 +57,7 @@ export class ProfileScene implements IScene {
         this.renderNameInput();
         this.renderLinks();
         fadeIn(n, 16);
+        Analytics.track('onboarding_profile_view', {});
     }
 
     /** 底部合规入口（自主页迁入）：位于 -440，高于底部 -536 安全线，远离手势栏冲突 */
@@ -136,6 +140,7 @@ export class ProfileScene implements IScene {
         // 注意不要给 primary 再传 textColor: goldLight —— 金字压金底对比仅 1.4:1 会糊，
         // primary 的默认字色是归墟深墨（13.7:1），走默认值即可。
         const rnd = spriteButton(n, BTN_W, 76, TEXTS.profileRandomName, () => {
+            this.usedRandom = true;
             this.editBox.string = Game.combat.randomName();
         }, { fontSize: 27, variant: 'primary' });
         rnd.node.setPosition(-148, -330, 0);
@@ -187,6 +192,11 @@ export class ProfileScene implements IScene {
         }
         Game.save.profile = { gender: this.gender, name, createdAt: Date.now() };
         Game.persist();
+        Analytics.track('onboarding_profile_complete', {
+            gender: this.gender,
+            name_len: name.length,
+            used_random: this.usedRandom ? 1 : 0,
+        });
         Game.stack.swap(new HomeScene());
     }
 }

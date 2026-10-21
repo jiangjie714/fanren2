@@ -2,6 +2,7 @@ import { Color, Graphics, Label, Layers, Node, tween, UIOpacity, Vec3 } from 'cc
 import { IScene } from '../infra/SceneStack';
 import { Game } from '../infra/Game';
 import { Ads } from '../infra/Ads';
+import { Analytics } from '../infra/Analytics';
 import { AudioMgr } from '../infra/AudioMgr';
 import { RainResult, RainSession } from '../core/systems/RainSystem';
 import { formatRankValue } from '../core/systems/SocialRank';
@@ -57,6 +58,8 @@ export class ResultScene implements IScene {
 
     onEnter() {
         const n = this.node;
+        // 判定前快照：首次突破成功/失败都只发一次（ResultScene 可能被重建，但 applied 已挡）
+        const firstResult = Game.save.stats.breakthroughWins + Game.save.stats.breakthroughFails === 0;
         if (!this.applied) {
             this.applied = true;
             if (this.p.success) {
@@ -72,6 +75,7 @@ export class ResultScene implements IScene {
                 AudioMgr.play('fail');
             }
             Game.persist();
+            this.trackBreakthroughResult(firstResult);
         }
 
         pageBackground(n, 'art/ui/bg_result/spriteFrame');
@@ -283,6 +287,33 @@ export class ResultScene implements IScene {
         // 成就扫描放在境界统计写入之后（realm.succeed/fail 在本页 onEnter 顶部），
         // 「首次突破/境界达成」类成就当场达成。旧版在 RainScene 统计写入前扫描（P1-2）。
         Game.checkAchievements(this.node);
+    }
+
+    /**
+     * 渡劫结算埋点：首次成功/失败各发一次一次性事件，用于算 60 秒漏斗的终点。
+     * 只统计渡劫模式（ResultScene 本来也只服务渡劫）。
+     */
+    private trackBreakthroughResult(firstResult: boolean): void {
+        const rate = Math.round(this.p.rate * 1000) / 1000;
+        Analytics.track('breakthrough_result', {
+            success: this.p.success ? 1 : 0,
+            target_realm: this.p.targetIndex,
+            rate,
+            score: this.p.result.score,
+            first_result: firstResult ? 1 : 0,
+            first_battle: this.p.session.firstBattle ? 1 : 0,
+        });
+        if (!firstResult) return;
+        const params = {
+            target_realm: this.p.targetIndex,
+            rate,
+            score: this.p.result.score,
+        };
+        if (this.p.success) {
+            Analytics.trackOnce('first_breakthrough_success', 'first_breakthrough_success', params);
+        } else {
+            Analytics.trackOnce('first_breakthrough_fail', 'first_breakthrough_fail', params);
+        }
     }
 
     onResume() {
