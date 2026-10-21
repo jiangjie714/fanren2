@@ -1,4 +1,4 @@
-/** 存档模型 v13：v12 字段 + M31 宗门社交（sect，#57）；id 为空 = 未加入，其余全部派生 */
+/** 存档模型 v15：v14 字段 + D1-60s 新手三连（starter，#59） */
 import { STAMINA_MAX, STAMINA_AD_PER_DAY } from './config/trial';
 import { weekKeyOf } from './config/illusion';
 
@@ -255,8 +255,23 @@ export interface SectState {
     bought: Record<string, number>;
 }
 
+// ---------- v15（D1-60s 首日 60 秒，#59） ----------
+
+/**
+ * 新手三连开箱进度（D1-60s）。**刻意放顶层而非 daily**：done 是跨会话持久语义
+ * （「这个号是否走过 60 秒新手流」），放进 daily 会被每日重置清掉，玩家每天重看一遍新手流。
+ * 两个布尔分工：`done` = 新手流已走完/已跳过（主页据此切常规布局）；
+ * `jiyuanGranted` = 60 机缘一次性赠送已发放（幂等键，与 done 构成双重保险）。
+ */
+export interface StarterState {
+    /** 新手三连流是否已走完（true 后主页走常规布局） */
+    done: boolean;
+    /** 60 机缘赠送是否已发放（一次性，幂等） */
+    jiyuanGranted: boolean;
+}
+
 export interface SaveData {
-    version: 14;
+    version: 15;
     lingshi: number;
     xiuwei: number;
     jiyuan: number;
@@ -322,6 +337,9 @@ export interface SaveData {
     // ---------- v13（M31） ----------
     /** 宗门社交进度（#57）；id=null = 未加入 */
     sect: SectState;
+    // ---------- v15（D1-60s） ----------
+    /** 新手三连开箱进度（#59）；done=true = 已走完 60 秒新手流 */
+    starter: StarterState;
 }
 
 import { INITIAL_LINGSHI } from './config/economy';
@@ -337,7 +355,7 @@ const OFFLINE_DAY_CAP_MIRROR = 480;
 
 export function defaultSave(): SaveData {
     return {
-        version: 14,
+        version: 15,
         lingshi: INITIAL_LINGSHI,
         xiuwei: 0,
         jiyuan: 0,
@@ -431,6 +449,8 @@ export function defaultSave(): SaveData {
             shopDay: '',
             bought: {},
         },
+        // v15 新手三连：白纸开局 —— 新号直进主页走 60 秒新手流
+        starter: { done: false, jiyuanGranted: false },
     };
 }
 
@@ -443,7 +463,7 @@ export function migrate(raw: unknown): SaveData {
     const d = defaultSave();
     if (!raw || typeof raw !== 'object') return d;
     const r = raw as Record<string, unknown>;
-    if (r.version !== 1 && r.version !== 2 && r.version !== 3 && r.version !== 4 && r.version !== 5 && r.version !== 6 && r.version !== 7 && r.version !== 8 && r.version !== 9 && r.version !== 10 && r.version !== 11 && r.version !== 12 && r.version !== 13 && r.version !== 14) return d;
+    if (r.version !== 1 && r.version !== 2 && r.version !== 3 && r.version !== 4 && r.version !== 5 && r.version !== 6 && r.version !== 7 && r.version !== 8 && r.version !== 9 && r.version !== 10 && r.version !== 11 && r.version !== 12 && r.version !== 13 && r.version !== 14 && r.version !== 15) return d;
     const profile = { ...d.profile, ...(r.profile as object ?? {}) };
     const srcTrial = (r.trial as Partial<TrialState>) ?? {};
     return {
@@ -514,8 +534,10 @@ export function migrate(raw: unknown): SaveData {
         story: migrateStory(r.story),
         // v13：宗门社交（v12 老档无此字段 → 未加入，进论道页自选，不补课）
         sect: migrateSect(r.sect),
-        // v14：补签/双倍幂等日键（v13 老档无此字段 → 空串，见 migrateCheckin）
-        version: 14,
+        // v15：新手三连（v14 及更老无此字段 → 按进度推导：有进度 = 老玩家直接 done，
+        // 不补课、不重复发 60 机缘；零进度新档走白纸，进 60 秒新手流）
+        starter: migrateStarter(r.starter, r.realmIndex, (r.stats as SaveStats | undefined)?.opens),
+        version: 15,
     } as SaveData;
 }
 
@@ -594,6 +616,26 @@ function migrateSect(raw: unknown): SectState {
         shopDay: dayOf(s.shopDay),
         bought,
     };
+}
+
+/**
+ * v15 新手三连字段迁移（D1-60s，#59）：
+ * - v15 档（有 starter 对象）：done/jiyuanGranted 布尔化（同 migrateTutorial 口径，
+ *   信任存档不按进度覆写——roundtrip 保真）；
+ * - v14 及更老（无 starter 对象/非对象）：按进度推导。`realmIndex>0` 或 `stats.opens>0`
+ *   = 老玩家，直接 `{done:true, jiyuanGranted:true}`——不弹新手流、不补发 60 机缘
+ *   （jiyuanGranted 同步置真是双重保险：即使 done 被手改，发放侧还有一道幂等）；
+ * - realmIndex/opens 读取做防御式收敛（脏档按 0 处理，宁可当新号也不误判老玩家——
+ *   误判老玩家会跳过新手流，误判新号最多重走一次三连，后者更轻）。
+ */
+function migrateStarter(raw: unknown, realmIndex: unknown, opens: unknown): StarterState {
+    const veteran = (typeof realmIndex === 'number' && Number.isFinite(realmIndex) && realmIndex > 0)
+        || (typeof opens === 'number' && Number.isFinite(opens) && opens > 0);
+    if (raw && typeof raw === 'object') {
+        const s = raw as Partial<StarterState>;
+        return { done: Boolean(s.done), jiyuanGranted: Boolean(s.jiyuanGranted) };
+    }
+    return { done: veteran, jiyuanGranted: veteran };
 }
 
 /** v9 签到字段迁移：streak/totalDays 非负整数钳制，milestonesClaimed 去重有序，lastDay 非字符串回退空串；
