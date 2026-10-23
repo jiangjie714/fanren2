@@ -200,6 +200,11 @@ export class Ads {
         }
     }
 
+    /** 该广告位是否已配置真实 ID（首发零广告期 UI 据此隐藏入口，避免「点了没奖励」） */
+    static isConfigured(place: AdPlace): boolean {
+        return !!DOUYIN_AD_UNIT_IDS[place];
+    }
+
     /**
      * 广告位配置自检（上线前用）：返回已配/未配清单。
      * 7 个位要逐个在字节后台申请，漏配一个只能等玩家点到那一处才在 warn 里发现，

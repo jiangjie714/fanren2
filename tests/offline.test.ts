@@ -180,7 +180,7 @@ describe('M29 离线吐纳判定层（core/offline.ts 纯函数）', () => {
 describe('M29 存档 v11 迁移', () => {
     it('defaultSave 是 v11 且带 offline{lastAt=此刻, day=今天, dayMin=0}', () => {
         const s = defaultSave();
-        expect(s.version).toBe(15);
+        expect(s.version).toBe(16);
         expect(s.offline.dayMin).toBe(0);
         expect(Math.abs(s.offline.lastAt - Date.now()), '新档心跳必须是此刻').toBeLessThan(5000);
         expect(s.offline.day.length).toBe(10);
@@ -189,7 +189,7 @@ describe('M29 存档 v11 迁移', () => {
     it('v10 老档 → v11：保留全部数据，offline 补缺省且不给白条收益', () => {
         const old = { ...defaultSave(), version: 10 as const, lingshi: 12345, realmIndex: 3 };
         const s = migrate(JSON.parse(JSON.stringify(old)));
-        expect(s.version).toBe(15);
+        expect(s.version).toBe(16);
         expect(s.lingshi).toBe(12345);
         expect(s.realmIndex).toBe(3);
         expect(s.offline.dayMin).toBe(0);
@@ -203,7 +203,7 @@ describe('M29 存档 v11 迁移', () => {
             version: 11,
             offline: { lastAt: Date.now() + 86_400_000, day: 'garbage', dayMin: -7 },
         });
-        expect(s.version).toBe(15);
+        expect(s.version).toBe(16);
         expect(s.offline.lastAt, '未来时间戳必须钳到此刻').toBeLessThanOrEqual(Date.now());
         expect(s.offline.day).toMatch(/^\d{4}-\d{2}-\d{2}$/);
         expect(s.offline.dayMin).toBe(0);
@@ -211,15 +211,15 @@ describe('M29 存档 v11 迁移', () => {
 
     it('v1 原始档也能一路迁到 v11', () => {
         const s = migrate({ version: 1, lingshi: 500 });
-        expect(s.version).toBe(15);
+        expect(s.version).toBe(16);
         expect(s.lingshi).toBe(500);
         expect(s.offline.dayMin).toBe(0);
     });
 
     it('损坏档（null / 字符串 / 未知版本）→ 重置为 v11 缺省', () => {
-        expect(migrate(null).version).toBe(15);
-        expect(migrate('oops').version).toBe(15);
-        expect(migrate({ version: 99 }).version).toBe(15);
+        expect(migrate(null).version).toBe(16);
+        expect(migrate('oops').version).toBe(16);
+        expect(migrate({ version: 99 }).version).toBe(16);
         expect(migrate({ version: 99 }).offline.dayMin).toBe(0);
     });
 });

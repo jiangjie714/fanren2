@@ -185,9 +185,9 @@ describe('一次只播一个节拍 + 幂等标记（#56）', () => {
 });
 
 describe('存档 v12 迁移（#56）', () => {
-    it('defaultSave：version 15 + story 白纸', () => {
+    it('defaultSave：version 16 + story 白纸', () => {
         const d = defaultSave();
-        expect(d.version).toBe(15);
+        expect(d.version).toBe(16);
         expect(d.story).toEqual({ seen: [] });
     });
 
@@ -195,7 +195,7 @@ describe('存档 v12 迁移（#56）', () => {
         const raw = { ...defaultSave(), version: 11 } as unknown as Record<string, unknown>;
         delete (raw as { story?: unknown }).story;
         const s = migrate(raw);
-        expect(s.version).toBe(15);
+        expect(s.version).toBe(16);
         expect(s.story).toEqual({ seen: [] });
     });
 
@@ -205,7 +205,7 @@ describe('存档 v12 迁移（#56）', () => {
             story: { seen: ['trail_2', 'opening', 'opening', 'bogus_id', 42, null, 'realm_5'] },
         };
         const s = migrate(raw);
-        expect(s.version).toBe(15);
+        expect(s.version).toBe(16);
         expect(s.story.seen).toEqual(['opening', 'realm_5', 'trail_2']);
     });
 

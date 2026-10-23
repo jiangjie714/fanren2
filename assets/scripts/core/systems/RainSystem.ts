@@ -27,8 +27,9 @@ import {
 import { GOLD_RAIN_XIUWEI } from '../config/economy';
 import { ILLUSION, IllusionTier, judgeIllusionScore, judgeIllusionTier } from '../config/illusion';
 import { TRIAL_THEMES, TrialTheme, themeOf } from '../config/trial';
+import { Modifier, combinedScoreMult, difficultyOf, tianjieRating, tianjieScore } from '../tianjie';
 
-export type RainMode = 'tribulation' | 'illusion';
+export type RainMode = 'tribulation' | 'illusion' | 'tianjie';
 
 export interface RainDrop {
     id: number;
@@ -89,11 +90,16 @@ export interface RainSession {
     followLerp: number;
     /** 秘境主题（illusion 模式专用；M14 #42，主题决定权重/速率/落速/成排与视觉） */
     theme: TrialTheme | null;
+    /**
+     * 每日天劫词条（2026-10-22，仅 mode==='tianjie' 非空）。
+     * 渡劫/秘境会话恒为 null —— 两条既有路径的生成参数 bit-exact 不变（单测锁定）。
+     */
+    tianjie?: Modifier[] | null;
 }
 
 export interface RainResult {
-    /** 渡劫评级（幻境模式下为幻境档位名） */
-    rating: RainRating | IllusionTier | null;
+    /** 渡劫评级（幻境模式下为幻境档位名；天劫为「凡阶/灵阶/仙阶」） */
+    rating: RainRating | IllusionTier | string | null;
     /** 模式 */
     mode: RainMode;
     /** 评分（渡劫 0–100 / 幻境 0–200，评级与排行依据） */
@@ -137,7 +143,14 @@ export class RainSystem {
         this.currentWave = waveAt(0);
     }
 
-    createSession(targetIndex: number, monthCard: boolean, mode: RainMode = 'tribulation', theme?: TrialTheme, firstBattle = false): RainSession {
+    createSession(
+        targetIndex: number,
+        monthCard: boolean,
+        mode: RainMode = 'tribulation',
+        theme?: TrialTheme,
+        firstBattle = false,
+        tianjie?: Modifier[] | null,
+    ): RainSession {
         const duration = mode === 'illusion' ? ILLUSION.duration : 8;
         // 秘境主题：调用方可显式指定（测试/回放），缺省按今日日序轮换（#42）
         const resolvedTheme = mode === 'illusion' ? (theme ?? themeOf()) : null;
@@ -169,7 +182,39 @@ export class RainSystem {
             firstBattle,
             followLerp: RAIN_FIELD.followLerp,
             theme: resolvedTheme,
+            // 只有显式请求天劫时才有词条；渡劫/秘境恒 null（生成路径不受影响）
+            tianjie: mode === 'tianjie' ? (tianjie ?? []) : null,
         };
+    }
+
+    /** 词条数值聚合（每帧读会话词条数组只有 ≤3 项，直接遍历比缓存字段更不易漂移） */
+    private mods(s: RainSession): Modifier[] {
+        return s.tianjie ?? [];
+    }
+
+    /** 词条 → 生成速率倍率 */
+    private rateMult(s: RainSession): number {
+        let m = 1;
+        this.mods(s).forEach((x) => { if (x.rateMult) m *= x.rateMult; });
+        return m;
+    }
+
+    /** 词条 → 落速倍率 */
+    private fallMult(s: RainSession): number {
+        let m = 1;
+        this.mods(s).forEach((x) => { if (x.fallSpeedMult) m *= x.fallSpeedMult; });
+        return m;
+    }
+
+    /** 词条是否禁用某类雨滴 */
+    private blockType(s: RainSession, type: DropType): boolean {
+        return this.mods(s).some((x) => (type === 'blue' && x.noBlue) || (type === 'red' && x.noRed));
+    }
+
+    /** 词条的劫雨成排覆盖（无词条 → undefined，调用方回落波次原值） */
+    private redRowOf(s: RainSession): [number, number] | undefined {
+        const hit = this.mods(s).filter((x) => x.redRow).pop();
+        return hit?.redRow;
     }
 
     /** 推进一帧：倒计时、生成（按波次）、下落、拾取判定 */
@@ -190,12 +235,12 @@ export class RainSystem {
         const target = Math.min(RAIN_FIELD.xMax, Math.max(RAIN_FIELD.xMin, playerTargetX));
         s.playerX += (target - s.playerX) * Math.min(1, s.followLerp * dt);
 
-        // 生成（渡劫按当前波次的速率；秘境按主题参数；净化期间不出劫雨）
+        // 生成（渡劫/天劫按当前波次的速率；秘境按主题参数；净化期间不出劫雨）
         if (s.mode === 'illusion') {
             this.spawnAcc += dt * (s.theme?.spawnRate ?? ILLUSION.spawnRate);
         } else {
             const wave = waveAt(s.elapsed);
-            this.spawnAcc += dt * wave.spawnRate;
+            this.spawnAcc += dt * wave.spawnRate * this.rateMult(s);
             this.currentWave = wave;
         }
         while (this.spawnAcc >= 1) {
@@ -246,20 +291,28 @@ export class RainSystem {
         return true;
     }
 
-    /** 结算：评分 + 评级/档位 + 各项累计（幻境按独立计分制） */
+    /** 结算：评分 + 评级/档位 + 各项累计（幻境按独立计分制；天劫按词条倍率计分） */
     finish(s: RainSession): RainResult {
         s.finished = true;
         const isIllusion = s.mode === 'illusion';
+        const isTianjie = s.mode === 'tianjie';
+        const mods = this.mods(s);
         const score = isIllusion
             ? judgeIllusionScore(s.goldCount, s.maxCombo, s.redCount)
-            : judgeScore(s.goldCount, s.maxCombo, s.blueCount, s.redCount);
-        const rating = isIllusion ? judgeIllusionTier(score) : judgeRating(score);
+            : isTianjie
+                ? tianjieScore(s.goldCount, s.maxCombo, s.blueCount, s.redCount, mods)
+                : judgeScore(s.goldCount, s.maxCombo, s.blueCount, s.redCount);
+        const rating = isIllusion ? judgeIllusionTier(score)
+            : isTianjie ? tianjieRating(score)
+                : judgeRating(score);
+        // 天劫词条「连携天道」：连击加成倍率（渡劫/秘境恒 1）
+        const comboMult = mods.reduce((m, x) => (x.comboMult ? m * x.comboMult : m), 1);
         return {
             rating,
             mode: s.mode,
             score,
             maxCombo: s.maxCombo,
-            comboBonus: isIllusion ? 0 : comboBonus(s.maxCombo),
+            comboBonus: isIllusion ? 0 : comboBonus(s.maxCombo) * comboMult,
             goldBonus: s.goldBonus,
             penalty: s.penalty,
             mindDemon: s.mindDemon,
@@ -268,6 +321,16 @@ export class RainSystem {
             blueCount: s.blueCount,
             redCount: s.redCount,
         };
+    }
+
+    /** 天劫词条的展示用难度档（渡劫/秘境返回 standard；面板配色用） */
+    tianjieDifficulty(s: RainSession): 'standard' | 'hard' | 'extreme' {
+        return difficultyOf(this.mods(s));
+    }
+
+    /** 天劫计分倍率（面板显示「分 ×1.15」）；非天劫恒 1 */
+    tianjieMult(s: RainSession): number {
+        return combinedScoreMult(this.mods(s));
     }
 
     // ---------- 内部 ----------
@@ -284,14 +347,27 @@ export class RainSystem {
             const w = s.firstBattle ? [80, 20] : [50, 35];
             type = this.rng.pickWeighted(w) === 0 ? 'gold' : 'blue';
         } else {
+            // 天劫词条：权重倍率（渡劫/秘境词条恒空 → 权重就是波次原值，bit-exact）
+            const mods = this.mods(s);
+            const goldMult = mods.reduce((m, x) => (x.goldWeightMult ? m * x.goldWeightMult : m), 1);
+            const redMult = mods.reduce((m, x) => (x.redWeightMult ? m * x.redWeightMult : m), 1);
+            const noBlue = mods.some((x) => x.noBlue);
+            const blueMult = mods.reduce((m, x) => (x.blueWeightMult ? m * x.blueWeightMult : m), 1);
             const redWeight = Math.max(0, wave.weights[2] - (s.monthCard ? MONTH_CARD_RED_WEIGHT_REDUCE : 0)
-                + (wave.redRow[1] > 0 ? WAVE3_RED_WEIGHT_PER_REALM * (s.targetIndex - 1) : 0));
-            const idx = this.rng.pickWeighted([wave.weights[0], wave.weights[1], redWeight]);
+                + (wave.redRow[1] > 0 ? WAVE3_RED_WEIGHT_PER_REALM * (s.targetIndex - 1) : 0)) * redMult;
+            const goldWeight = wave.weights[0] * goldMult;
+            // 清雨权重可被词条压低（清雨易碎），但不能降到 0——那等于 noBlue，另一条词条已表达该语义
+            const blueWeight = noBlue ? 0 : Math.max(1, wave.weights[1] * blueMult);
+            const idx = this.rng.pickWeighted([goldWeight, blueWeight, redWeight]);
             type = idx === 0 ? 'gold' : idx === 1 ? 'blue' : 'red';
+            // 词条禁雨：劫雨被禁则按金雨重开（noRed 为纯福利日）
+            if (this.blockType(s, type)) type = type === 'red' ? 'gold' : 'blue';
         }
-        const speedMult = 1 + FALL_SPEED_PER_REALM * (s.targetIndex - 1);
-        if (type === 'red' && wave.redRow[1] > 0) {
-            this.spawnRedRow(s, wave, speedMult);
+        // 词条成排覆盖（仅当事先声明的波③成排语义；渡劫日条为空，走原逻辑）
+        const redRow: [number, number] = this.redRowOf(s) ?? wave.redRow;
+        const speedMult = (1 + FALL_SPEED_PER_REALM * (s.targetIndex - 1)) * this.fallMult(s);
+        if (type === 'red' && redRow[1] > 0) {
+            this.spawnRedRow(s, { ...wave, redRow }, speedMult);
             return;
         }
         s.drops.push({
@@ -401,8 +477,10 @@ export class RainSystem {
             }
             s.redCount += 1;
             s.combo = 0;
-            // 心魔干扰：仅打标记，-5% 惩罚由 RealmSystem.computeFinalRate 统一扣减，避免重复
-            if (s.redCount >= MIND_DEMON_RED_COUNT && !s.mindDemon) {
+            // 心魔干扰：仅打标记，-5% 惩罚由 RealmSystem.computeFinalRate 统一扣减，避免重复。
+            // 天劫词条「心魔先兆」可把阈值提前（渡劫/秘境无词条 → 恒 MIND_DEMON_RED_COUNT）。
+            const mdAt = this.mods(s).filter((x) => x.mindDemonRed).pop()?.mindDemonRed ?? MIND_DEMON_RED_COUNT;
+            if (s.redCount >= mdAt && !s.mindDemon) {
                 s.mindDemon = true;
             }
         }

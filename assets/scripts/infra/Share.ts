@@ -9,6 +9,10 @@ export interface ShareOpts {
     title: string;
     /** 分享图（可选；不传用平台默认游戏卡片）。抖音端可传 tt.toTempFilePath 产物路径 */
     imageUrl?: string;
+    /** 分享成功回调（平台上报成功才触发）：用于埋点验证分享率，不做任何发奖 */
+    onSuccess?: () => void;
+    /** 分享失败/取消回调（部分基础库不回调 onFail，调用方自行超时兜底） */
+    onFail?: () => void;
 }
 
 export class Share {
@@ -18,7 +22,11 @@ export class Share {
         return !!tt && typeof tt.shareAppMessage === 'function';
     }
 
-    /** 发起分享；不可用/失败返回 false（调用方负责提示） */
+    /**
+     * 发起分享；不可用/失败返回 false（调用方负责提示）。
+     * `success`/`fail` 回调用于埋点（M36 优化）：分享率是发行人计划素材的先行指标，
+     * 没有回调就只能统计「点了分享」而不是「真的发出去」。
+     */
     static share(opts: ShareOpts): boolean {
         const tt = (globalThis as any).tt;
         if (!this.available()) return false;
@@ -26,10 +34,13 @@ export class Share {
             tt.shareAppMessage({
                 title: opts.title,
                 ...(opts.imageUrl ? { imageUrl: opts.imageUrl } : {}),
+                success: () => opts.onSuccess?.(),
+                fail: () => opts.onFail?.(),
             });
             return true;
         } catch (e) {
             console.warn('[fanren] share failed', e);
+            opts.onFail?.();
             return false;
         }
     }

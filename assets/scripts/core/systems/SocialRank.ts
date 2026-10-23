@@ -3,9 +3,9 @@
  * ⚠️ 语义与 open-data-context/game.js 内的实现保持同步（子域是独立 JS 环境无法 import 本文件，
  * 修改这里时必须同步子域），本文件为主域展示/测试与语义的唯一事实源。
  */
-export type RankKey = 'realm_value' | 'illusion_week' | 'tribulation_best';
+export type RankKey = 'realm_value' | 'illusion_week' | 'tribulation_best' | 'tianjie_week';
 
-export const RANK_KEYS: RankKey[] = ['realm_value', 'illusion_week', 'tribulation_best'];
+export const RANK_KEYS: RankKey[] = ['realm_value', 'illusion_week', 'tribulation_best', 'tianjie_week'];
 
 export interface FriendEntry {
     nickname: string;
@@ -74,12 +74,18 @@ export function parseSubMessage(msg: unknown): SubMessage | null {
     return null;
 }
 
-/** 榜值展示格式化（论道页/调试用） */
+/**
+ * 榜值展示格式化（论道页/调试用）。
+ * ⚠ 新增键必须同步 `open-data-context/game.js` 的 KEYS / formatValue / 标题表
+ * （子域是独立 JS 环境，无法 import 本文件；语义镜像由 tests/m9b.test.ts 锁定）。
+ */
 export function formatRankValue(key: RankKey, v: number): string {
     if (key === 'realm_value') {
         const d = decodeRealmValue(v);
         return `境界${d.realmIndex} · 修为${d.xiuwei}`;
     }
     if (key === 'illusion_week') return `${decodeIllusionWeek(v).score} 分`;
+    // tianjie_week 与 illusion_week 同构：低 3 位是本周最佳分
+    if (key === 'tianjie_week') return `${Math.max(0, Math.round(v)) % 1000} 分`;
     return `${Math.max(0, v)} 分`;
 }

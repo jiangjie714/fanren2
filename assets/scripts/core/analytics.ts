@@ -24,7 +24,13 @@ export type AnalyticsEventName =
     | 'first_breakthrough_fail'
     | 'ad_request'
     | 'ad_result'
-    | 'first_ad_success';
+    | 'first_ad_success'
+    | 'tianjie_start'
+    | 'tianjie_result'
+    | 'share_result'
+    | 'starter_view'
+    | 'starter_box'
+    | 'starter_complete';
 
 export interface AnalyticsEventMeta {
     /** 中文说明，给运营在字节后台「自定义分析」登记时抄 */
@@ -85,6 +91,30 @@ export const ANALYTICS_EVENTS: Record<AnalyticsEventName, AnalyticsEventMeta> = 
     first_ad_success: {
         desc: '首次广告完整播完（一次安装只发一次；看首日广告渗透）',
         params: ['place'],
+    },
+    tianjie_start: {
+        desc: '每日天劫开局（看参与率 = 每日天劫开局 DAU / 启动 DAU）',
+        params: ['attempts_left', 'score_mult', 'mods', 'streak', 'realm_index'],
+    },
+    tianjie_result: {
+        desc: '每日天劫结算（分数分布、新纪录率、重复参与）',
+        params: ['score', 'rating', 'new_best', 'new_today', 'attempts_left', 'gold', 'blue', 'red', 'max_combo'],
+    },
+    share_result: {
+        desc: '分享结果（点分享 → 真的发出去了吗；分享率是发行人素材的先行指标）',
+        params: ['scene', 'result', 'score'],
+    },
+    starter_view: {
+        desc: '进入 60 秒新手流（StarterScene）',
+        params: ['realm_index'],
+    },
+    starter_box: {
+        desc: '新手三连每开一只（第 1/2/3 只）',
+        params: ['index', 'tier', 'jiyuan'],
+    },
+    starter_complete: {
+        desc: '新手三连完成（机缘补到 60，进入首战前）',
+        params: ['jiyuan', 'elapsed_ms'],
     },
 };
 

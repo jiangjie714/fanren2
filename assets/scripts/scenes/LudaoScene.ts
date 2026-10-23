@@ -175,15 +175,18 @@ export class LudaoScene implements IScene {
             realm_value: '境界',
             illusion_week: '幻境',
             tribulation_best: '渡劫',
+            tianjie_week: '天劫',
         };
+        // M36：榜键 3 → 4，chip 宽 160→140、pitch 200→152（4×140+3×12 = 596 ≤ 620 面板内宽），
+        // 字号 22→20；命中区仍 ≥ MIN_TOUCH（140 宽 × 56 高 → 命中 140×88）
         RANK_KEYS.forEach((k, i) => {
             const active = k === this.odcKey;
-            const chip = spriteButton(panel, 160, 56, chipNames[k], () => this.switchOdcKey(k), {
-                fontSize: 22,
+            const chip = spriteButton(panel, 140, 56, chipNames[k], () => this.switchOdcKey(k), {
+                fontSize: 20,
                 variant: active ? 'primary' : 'secondary',
                 textColor: active ? THEME.white : THEME.ink,
             });
-            chip.node.setPosition(-200 + i * 200, 306, 0);
+            chip.node.setPosition((i - (RANK_KEYS.length - 1) / 2) * 152, 306, 0);
             this.odcChips.set(k, chip);
         });
         // 子域画布视图
@@ -231,6 +234,7 @@ export class LudaoScene implements IScene {
         const s = Game.save;
         if (key === 'realm_value') return encodeRealmValue(s.realmIndex, s.xiuwei);
         if (key === 'illusion_week') return encodeIllusionWeek(s.illusionWeekKey, s.illusionWeekBest);
+        if (key === 'tianjie_week') return Game.tianjie.myWeekValue(s);
         return s.stats.bestTribScore;
     }
 

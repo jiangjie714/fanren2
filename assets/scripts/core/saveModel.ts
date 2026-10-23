@@ -1,4 +1,4 @@
-/** 存档模型 v15：v14 字段 + D1-60s 新手三连（starter，#59） */
+/** 存档模型 v16：v15 字段 + 每日天劫（tianjie，M36） */
 import { STAMINA_MAX, STAMINA_AD_PER_DAY } from './config/trial';
 import { weekKeyOf } from './config/illusion';
 
@@ -28,6 +28,8 @@ export interface DailyState {
     pkUsed: number;
     /** 今日秘境结算奖励翻倍已用次数（M14-5 #46，上限 3） */
     doubleRewardUsed: number;
+    /** 今日开箱「修为加倍」广告已用次数（D1/商业口径：≤2/日，防首日广告疲劳） */
+    doubleXiuweiUsed: number;
     /** 今日已领交情礼灵石（M25 #50：friend 胜利 100/场，日封顶 200） */
     pkFriendGift?: number;
 }
@@ -270,8 +272,45 @@ export interface StarterState {
     jiyuanGranted: boolean;
 }
 
+// ---------- v16（M36 每日天劫） ----------
+
+/**
+ * 每日天劫进度。**放顶层而非 daily**：`best`/`streak` 是跨日持久量（今日最佳会被
+ * 「昨日最佳」刷新），只有 `day`/`attempts`/`todayBest` 是「今日状态」，混进 daily
+ * 会让连续挑战天数在每日重置时一起被清掉。
+ *
+ * 翻新规则（惰性，同 offline）：读到时 `day !== today` → attempts 归零、todayBest 归零、
+ * `best` 保留为历史最高；`streak` 只在「今天打过且昨天打过」时 +1，断一天归 1。
+ */
+export interface TianjieState {
+    /** 今日日键 YYYY-MM-DD；'' = 从未挑战 */
+    day: string;
+    /**
+     * 上次结算时的日键（跨日翻新据此判断「昨天是否打过」）。
+     * 与 `day` 分开：`day` 是「今日归属」，`hasDay` 是「上一次真正打过的日子」，
+     * 只看 day 会在「翻新当日即挑战」时把连续算错。
+     */
+    hasDay: string;
+    /** 本周一日期 YYYY-MM-DD（周榜键的前缀，周一 0 点换周） */
+    weekKey: string;
+    /** 本周最佳分（周榜上报值） */
+    weekBest: number;
+    /** 今日已用挑战次数（0..TIANJIE.attemptsPerDay） */
+    attempts: number;
+    /** 今日最高分（参与好友榜的当日值） */
+    todayBest: number;
+    /** 历史最高分（只升不降，全期口径） */
+    best: number;
+    /** 连续挑战天数（断一天归 1；从未挑战为 0） */
+    streak: number;
+    /** 历史最长连续天数 */
+    bestStreak: number;
+    /** 累计挑战次数（一次安装口径，成就/统计用） */
+    totalRuns: number;
+}
+
 export interface SaveData {
-    version: 15;
+    version: 16;
     lingshi: number;
     xiuwei: number;
     jiyuan: number;
@@ -340,10 +379,14 @@ export interface SaveData {
     // ---------- v15（D1-60s） ----------
     /** 新手三连开箱进度（#59）；done=true = 已走完 60 秒新手流 */
     starter: StarterState;
+    // ---------- v16（M36 每日天劫） ----------
+    /** 每日天劫进度（同种子 8 秒挑战）；跨日惰性翻新 */
+    tianjie: TianjieState;
 }
 
 import { INITIAL_LINGSHI } from './config/economy';
 import { STORY_BEAT_IDS } from './config/story';
+import { TIANJIE } from './tianjie';
 import { SECT_IDS } from './config/sect';
 
 /**
@@ -355,7 +398,7 @@ const OFFLINE_DAY_CAP_MIRROR = 480;
 
 export function defaultSave(): SaveData {
     return {
-        version: 15,
+        version: 16,
         lingshi: INITIAL_LINGSHI,
         xiuwei: 0,
         jiyuan: 0,
@@ -376,6 +419,7 @@ export function defaultSave(): SaveData {
             illusionRewardedTier: 0,
             pkUsed: 0,
             doubleRewardUsed: 0,
+            doubleXiuweiUsed: 0,
         },
         monthlyCardExpire: 0,
         settings: { sound: true, bgm: true },
@@ -451,6 +495,8 @@ export function defaultSave(): SaveData {
         },
         // v15 新手三连：白纸开局 —— 新号直进主页走 60 秒新手流
         starter: { done: false, jiyuanGranted: false },
+        // v16 每日天劫：今日未挑战（day='' → 首次读到即按今天翻新并给满 3 次）
+        tianjie: { day: '', hasDay: '', weekKey: '', weekBest: 0, attempts: 0, todayBest: 0, best: 0, streak: 0, bestStreak: 0, totalRuns: 0 },
     };
 }
 
@@ -463,7 +509,7 @@ export function migrate(raw: unknown): SaveData {
     const d = defaultSave();
     if (!raw || typeof raw !== 'object') return d;
     const r = raw as Record<string, unknown>;
-    if (r.version !== 1 && r.version !== 2 && r.version !== 3 && r.version !== 4 && r.version !== 5 && r.version !== 6 && r.version !== 7 && r.version !== 8 && r.version !== 9 && r.version !== 10 && r.version !== 11 && r.version !== 12 && r.version !== 13 && r.version !== 14 && r.version !== 15) return d;
+    if (r.version !== 1 && r.version !== 2 && r.version !== 3 && r.version !== 4 && r.version !== 5 && r.version !== 6 && r.version !== 7 && r.version !== 8 && r.version !== 9 && r.version !== 10 && r.version !== 11 && r.version !== 12 && r.version !== 13 && r.version !== 14 && r.version !== 15 && r.version !== 16) return d;
     const profile = { ...d.profile, ...(r.profile as object ?? {}) };
     const srcTrial = (r.trial as Partial<TrialState>) ?? {};
     return {
@@ -537,7 +583,9 @@ export function migrate(raw: unknown): SaveData {
         // v15：新手三连（v14 及更老无此字段 → 按进度推导：有进度 = 老玩家直接 done，
         // 不补课、不重复发 60 机缘；零进度新档走白纸，进 60 秒新手流）
         starter: migrateStarter(r.starter, r.realmIndex, (r.stats as SaveStats | undefined)?.opens),
-        version: 15,
+        // v16：每日天劫（v15 及更老无此字段 → 全零；日键 '' 会在首次读取时按今天翻新）
+        tianjie: migrateTianjie(r.tianjie),
+        version: 16,
     } as SaveData;
 }
 
@@ -636,6 +684,37 @@ function migrateStarter(raw: unknown, realmIndex: unknown, opens: unknown): Star
         return { done: Boolean(s.done), jiyuanGranted: Boolean(s.jiyuanGranted) };
     }
     return { done: veteran, jiyuanGranted: veteran };
+}
+
+/**
+ * v16 每日天劫字段迁移（防手改存档注入）：
+ * - 非对象 → 全零（今日未挑战，首次读取按今天翻新并给满次数）；
+ * - `day` 必须是 YYYY-MM-DD，否则 ''（脏日键会让「今天打过了吗」判定失效 → 白送次数）；
+ * - 计数与非负整数钳制：`attempts` 钳到 [0, TIANJIE.attemptsPerDay]（防手改刷无限次数）、
+ *   分数钳到 [0, 100]（评分区间恒定 0–100）、`todayBest` 不超过 `best`；
+ * - 跨日不在这里结算：翻新是惰性的（`core/systems/TianjieSystem.ts`），迁移只做结构清洗。
+ */
+function migrateTianjie(raw: unknown): TianjieState {
+    const d = defaultSave().tianjie;
+    if (!raw || typeof raw !== 'object') return { ...d };
+    const t = raw as Partial<TianjieState>;
+    const dayRe = /^\d{4}-\d{2}-\d{2}$/;
+    const dayOf = (v: unknown) => (typeof v === 'string' && dayRe.test(v) ? v : '');
+    const dayStr = dayOf(t.day);
+    const clampScore = (v: unknown) => Math.max(0, Math.min(100, clampIntOr(v, 0)));
+    const best = clampScore(t.best);
+    return {
+        day: dayStr,
+        hasDay: dayOf(t.hasDay),
+        weekKey: dayOf(t.weekKey),
+        weekBest: clampScore(t.weekBest),
+        attempts: Math.max(0, Math.min(TIANJIE.attemptsPerDay, clampIntOr(t.attempts, 0))),
+        todayBest: Math.min(best, clampScore(t.todayBest)),
+        best,
+        streak: clampIntOr(t.streak, 0),
+        bestStreak: Math.max(clampIntOr(t.bestStreak, 0), clampIntOr(t.streak, 0)),
+        totalRuns: clampIntOr(t.totalRuns, 0),
+    };
 }
 
 /** v9 签到字段迁移：streak/totalDays 非负整数钳制，milestonesClaimed 去重有序，lastDay 非字符串回退空串；

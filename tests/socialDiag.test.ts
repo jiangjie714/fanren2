@@ -64,20 +64,23 @@ describe('M9b 真机联调自检捕获', () => {
         expect(DouyinSocial.getDiag().sharedCanvas).toEqual({ w: 660, h: 640 });
     });
 
-    it('reportScores 上报三榜并捕获 KV 值与时间戳', () => {
+    it('reportScores 上报四榜（含 M36 天劫周榜）并捕获 KV 值与时间戳', () => {
         const save = defaultSave();
         save.realmIndex = 3;
         save.xiuwei = 12345;
         save.illusionWeekKey = 'W-2026-10-05';
         save.illusionWeekBest = 88;
         save.stats.bestTribScore = 777;
+        save.tianjie.weekKey = '2026-10-19';
+        save.tianjie.weekBest = 66;
         new DouyinSocial().reportScores(save);
 
-        expect(stored.length).toBe(3);
+        expect(stored.length).toBe(4);
         expect(DouyinSocial.getDiag().lastReport?.values).toMatchObject({
             realm_value: 3 * 1_000_000 + 12345, // 300012345
             illusion_week: 20261005 * 1000 + 88, // 20261005088
             tribulation_best: 777,
+            tianjie_week: 20261019 * 1000 + 66,
         });
     });
 

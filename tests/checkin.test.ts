@@ -293,7 +293,7 @@ describe('M26 存档迁移（v9 → … → v14 A20 补签/双倍字段）', () 
     it('v8 老档 → 最新版：保留全部数据 + checkin 补缺省（首日即可领第 1 档）', () => {
         const old = { ...defaultSave(), version: 8 as const, lingshi: 12345, realmIndex: 3 };
         const s = migrate(JSON.parse(JSON.stringify(old)));
-        expect(s.version).toBe(15);
+        expect(s.version).toBe(16);
         expect(s.lingshi).toBe(12345);
         expect(s.realmIndex).toBe(3);
         expect(s.checkin).toEqual({ lastDay: '', streak: 0, totalDays: 0, milestonesClaimed: [], makeupDay: '', doubledDay: '' });
@@ -305,7 +305,7 @@ describe('M26 存档迁移（v9 → … → v14 A20 补签/双倍字段）', () 
             version: 9,
             checkin: { lastDay: 123, streak: -5, totalDays: -1, milestonesClaimed: [15, 7, 7, 'x', -3] },
         });
-        expect(s.version).toBe(15);
+        expect(s.version).toBe(16);
         expect(s.checkin.lastDay).toBe('');
         expect(s.checkin.streak).toBe(0);
         expect(s.checkin.totalDays).toBe(0);
@@ -317,7 +317,7 @@ describe('M26 存档迁移（v9 → … → v14 A20 补签/双倍字段）', () 
             version: 13,
             checkin: { lastDay: '2026-10-15', streak: 4, totalDays: 12, milestonesClaimed: [7] },
         });
-        expect(s.version).toBe(15);
+        expect(s.version).toBe(16);
         expect(s.checkin.lastDay).toBe('2026-10-15');
         expect(s.checkin.streak).toBe(4);
         expect(s.checkin.totalDays).toBe(12);
@@ -334,22 +334,22 @@ describe('M26 存档迁移（v9 → … → v14 A20 补签/双倍字段）', () 
             version: 13,
             checkin: { lastDay: '2026-10-15', streak: 4, totalDays: 12, milestonesClaimed: [], makeupDay: 123, doubledDay: null },
         });
-        expect(s.version).toBe(15);
+        expect(s.version).toBe(16);
         expect(s.checkin.makeupDay).toBe('');
         expect(s.checkin.doubledDay).toBe('');
     });
 
     it('v1 原始档也能一路迁到最新版', () => {
         const s = migrate({ version: 1, lingshi: 500 });
-        expect(s.version).toBe(15);
+        expect(s.version).toBe(16);
         expect(s.lingshi).toBe(500);
         expect(s.checkin.lastDay).toBe('');
     });
 
     it('损坏档（null / 字符串 / 未知版本）→ 重置为最新版缺省', () => {
-        expect(migrate(null).version).toBe(15);
-        expect(migrate('oops').version).toBe(15);
-        expect(migrate({ version: 99 }).version).toBe(15);
+        expect(migrate(null).version).toBe(16);
+        expect(migrate('oops').version).toBe(16);
+        expect(migrate({ version: 99 }).version).toBe(16);
         expect(migrate({ version: 99 }).checkin.streak).toBe(0);
     });
 });

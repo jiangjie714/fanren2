@@ -43,7 +43,8 @@ export interface StoryCtx {
     /** 栈顶场景 node.name */
     scene: string;
     /** ResultScene 自报：本次渡劫结算（境界节拍只在成功页触发） */
-    breakthrough?: { success: boolean; targetIndex: number };
+    /** firstBattle：首战（天道庇佑）——首胜页不播 realm_1，避免 60 秒流程被剧情打断 */
+    breakthrough?: { success: boolean; targetIndex: number; firstBattle?: boolean };
     /** TrailScene 自报：当前章节号（妖径节拍按章触发） */
     trailChapter?: number;
 }
@@ -94,8 +95,10 @@ export const STORY_BEATS: readonly StoryBeat[] = [
             { speaker: NARRATOR, text: '你借着微光看清那道门槛——' },
             { speaker: NARRATOR, text: '原此前四十年，都算是睡着。' },
         ],
+        // D1-60s：首胜页先给「继续修仙 + 解锁」，realm_1 延后到下一次成功突破再播
         when: (save, ctx) =>
-            !seen(save, 'realm_1') && !!ctx.breakthrough && ctx.breakthrough.success && ctx.breakthrough.targetIndex === 1,
+            !seen(save, 'realm_1') && !!ctx.breakthrough && ctx.breakthrough.success
+            && ctx.breakthrough.targetIndex === 1 && !ctx.breakthrough.firstBattle,
     },
     {
         id: 'realm_2',

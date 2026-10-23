@@ -8,6 +8,7 @@
 import { SaveData } from '../core/saveModel';
 import { CompareResult, RankKey, parseSubMessage } from '../core/systems/SocialRank';
 import { isDouyinRuntime } from './DouyinAd';
+import { tianjieWeekValue } from '../core/tianjie';
 
 /** 排行上报键（docs/项目现状与后续规划.md 三、3.2，数值假设 #30） */
 export const SOCIAL_KEYS = {
@@ -17,6 +18,8 @@ export const SOCIAL_KEYS = {
     illusionWeek: 'illusion_week',
     /** 渡劫评分榜：历史最高单局评分 */
     tribulationBest: 'tribulation_best',
+    /** 每日天劫周榜：本周一日期数值 × 1000 + 本周最佳分（M36，与 illusion_week 同构） */
+    tianjieWeek: 'tianjie_week',
 } as const;
 
 /** 对比回传超时（ms）：子域无响应走降级（docs/项目现状与后续规划.md 3.2） */
@@ -186,6 +189,8 @@ export class DouyinSocial {
             [SOCIAL_KEYS.realmValue]: encodeRealmValue(save.realmIndex, save.xiuwei),
             [SOCIAL_KEYS.illusionWeek]: encodeIllusionWeek(save.illusionWeekKey, save.illusionWeekBest),
             [SOCIAL_KEYS.tribulationBest]: save.stats.bestTribScore,
+            // M36：天劫周榜（周键 × 1000 + 周最佳），跨周自然单调
+            [SOCIAL_KEYS.tianjieWeek]: tianjieWeekValue(save.tianjie.weekKey, save.tianjie.weekBest),
         };
         try {
             for (const [key, value] of Object.entries(values)) {

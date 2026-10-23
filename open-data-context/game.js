@@ -10,7 +10,7 @@
  */
 /* global tt */
 
-var KEYS = ['realm_value', 'illusion_week', 'tribulation_best'];
+var KEYS = ['realm_value', 'illusion_week', 'tribulation_best', 'tianjie_week'];
 var REALM_NAMES = ['凡人', '练气', '筑基', '金丹', '元婴', '化神'];
 
 var sharedCanvas = tt.getSharedCanvas();
@@ -70,6 +70,8 @@ function formatValue(key, v) {
         return '境界' + d.realmIndex + ' · 修为' + d.xiuwei;
     }
     if (key === 'illusion_week') return (v % 1000) + ' 分';
+    // M36 天劫周榜：与 illusion_week 同构（周键 × 1000 + 周最佳分）
+    if (key === 'tianjie_week') return (Math.round(v) % 1000) + ' 分';
     return Math.max(0, v) + ' 分';
 }
 
@@ -182,6 +184,7 @@ function render(key, users, myValue) {
         realm_value: '境界榜 · 好友',
         illusion_week: '幻境周榜 · 好友',
         tribulation_best: '渡劫评分榜 · 好友',
+        tianjie_week: '每日天劫周榜 · 好友',
     };
     drawHeader(titles[key] || '好友榜', '虚位以待，共赴大道');
     drawList(buildEntries(users, key, myValue), key);

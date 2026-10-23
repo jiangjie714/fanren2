@@ -168,6 +168,8 @@ export class ResultScene implements IScene {
         });
 
         const success = this.p.success;
+        // D1-60s：首次突破成功页只留「继续修仙」+ 解锁提示（不弹分享/好友对比/护道）
+        const firstSuccess = success && this.p.session.firstBattle;
         // 语义色靠「叠加色晕」而不是染色：玄墨紫底乘算变不出绿/红（见 ThemeLib.washedPanel）。
         // 色相之外文案本身就是「突破成功 / 突破失败」，色盲玩家同样可读。
         const badge = washedPanel(
@@ -230,7 +232,7 @@ export class ResultScene implements IScene {
 
         // M9b 好友对比（抖音端可用时）：渡劫评分榜。
         // 化神通关徽章占用 -400 位，此场景（success && 化神）跳过对比行，避免挤压。
-        if (DouyinSocial.available() && !(success && Game.save.realmIndex >= MAX_REALM_INDEX)) {
+        if (!firstSuccess && DouyinSocial.available() && !(success && Game.save.realmIndex >= MAX_REALM_INDEX)) {
             const myValue = Game.save.stats.bestTribScore;
             DouyinSocial.compare(SOCIAL_KEYS.tribulationBest, myValue, (r) => {
                 if (!r || r.total === 0 || !this.node.isValid) return; // 超时/无好友数据 → 静默降级
@@ -261,20 +263,43 @@ export class ResultScene implements IScene {
             spriteButton(n, rightW, 90, rightLabel, onRight, rightStyle).node.setPosition(rx, -500, 0);
         };
 
-        if (!success) {
-            this.protectBtn = spriteButton(n, 330, 90, `${TEXTS.protectBtn} · 广告`, () => this.useProtect(), {
-                fontSize: 27,
+        if (firstSuccess) {
+            // 首胜：先给「新功能已解锁」，再给唯一主按钮；不出现分享/好友对比
+            label(n, `${TEXTS.firstResultUnlock} · ${TEXTS.firstResultUnlockBody}`, 22, {
+                color: THEME.rainGold,
+                width: 600,
+                shrink: true,
+                outline: faded(THEME.void, 215),
+                outlineWidth: 2,
+            }).setPosition(0, -396, 0);
+            spriteButton(n, 420, 96, TEXTS.firstResultGo, () => Game.stack.popToRoot(), {
+                fontSize: 32,
                 variant: 'primary',
                 textColor: THEME.void,
-            });
-            const back = spriteButton(n, 206, 90, '返回仙府', () => Game.stack.popToRoot(), {
-                fontSize: 26,
-                variant: 'secondary',
-                textColor: THEME.paper,
-            });
-            const total = 330 + 24 + 206;
-            this.protectBtn.node.setPosition(-total / 2 + 165, -500, 0);
-            back.node.setPosition(-total / 2 + 330 + 24 + 103, -500, 0);
+            }).node.setPosition(0, -500, 0);
+        } else if (!success) {
+            if (Ads.isConfigured('protect')) {
+                this.protectBtn = spriteButton(n, 330, 90, `${TEXTS.protectBtn} · 广告`, () => this.useProtect(), {
+                    fontSize: 27,
+                    variant: 'primary',
+                    textColor: THEME.void,
+                });
+                const back = spriteButton(n, 206, 90, '返回仙府', () => Game.stack.popToRoot(), {
+                    fontSize: 26,
+                    variant: 'secondary',
+                    textColor: THEME.paper,
+                });
+                const total = 330 + 24 + 206;
+                this.protectBtn.node.setPosition(-total / 2 + 165, -500, 0);
+                back.node.setPosition(-total / 2 + 330 + 24 + 103, -500, 0);
+            } else {
+                // 未配置护道广告：只留返回，不展示无奖励的死按钮
+                spriteButton(n, 360, 90, '返回仙府', () => Game.stack.popToRoot(), {
+                    fontSize: 28,
+                    variant: 'primary',
+                    textColor: THEME.void,
+                }).node.setPosition(0, -500, 0);
+            }
         } else {
             dualButtons(
                 200, '炫耀战绩', () => this.shareScore(),
@@ -327,7 +352,13 @@ export class ResultScene implements IScene {
      * 目标境界取构造参数 targetIndex（= 本次冲击的境界），与 REALMS 同源。
      */
     storyCtx(): StorySceneCtx {
-        return { breakthrough: { success: this.p.success, targetIndex: this.p.targetIndex } };
+        return {
+            breakthrough: {
+                success: this.p.success,
+                targetIndex: this.p.targetIndex,
+                firstBattle: this.p.session.firstBattle,
+            },
+        };
     }
 
     /** 渡劫高光分享（PRD 2.5 素材产出位；抖音端系统分享，Web 端 toast 提示） */

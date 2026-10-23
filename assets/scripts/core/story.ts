@@ -26,7 +26,8 @@ export type { StoryBeat, StoryCtx, StorySaveSlice, StoryLine, StoryGroup } from 
 
 /** 场景自报的剧情上下文（不含 scene，由渲染层从栈顶 node.name 补全） */
 export interface StorySceneCtx {
-    breakthrough?: { success: boolean; targetIndex: number };
+    /** firstBattle：首战（天道庇佑）——首胜页不播 realm_1，避免 60 秒流程被剧情打断 */
+    breakthrough?: { success: boolean; targetIndex: number; firstBattle?: boolean };
     trailChapter?: number;
 }
 
