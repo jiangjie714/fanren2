@@ -15,7 +15,7 @@
 
 ```bash
 npm install            # 安装 vitest / typescript（首次）
-npm test               # 运行 635 个数值/玩法单测（数值核心/导航回归/M7 交互/M8 日常/M9 成就/排行解码/数值护栏/战斗/签到/引导/离线吐纳/剧情文本/宗门社交/首日60秒/每日天劫）
+npm test               # 运行 638 个数值/玩法单测（数值核心/导航回归/M7 交互/M8 日常/M9 成就/排行解码/数值护栏/战斗/签到/引导/离线吐纳/剧情文本/宗门社交/首日60秒/每日天劫）
 npm run build:web      # 构建 web-mobile（本机预览验证用）
 npm run build:douyin   # 构建 bytedance-mini-game（抖音交付物）
 ```
@@ -42,7 +42,7 @@ assets/
     ├── infra/            # Game(装配+生命周期)/存档/广告(模拟+tt)/社交上报桩/音频/场景栈
     ├── ui/               # 程序化国风 UI 库（ThemeLib/弹窗/状态栏/合规弹窗）
     └── scenes/           # 34 个页面（含签到/吐纳/修行/历练/论道/幻境结算/仙闻录/新手60秒/天劫三页）
-tests/                    # Vitest 36 文件 635 例：core(29)/nav/m7/m8/m9/m9b(8)/balance/combat/checkin/guide/offline/story/sect/starter/tianjie
+tests/                    # Vitest 36 文件 638 例：core(29)/nav/m7/m8/m9/m9b(8)/balance/combat/checkin/guide/offline/story/sect/starter/tianjie
 tools/                    # build.mjs(双端构建+后处理+子域注入) / preview-server.mjs
                           # generate-art.py(美术+meta) / m7|m8|m9-shots.mjs(回归截图) / uuid.mjs
 open-data-context/        # M9b 开放数据域子域（纯 JS 好友榜渲染/对比，构建时自动拷入抖音产物）
