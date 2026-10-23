@@ -406,6 +406,8 @@ import { Game } from '../assets/scripts/infra/Game';
 import { Button, Label, Node, sys, UITransform } from 'cc';
 import { LINGENS } from '../assets/scripts/core/config/lingens';
 import { HomeScene } from '../assets/scripts/scenes/HomeScene';
+import { StarterScene } from '../assets/scripts/scenes/StarterScene';
+import { StarterBoxScene } from '../assets/scripts/scenes/StarterBoxScene';
 import { BoxScene } from '../assets/scripts/scenes/BoxScene';
 import { CollectionScene } from '../assets/scripts/scenes/CollectionScene';
 import { AlchemyScene } from '../assets/scripts/scenes/AlchemyScene';
@@ -432,8 +434,14 @@ import { STORY_BEATS } from '../assets/scripts/core/story';
 import { SaveStore } from '../assets/scripts/infra/SaveStore';
 import { ProfileScene } from '../assets/scripts/scenes/ProfileScene';
 import { RainScene } from '../assets/scripts/scenes/RainScene';
+import { TianjieScene } from '../assets/scripts/scenes/TianjieScene';
+import { TianjieResultScene } from '../assets/scripts/scenes/TianjieResultScene';
+import { TianjieShareScene, SHARE_CARD } from '../assets/scripts/scenes/TianjieShareScene';
+import { TianjieSystem } from '../assets/scripts/core/systems/TianjieSystem';
+import { TIANJIE, dailyModifiers } from '../assets/scripts/core/tianjie';
 import { PkBattleScene } from '../assets/scripts/scenes/PkBattleScene';
 import { TEXTS } from '../assets/scripts/core/config/texts';
+import { DOUYIN_AD_UNIT_IDS } from '../assets/scripts/core/config/ads';
 import { ResultScene } from '../assets/scripts/scenes/ResultScene';
 import { IllusionResultScene } from '../assets/scripts/scenes/IllusionResultScene';
 import { RainSystem, RainMode, RainResult } from '../assets/scripts/core/systems/RainSystem';
@@ -512,14 +520,30 @@ describe('场景集成：HomeScene 入口接线（导航错乱回归）', () => 
         expect(push).toHaveBeenLastCalledWith(expect.any(PathScene));
 
         // M22：剑冢横幅（宽横幅、无内建文本，按 y=−179 定位）
-        const towerBanner = h.registry.buttons.find(
+        // M36：新号（realmIndex 0）横幅改挂「每日天劫」；练气后恢复剑冢。两条分支都要正确路由。
+        const towerBanner = () => h.registry.buttons.find(
             (b) => b.text === '' && (b.node as { getPosition(): { y: number } }).getPosition().y === -179,
         );
-        expect(towerBanner, '未找到剑冢横幅入口').toBeTruthy();
-        towerBanner!.onClick();
-        expect(push).toHaveBeenLastCalledWith(expect.any(TowerScene));
+        Game.save.realmIndex = 0;
+        // refresh 在 onEnter 时写入 towerAction；新号重置后需重建首页
+        const home2 = new HomeScene();
+        home2.onEnter();
+        expect(towerBanner(), '未找到剑冢横幅入口').toBeTruthy();
+        towerBanner()!.onClick();
+        expect(push, '新号横幅应为每日天劫入口').toHaveBeenLastCalledWith(expect.any(TianjieScene));
 
-        expect(push).toHaveBeenCalledTimes(12);
+        // 练气后：取最后一个横幅实例（重建会留下旧记录），点击必须路由到剑冢
+        Game.save.realmIndex = 3;
+        const home3 = new HomeScene();
+        home3.onEnter();
+        const banners = h.registry.buttons.filter(
+            (b) => b.text === '' && (b.node as { getPosition(): { y: number } }).getPosition().y === -179,
+        );
+        banners[banners.length - 1].onClick();
+        expect(push, '练气后横幅应恢复剑冢').toHaveBeenLastCalledWith(expect.any(TowerScene));
+
+        // 12 个入口按钮 + 横幅两种路由各点一次 = 13 次（横幅点击次数与改版前一致，仅去向随境界切换）
+        expect(push).toHaveBeenCalledTimes(13);
         push.mockRestore();
     });
 
@@ -1114,6 +1138,15 @@ const sceneCases: Array<[string, () => { onEnter(): void; onExit?(): void }]> = 
     ['RainScene', () => new RainScene()],
     ['PkBattleScene', () => new PkBattleScene()],
     ['DaoFriendScene', () => new DaoFriendScene()],
+    ['TianjieScene', () => new TianjieScene()],
+    ['StarterScene', () => new StarterScene()],
+    ['StarterBoxScene', () => new StarterBoxScene()],
+    ['TianjieShareScene', () => new TianjieShareScene({
+        run: { score: 66, rating: '灵阶', newTodayBest: true, newBest: true, attemptsLeft: 2,
+            result: { rating: '灵阶', mode: 'tianjie', score: 66, maxCombo: 5, comboBonus: 0, goldBonus: 0, penalty: 0, mindDemon: false, extraXiuwei: 0, goldCount: 10, blueCount: 1, redCount: 2 } } as never,
+        view: { day: '2026-10-22', attemptsLeft: 2, attemptsUsed: 1, todayBest: 66, best: 66, streak: 3, bestStreak: 3,
+            mods: [], scoreMult: 1, seed: 202610221, weekBest: 66, weekValue: 20261019066 },
+    })],
 ];
 
 describe('场景集成：全场景 onEnter/onExit 冒烟（防 P0 崩溃回归）', () => {
@@ -1233,7 +1266,8 @@ describe('场景集成：D1-60s 跳捏人 + 道友档案编辑', () => {
         expect(Game.save.profile.name.length).toBeLessThanOrEqual(6);
         expect(Game.save.profile.gender).toBe('m');
         expect(Game.save.profile.createdAt, '建档时间应为此刻').toBeGreaterThan(0);
-        expect(Game.stack.top).toBeInstanceOf(HomeScene);
+        // D1-60s：新号先走 StarterScene（60 秒新手流），不再直进 HomeScene
+        expect(Game.stack.top).toBeInstanceOf(StarterScene);
         expect(Game.stack.top).not.toBeInstanceOf(ProfileScene);
     });
 
@@ -1406,7 +1440,7 @@ describe('场景集成：结算页（ResultScene / IllusionResultScene）', () =
         pop.mockRestore();
     });
 
-    it('渡劫失败：渲染失败态与修为受损 + 护盾广告按钮在位', () => {
+    it('渡劫失败（广告位未配置）：只留返回，不展示无奖励的死按钮', () => {
         bootGame();
         const { session, result } = mkRain(1, 'tribulation', 11);
         const s = new ResultScene({ session, result, rate: 0.4, success: false, targetIndex: 1 });
@@ -1414,12 +1448,43 @@ describe('场景集成：结算页（ResultScene / IllusionResultScene）', () =
 
         expect(hasText('突破失败'), '未渲染失败徽章').toBe(true);
         expect(hasText('修为受损'), '未展示修为受损明细').toBe(true);
-        // 失败分支才有「清雨护盾 · 广告」兜底入口
+        // 首发零广告期：protect ID 为空 → 不展示「护道 · 广告」
         const protect = h.registry.buttons.find((b) => String(b.text).indexOf('广告') >= 0);
-        expect(protect, '失败态缺少护盾广告按钮').toBeTruthy();
+        expect(protect, '未配置广告位时不应展示护盾广告按钮').toBeUndefined();
 
         const pop = vi.spyOn(Game.stack, 'popToRoot').mockImplementation(() => { });
         button('返回仙府').onClick();
+        expect(pop).toHaveBeenCalled();
+        pop.mockRestore();
+    });
+
+    it('渡劫失败（广告位已配置）：护盾广告按钮在位且可点', () => {
+        bootGame();
+        DOUYIN_AD_UNIT_IDS.protect = 'test-protect';
+        try {
+            const { session, result } = mkRain(1, 'tribulation', 11);
+            const s = new ResultScene({ session, result, rate: 0.4, success: false, targetIndex: 1 });
+            s.onEnter();
+            const protect = h.registry.buttons.find((b) => String(b.text).indexOf('广告') >= 0);
+            expect(protect, '已配置广告位时失败态应有护盾广告按钮').toBeTruthy();
+        } finally {
+            DOUYIN_AD_UNIT_IDS.protect = '';
+        }
+    });
+
+    it('首胜页（firstBattle）：只留「继续修仙」+ 解锁提示，不出现炫耀/好友对比', () => {
+        bootGame();
+        const rs = new RainSystem(new Rng(21));
+        const session = rs.createSession(1, false, 'tribulation', undefined, true);
+        const result = rs.finish(session);
+        const s = new ResultScene({ session, result, rate: 1, success: true, targetIndex: 1 });
+        s.onEnter();
+        expect(hasText(TEXTS.firstResultUnlock), '未渲染新功能解锁').toBe(true);
+        const go = h.registry.buttons.filter((b) => b.text === TEXTS.firstResultGo).pop();
+        expect(go, '首胜缺少「继续修仙」').toBeTruthy();
+        expect(h.registry.buttons.some((b) => b.text === '炫耀战绩'), '首胜不应出现炫耀战绩').toBe(false);
+        const pop = vi.spyOn(Game.stack, 'popToRoot').mockImplementation(() => { });
+        go!.onClick();
         expect(pop).toHaveBeenCalled();
         pop.mockRestore();
     });
@@ -1992,3 +2057,201 @@ function enterSectTabView(): Node {
     const content = s.node.children.find((c) => c.name === 'content')!;
     return content.children.find((c) => c.name === 'sectView')!;
 }
+
+describe('场景集成：D1-60s 新手三连（#59 T3/T4）', () => {
+    it('StarterScene：只有「开启仙缘宝盒」主 CTA，点击进 StarterBoxScene；不构建主页 rail', () => {
+        bootGame();
+        h.reset();
+        const page = new StarterScene();
+        page.onEnter();
+        const cta = lastBtn((b) => b.text === TEXTS.starterCta);
+        expect(cta, '未找到新手主 CTA').toBeTruthy();
+        const push = vi.spyOn(Game.stack, 'push').mockImplementation(() => { });
+        cta!.onClick();
+        expect(push).toHaveBeenCalledWith(expect.any(StarterBoxScene));
+        // 首屏不应出现「修行/妖径/论道/法器/仙路」等常驻入口
+        expect(lastBtn((b) => b.text === TEXTS.towerTitle)).toBeUndefined();
+        expect(lastBtn((b) => b.text === TEXTS.offlineRail)).toBeUndefined();
+    });
+
+    it('StarterScene：starter.done 后 onResume 切回常驻 HomeScene', () => {
+        bootGame();
+        const page = new StarterScene();
+        Game.save.starter.done = true;
+        const replace = vi.spyOn(Game.stack, 'replace').mockImplementation(() => { });
+        page.onResume();
+        expect(replace).toHaveBeenCalledWith(expect.any(HomeScene));
+        replace.mockRestore();
+    });
+
+    it('StarterBoxScene：三只免费盒 → 机缘补到 60、starter.done=true、主按钮变「去渡劫」', () => {
+        bootGame();
+        h.reset();
+        const page = new StarterBoxScene();
+        page.onEnter();
+        const lingshi0 = Game.save.lingshi;
+        // 点三次主按钮（第 1/2/3 只）
+        for (let i = 0; i < 3; i += 1) {
+            const btn = lastBtn((b) => b.text === TEXTS.starterBoxCount(i + 1));
+            expect(btn, `第 ${i + 1} 只按钮缺失`).toBeTruthy();
+            btn!.onClick();
+        }
+        expect(Game.save.lingshi, '新手三连不得扣灵石（只增不减）').toBeGreaterThanOrEqual(lingshi0);
+        expect(Game.save.jiyuan, '三连后机缘应补到 60').toBeGreaterThanOrEqual(60);
+        expect(Game.save.starter.done).toBe(true);
+        expect(Game.save.starter.jiyuanGranted).toBe(true);
+        expect(lastBtn((b) => b.text === TEXTS.starterBoxGo), '完成后主按钮应为去渡劫').toBeTruthy();
+    });
+
+    it('StarterBoxScene：去渡劫 → swap RainScene（下层 StarterScene 保留）', () => {
+        bootGame();
+        h.reset();
+        const page = new StarterBoxScene();
+        page.onEnter();
+        for (let i = 0; i < 3; i += 1) lastBtn((b) => b.text === TEXTS.starterBoxCount(i + 1))!.onClick();
+        const swap = vi.spyOn(Game.stack, 'swap').mockImplementation(() => { });
+        lastBtn((b) => b.text === TEXTS.starterBoxGo)!.onClick();
+        expect(swap).toHaveBeenCalledWith(expect.any(RainScene));
+    });
+});
+
+describe('场景集成：M36 每日天劫（同种子 8 秒挑战）', () => {
+    /** 把天劫入口页挂到栈顶（Game.init 已装配 Game.tianjie） */
+    function mountTianjie() {
+        const page = new TianjieScene();
+        (Game.stack as unknown as { push: (s: unknown) => void }).push(page);
+        return page;
+    }
+
+    it('入口页：显示今日种子/次数/词条，主按钮「迎劫」push 天劫 RainScene', () => {
+        bootGame();
+        h.reset();
+        mountTianjie();
+        const start = lastBtn((b) => b.text === TEXTS.tianjieStart);
+        expect(start, '未找到迎劫按钮').toBeTruthy();
+        const push = vi.spyOn(Game.stack, 'push').mockImplementation(() => { });
+        (start as unknown as { onClick: () => void }).onClick();
+        expect(push).toHaveBeenCalledWith(expect.any(RainScene));
+        const scene = push.mock.calls[0][0] as unknown as { mode: string };
+        expect((scene as unknown as { mode: string }).mode).toBe('tianjie');
+    });
+
+    it('入口页：次数用尽 → 不显示「迎劫」，主按钮置灰文案为「今日次数已用尽」', () => {
+        bootGame();
+        Game.save.tianjie.attempts = TIANJIE.attemptsPerDay;
+        Game.save.tianjie.day = Game.tianjie.todayKey();
+        h.reset();
+        mountTianjie();
+        expect(lastBtn((b) => b.text === TEXTS.tianjieStart)).toBeUndefined();
+        expect(lastBtn((b) => b.text === TEXTS.tianjieAttemptsNone)).toBeTruthy();
+    });
+
+    it('RainScene(tianjie)：onEnter 消耗 1 次、用独立系统驱动，12 秒内结算并 push 天劫结果页', () => {
+        bootGame();
+        h.reset();
+        const before = Game.save.tianjie.attempts;
+        const scene = new RainScene('tianjie');
+        scene.onEnter();
+        expect(Game.save.tianjie.attempts).toBe(before + 1);
+        // 天劫不走 Game.rain：内部持有独立 RainSystem
+        const sys = (scene as unknown as { tianjieSys: RainSystem | null }).tianjieSys;
+        expect(sys).toBeInstanceOf(RainSystem);
+        const push = vi.spyOn(Game.stack, 'push').mockImplementation(() => { });
+        for (let i = 0; i < 500 && push.mock.calls.length === 0; i += 1) scene.update(0.02);
+        expect(push).toHaveBeenCalledWith(expect.any(TianjieResultScene));
+        // 只写分数，不发经济（灵石/机缘不变）
+        expect(Game.save.tianjie.totalRuns).toBe(1);
+    });
+
+    it('退出天劫：次数不退还（挑战有代价）', () => {
+        bootGame();
+        h.reset();
+        const scene = new RainScene('tianjie');
+        scene.onEnter();
+        const used = Game.save.tianjie.attempts;
+        expect(used).toBeGreaterThan(0);
+        // 「退出」分支只 pop 不退还次数：再进一次入口页时剩余次数仍少 1
+        vi.spyOn(Game.stack, 'pop').mockImplementation(() => { });
+        (scene as unknown as { finished: boolean }).finished = true;
+        expect(Game.save.tianjie.attempts).toBe(used);
+    });
+
+    it('结果页：剩余次数>0 显示「再战一次」，用尽则显示「今日次数已用尽」', () => {
+        bootGame();
+        h.reset();
+        const view = Game.tianjie.view(Game.save);
+        const run = {
+            score: 66,
+            rating: '灵阶',
+            newTodayBest: true,
+            newBest: true,
+            result: { rating: '灵阶', mode: 'tianjie', score: 66, maxCombo: 5, comboBonus: 0, goldBonus: 0, penalty: 0, mindDemon: false, extraXiuwei: 0, goldCount: 10, blueCount: 1, redCount: 2 },
+            attemptsLeft: 2,
+        };
+        const page = new TianjieResultScene({ run: run as never, view });
+        page.onEnter();
+        expect(lastBtn((b) => b.text === TEXTS.tianjieAgain)).toBeTruthy();
+        expect(lastBtn((b) => b.text === TEXTS.tianjieAttemptsNone)).toBeUndefined();
+    });
+
+    it('天劫词条全服一致：两个玩家同日拿到的词条相同', () => {
+        const a = dailyModifiers('2026-10-22').map((m) => m.id);
+        const b = dailyModifiers('2026-10-22').map((m) => m.id);
+        expect(a).toEqual(b);
+    });
+
+    it('TianjieSystem 默认装配在 Game 上（Game.init 链路）', () => {
+        bootGame();
+        expect(Game.tianjie).toBeInstanceOf(TianjieSystem);
+        expect(Game.save.version).toBe(16);
+    });
+});
+
+describe('场景集成：M36 战绩卡（可分享）', () => {
+    const run = {
+        score: 78,
+        rating: '仙阶',
+        newTodayBest: true,
+        newBest: true,
+        attemptsLeft: 1,
+        result: { rating: '仙阶', mode: 'tianjie', score: 78, maxCombo: 9, comboBonus: 0, goldBonus: 0, penalty: 0, mindDemon: false, extraXiuwei: 0, goldCount: 14, blueCount: 0, redCount: 1 },
+    };
+    const view = () => Game.tianjie.view(Game.save);
+
+    it('卡面按 720×960 竖图构建：分数/评级/词条/战绩行齐全，且不含「再战」等私域按钮', () => {
+        bootGame();
+        Game.save.tianjie.weekKey = '2026-10-19';
+        Game.save.tianjie.weekBest = 78;
+        h.reset();
+        const page = new TianjieShareScene({ run: run as never, view: view() });
+        page.onEnter();
+        const card = h.registry.nodes.find((n) => n.name === 'card');
+        expect(card, '未构建卡面节点').toBeTruthy();
+        expect(card!.w).toBe(SHARE_CARD.w);
+        expect(card!.h).toBe(SHARE_CARD.h);
+        expect(hasText('78'), '卡面缺少分数').toBe(true);
+        expect(hasText('仙阶')).toBe(true);
+        expect(hasText('今日词条'), '卡面缺少词条区').toBe(true);
+        // 分享卡只承载战报，不应出现「再战一次」这类局内动作（会被带进分享图）
+        expect(h.registry.buttons.some((b) => b.text === TEXTS.tianjieAgain)).toBe(false);
+    });
+
+    it('Web 端（无 toTempFilePath）点分享 → toast 降级，不抛错、不重复导出', () => {
+        bootGame();
+        h.reset();
+        const page = new TianjieShareScene({ run: run as never, view: view() });
+        page.onEnter();
+        const btn = lastBtn((b) => b.text === '分享战报')!;
+        expect(btn).toBeTruthy();
+        expect(() => { btn.onClick(); btn.onClick(); }).not.toThrow();
+        expect(h.registry.toasts.indexOf(TEXTS.shareUnavailable) >= 0, 'Web 端应提示不可分享').toBe(true);
+    });
+
+    it('onExit 回收导出用的离屏节点（防每次分享多一份 GPU 资源）', () => {
+        bootGame();
+        h.reset();
+        const page = new TianjieShareScene({ run: run as never, view: view() });
+        page.onEnter();
+        expect(() => page.onExit()).not.toThrow();
+    });
+});

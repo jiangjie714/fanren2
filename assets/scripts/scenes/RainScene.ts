@@ -4,7 +4,7 @@ import { Game } from '../infra/Game';
 import { Ads } from '../infra/Ads';
 import { Analytics } from '../infra/Analytics';
 import { AudioMgr } from '../infra/AudioMgr';
-import { RainMode, RainSession, RAIN_FIELD, RainDrop } from '../core/systems/RainSystem';
+import { RainMode, RainSession, RAIN_FIELD, RainDrop, RainSystem } from '../core/systems/RainSystem';
 import { recordIllusion, recordTribulation } from '../core/systems/StatsRecorder';
 import { comboBonus, RAIN_WAVES, waveAt } from '../core/config/drops';
 import { REALMS } from '../core/config/realms';
@@ -33,6 +33,7 @@ import { showDialog } from '../ui/dialog';
 import { animDir, animFrames, spriteAnimation } from '../ui/ThemeLib';
 import { ResultScene } from './ResultScene';
 import { IllusionResultScene } from './IllusionResultScene';
+import { TianjieResultScene } from './TianjieResultScene';
 
 /** 波次开场横幅文案（按 RAIN_WAVES 下标） */
 const WAVE_TEXTS = [TEXTS.waveYunyu, TEXTS.waveLingchao, TEXTS.waveJieyun];
@@ -44,6 +45,12 @@ const CAST_FPS = 8;
 export class RainScene implements IScene {
     node: Node;
     private mode: RainMode;
+    /**
+     * 天劫模式专用驱动：每日天劫必须用「同种子独立 RainSystem」，不能用 Game.rain，
+     * 否则主线随机流被污染、同日不同玩家雨滴序列不一致（公平挑战失效）。
+     * 渡劫/秘境恒 null → 走 Game.rain（既有路径不动）。
+     */
+    private tianjieSys: RainSystem | null = null;
     private session!: RainSession;
     private dropNodes = new Map<number, Node>();
     /** syncDrops 每帧复用：避免每帧 new Set（P2-2） */
@@ -61,16 +68,19 @@ export class RainScene implements IScene {
     private lastCombo = 0;
     private mindOverlay!: Node;
     private purifyBtn: ButtonHandle | null = null;
+    /** 首战隐藏退出钮：8 秒局误触退出会浪费首战保护，且没有二次确认的必要 */
+    private closeBtn: ButtonHandle | null = null;
     private magnetBtnPositionX = 176;
     private targetX = 0;
     private finished = false;
     private dragging = false;
     private lastCounts = { gold: 0, blue: 0, red: 0 };
 
-    constructor(mode: RainMode = 'tribulation') {
+    constructor(mode: RainMode = 'tribulation', tianjieSys: RainSystem | null = null) {
         this.node = new Node('RainScene');
         this.node.layer = Layers.Enum.UI_2D;
         this.mode = mode;
+        this.tianjieSys = tianjieSys;
     }
 
     onEnter() {
@@ -80,9 +90,25 @@ export class RainScene implements IScene {
         const targetIndex = Game.save.realmIndex + 1;
         // #49 A3 首战庇佑：仅渡劫模式 + 首次冲击练气（判定与 RealmSystem 同源，不重复实现）
         const firstBattle = this.mode === 'tribulation' && Game.realm.firstBreakthroughProtect;
-        this.session = Game.rain.createSession(targetIndex, Game.eco.monthCardActive, this.mode, undefined, firstBattle);
-        // 炼丹「速度」四维：放大角色跟随手指的惯性系数（#39，乘算）
-        this.session.followLerp *= 1 + Game.alchemy.speedMoveBonus(Game.save);
+        if (this.mode === 'tianjie') {
+            // 天劫：start() 已消耗次数并建好同种子会话（词条在会话上），这里不重建
+            const started = Game.tianjie.start(Game.save);
+            this.session = started!.session;
+            this.tianjieSys = started!.system;
+            Analytics.track('tianjie_start', {
+                attempts_left: Game.tianjie.view(Game.save).attemptsLeft,
+                score_mult: this.tianjieSys.tianjieMult(this.session),
+                mods: started!.mods.map((m) => m.id).join(','),
+                streak: Game.save.tianjie.streak,
+            });
+        } else {
+            this.session = Game.rain.createSession(targetIndex, Game.eco.monthCardActive, this.mode, undefined, firstBattle);
+        }
+        // 炼丹「速度」四维：放大角色跟随手指的惯性系数（#39，乘算）。
+        // 天劫刻意不吃这条加成：同种子榜单上必须同起点（养成不该让每日挑战变简单）。
+        if (this.mode !== 'tianjie') {
+            this.session.followLerp *= 1 + Game.alchemy.speedMoveBonus(Game.save);
+        }
         if (this.mode === 'tribulation') {
             Analytics.track('breakthrough_start', {
                 target_realm: targetIndex,
@@ -112,8 +138,9 @@ export class RainScene implements IScene {
         const hud = spritePanel(n, 648, 92, undefined, THEME.tintDeep);
         hud.setPosition(0, DESIGN_H / 2 - SAFE.top, 0);
         fadeIn(hud, -14);
-        iconButton(hud, 'art/ui/icons/icon_close/spriteFrame', () => this.confirmQuit(), 86, 68)
-            .node.setPosition(-266, 0, 0);
+        this.closeBtn = iconButton(hud, 'art/ui/icons/icon_close/spriteFrame', () => this.confirmQuit(), 86, 68);
+        this.closeBtn.node.setPosition(-266, 0, 0);
+        this.closeBtn.node.active = !this.session.firstBattle;
         image(hud, 'art/ui/icons/icon_timer/spriteFrame', 40, 40).setPosition(-154, 0, 0);
         this.countdown = labelL(hud, `${Math.ceil(this.session.duration)}s`, 38, {
             bold: true,
@@ -153,7 +180,18 @@ export class RainScene implements IScene {
 
         // #49 A3 首战（天道庇佑）：不落雨滴权重之外的任何特殊分支，只在开场明确告知玩家。
         // 「进入渡劫前」的正式横幅在首页引导条（主文案即 firstBattleBanner），此处为落场提示。
-        if (this.session.firstBattle) toast(n, TEXTS.firstBattleBanner);
+        if (this.session.firstBattle) {
+            // 首战不弹居中 toast（会挡住雨区），只留底部一行「天道庇佑 + 滑动」提示
+            const hint = label(n, `${TEXTS.firstBattleBanner} · ${TEXTS.firstRainHint}`, 24, {
+                bold: true,
+                color: THEME.goldLight,
+                outline: faded(THEME.void, 225),
+                outlineWidth: 3,
+                width: 620,
+                shrink: true,
+            });
+            hint.setPosition(0, -DESIGN_H / 2 + 100, 0);
+        }
 
         // 波次开场横幅（高于开场 toast，避免重叠）
         this.waveBanner = uinode('waveBanner', n, 560, 64);
@@ -192,9 +230,12 @@ export class RainScene implements IScene {
         const purifyIcon = image(this.purifyBtn.node, 'art/ui/icons/icon_purify/spriteFrame', 36, 36);
         purifyIcon.setPosition(-116, 0, 0);
         this.purifyBtn.labelNode.setPosition(20, 0, 0);
-        // 幻境无净化广告（数值假设 #29）
-        this.purifyBtn.node.active = this.mode !== 'illusion';
-        if (this.mode === 'illusion') this.magnetBtnPositionX = 0;
+        // 幻境/天劫/首战无净化广告（#29；天劫是零广告公平挑战；首战无劫雨，按钮纯噪音）
+        // 未配置广告位时也隐藏：首发零广告期不能出现「点了没奖励」的死按钮
+        this.purifyBtn.node.active = this.mode === 'tribulation'
+            && !this.session.firstBattle
+            && Ads.isConfigured('purify');
+        if (this.mode !== 'tribulation') this.magnetBtnPositionX = 0;
 
         this.magnetBtn = spriteButton(n, 216, 76, `${TEXTS.magnetBtn}`, () => this.useMagnet(), {
             fontSize: 25,
@@ -207,7 +248,9 @@ export class RainScene implements IScene {
         this.magnetBtn.labelNode.setPosition(16, 0, 0);
 
         // 底部落在 bg_rain 的亮色云海上，辅助说明必须带描边才读得出来
-        label(n, this.mode === 'illusion' ? TEXTS.illusionTip : TEXTS.rainTip, 23, {
+        const tipText = this.mode === 'illusion' ? TEXTS.illusionTip
+            : this.mode === 'tianjie' ? TEXTS.tianjieTip : TEXTS.rainTip;
+        label(n, tipText, 23, {
             color: THEME.inkSoft,
             width: 560,
             shrink: true,
@@ -224,7 +267,11 @@ export class RainScene implements IScene {
         this.mindOverlay.active = false;
 
         this.refreshHud();
-        toast(n, this.mode === 'illusion' ? TEXTS.illusionOpen : TEXTS.rainOpen, 28);
+        // 首战不弹通用开场 toast（会挡住雨区）；首战信息由底部「天道庇佑 · 滑动」承担
+        if (!this.session.firstBattle) {
+            toast(n, this.mode === 'illusion' ? TEXTS.illusionOpen
+                : this.mode === 'tianjie' ? TEXTS.tianjieOpen : TEXTS.rainOpen, 28);
+        }
 
         n.on(Input.EventType.TOUCH_START, (e: EventTouch) => {
             this.dragging = true;
@@ -237,7 +284,8 @@ export class RainScene implements IScene {
 
     update(dt: number) {
         if (this.finished) return;
-        Game.rain.tick(this.session, dt, this.dragging ? this.targetX : this.session.playerX);
+        const driver = this.tianjieSys ?? Game.rain;
+        driver.tick(this.session, dt, this.dragging ? this.targetX : this.session.playerX);
         this.syncDrops();
         this.player.setPosition(this.session.playerX, RAIN_FIELD.playerY, 0);
         this.magnetAura.setPosition(this.session.playerX, RAIN_FIELD.playerY, 0);
@@ -262,6 +310,11 @@ export class RainScene implements IScene {
             // 幻境：右上显示实时得分（无突破率语义）
             const live = Math.max(0, s.goldCount * 4 + s.combo * 2 - s.redCount * 3);
             this.rateLabel.string = `得分 ${live}`;
+        } else if (this.mode === 'tianjie') {
+            // 天劫：右上显示「实时预估分 ×词条倍率」（无突破率语义）
+            const live = Math.max(0, s.goldCount * 3 + s.combo * 2 + s.blueCount - s.redCount * 2);
+            const mult = (this.tianjieSys ?? Game.rain).tianjieMult(s);
+            this.rateLabel.string = `得分 ${Math.round(live * mult)}`;
         } else {
             const liveComboBonus = comboBonus(s.combo);
             const rate = Game.realm.computeFinalRate(
@@ -276,9 +329,17 @@ export class RainScene implements IScene {
             ? Math.max(0, s.goldCount * 4 + s.combo * 2 - s.redCount * 3)
             : Math.max(0, s.goldCount * 3 + s.combo * 2 + s.blueCount - s.redCount * 2);
         const liveComboBonus = comboBonus(s.combo);
-        this.statusLabel.string = s.combo >= 2
-            ? `${TEXTS.comboFloat(s.combo)} ＋${Math.round(liveComboBonus * 1000) / 10}% ｜ 评分 ${liveScore}`
-            : `评分 ${liveScore}`;
+        if (this.mode === 'tianjie') {
+            // 天劫：显示「得分（已含词条倍率）」，不显示突破率加成（没有突破率这回事）
+            const mult = (this.tianjieSys ?? Game.rain).tianjieMult(this.session);
+            this.statusLabel.string = s.combo >= 2
+                ? `连击 ${s.combo} ｜ 得分 ${liveScore} ×${mult.toFixed(2)}`
+                : `得分 ${liveScore} ×${mult.toFixed(2)}`;
+        } else {
+            this.statusLabel.string = s.combo >= 2
+                ? `${TEXTS.comboFloat(s.combo)} ＋${Math.round(liveComboBonus * 1000) / 10}% ｜ 评分 ${liveScore}`
+                : `评分 ${liveScore}`;
+        }
 
         // 连击增长脉冲
         if (s.combo > this.lastCombo && s.combo >= 2) {
@@ -406,10 +467,14 @@ export class RainScene implements IScene {
 
     private confirmQuit() {
         showDialog(this.node, {
-            title: this.mode === 'illusion' ? '退出幻境' : '退出渡劫',
-            lines: [this.mode === 'illusion' ? '退出则本局幻境作废（不计分），确定退出？' : TEXTS.quitRainConfirm],
+            title: this.mode === 'illusion' ? '退出幻境' : this.mode === 'tianjie' ? '退出天劫' : '退出渡劫',
+            lines: [this.mode === 'illusion'
+                ? '退出则本局幻境作废（不计分），确定退出？'
+                : this.mode === 'tianjie'
+                    ? '退出则本局天劫作废，且本次挑战次数不退还，确定退出？'
+                    : TEXTS.quitRainConfirm],
             buttons: [
-                { text: this.mode === 'illusion' ? '继续幻境' : '继续渡劫' },
+                { text: this.mode === 'illusion' ? '继续幻境' : this.mode === 'tianjie' ? '继续接引' : '继续渡劫' },
                 {
                     text: '退出',
                     cb: () => {
@@ -417,6 +482,10 @@ export class RainScene implements IScene {
                         this.finished = true;
                         if (this.mode === 'illusion') {
                             Game.stack.pop(); // 幻境退出无惩罚
+                        } else if (this.mode === 'tianjie') {
+                            // 天劫次数在 start() 时已扣，退出不退（挑战必须有代价）
+                            Game.persist();
+                            Game.stack.pop();
                         } else {
                             Game.realm.quitRain();
                             Game.persist();
@@ -431,7 +500,28 @@ export class RainScene implements IScene {
     private finishRain() {
         if (this.finished) return;
         this.finished = true;
-        const result = Game.rain.finish(this.session);
+        // 天劫用独立驱动结算（同种子会话属于它，不属于 Game.rain）
+        const driver = this.tianjieSys ?? Game.rain;
+        const result = driver.finish(this.session);
+        if (this.mode === 'tianjie') {
+            // M36：只结算分数/连续，不发经济（天劫是 DAU 引擎，不是投放管线）。
+            const run = Game.tianjie.finish(Game.save, result);
+            Game.persist();
+            Game.social.reportScores(Game.save); // M36：天劫周榜立即上报（不等回前台）
+            Analytics.track('tianjie_result', {
+                score: run.score,
+                rating: run.rating,
+                new_best: run.newBest ? 1 : 0,
+                new_today: run.newTodayBest ? 1 : 0,
+                attempts_left: run.attemptsLeft,
+                gold: run.result.goldCount,
+                blue: run.result.blueCount,
+                red: run.result.redCount,
+                max_combo: run.result.maxCombo,
+            });
+            Game.stack.push(new TianjieResultScene({ run, view: Game.tianjie.view(Game.save) }));
+            return;
+        }
         if (this.mode === 'illusion') {
             // M8/M14 秘境结算：计分 → 连胜轨 → 段位分（#44）→ 档位奖励（主题×连胜倍率）→ 结算页
             const fin = Game.illusion.finish(Game.save, result.goldCount, result.maxCombo, result.redCount, this.session.theme ?? undefined);

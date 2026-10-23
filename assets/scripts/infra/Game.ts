@@ -1,4 +1,4 @@
-import { Node, ResolutionPolicy, Widget, view } from 'cc';
+import { Node, ResolutionPolicy, Widget, sys, view } from 'cc';
 import { Rng } from '../core/rng';
 import { SaveData } from '../core/saveModel';
 import { OfflineGain } from '../core/offline';
@@ -17,6 +17,7 @@ import { RainSystem } from '../core/systems/RainSystem';
 import { TrailSystem } from '../core/systems/TrailSystem';
 import { TowerSystem } from '../core/systems/TowerSystem';
 import { TrialSystem } from '../core/systems/TrialSystem';
+import { TianjieSystem } from '../core/systems/TianjieSystem';
 import { RealmSystem } from '../core/systems/RealmSystem';
 import { TEXTS } from '../core/config/texts';
 import { toast, uinode } from '../ui/ThemeLib';
@@ -31,6 +32,12 @@ import { SceneStack } from './SceneStack';
 import { GuideLayer } from '../ui/GuideLayer';
 import { StoryLayer } from '../ui/StoryLayer';
 import { HomeScene } from '../scenes/HomeScene';
+import { StarterScene } from '../scenes/StarterScene';
+import { StarterBoxScene } from '../scenes/StarterBoxScene';
+import { TianjieScene } from '../scenes/TianjieScene';
+import { TianjieResultScene } from '../scenes/TianjieResultScene';
+import { TianjieShareScene } from '../scenes/TianjieShareScene';
+import { RainScene } from '../scenes/RainScene';
 
 /** 全局游戏上下文：装配基础设施与数值系统，页面统一通过 Game.xxx 访问。 */
 export class Game {
@@ -58,6 +65,8 @@ export class Game {
     static offline: OfflineSystem;
     /** M31 宗门社交：俸禄 / 捐献 / 助力 / 商店入账（#57） */
     static sect: SectSystem;
+    /** M36 每日天劫：同种子 8 秒挑战（次数/今日最佳/连续天数） */
+    static tianjie: TianjieSystem;
     static social: DouyinSocial;
 
     /**
@@ -109,6 +118,15 @@ export class Game {
         this.checkin = new CheckinSystem(this.eco, this.alchemy);
         this.offline = new OfflineSystem(this.eco);
         this.sect = new SectSystem(this.eco);
+        // 战报缓存：抖音/Web 用平台 storage（localStorage/tt.setStorageSync），失败自动退化为内存
+        this.tianjie = new TianjieSystem(undefined, {
+            get: (k) => {
+                try { return sys.localStorage.getItem(k); } catch { return null; }
+            },
+            set: (k, v) => {
+                try { sys.localStorage.setItem(k, v); } catch { /* 配额/隐私模式：内核有内存兜底 */ }
+            },
+        });
         this.social = new DouyinSocial();
         this.eco.dailyReset();
         this.settleOffline();
@@ -125,6 +143,9 @@ export class Game {
         const ideSimulator = typeof tt?.getSystemInfoSync === 'function' && tt.getSystemInfoSync().platform === 'devtools';
         if (this.isWebDebug || ideSimulator) {
             (globalThis as any).__fanren = Game; // IDE 自带 Console 可在游戏域求值
+            // 调试端暴露场景类：截图脚本可直接 `__fanrenScenes.TianjieScene` 构造页面，
+            // 不必依赖「点进某条具体路径」。打进真机包同名变量为 undefined（代码被摇树掉）。
+            (globalThis as any).__fanrenScenes = { TianjieScene, RainScene, TianjieResultScene, TianjieShareScene, HomeScene, StarterScene, StarterBoxScene };
             console.log(`[fanren] env=${ideSimulator ? 'simulator' : 'web'} handle=on`);
         }
 
@@ -148,7 +169,10 @@ export class Game {
             this.save.profile = { gender: 'm', name: this.combat.randomName(), createdAt: Date.now() };
             this.persist();
         }
-        this.stack.push(new HomeScene());
+        // D1-60s：新号（未走完新手三连且仍在凡人）先走 60 秒新手流；
+        // 老玩家 / 已完成三连（含中途退出后回来）直进常驻主页。
+        const fresh = this.save.realmIndex === 0 && !this.save.starter.done;
+        this.stack.push(fresh ? new StarterScene() : new HomeScene());
     }
 
     static tick(dt: number) {
@@ -209,6 +233,7 @@ export class Game {
             // 跨天后补发月卡每日券：与 init 的发放顺序保持一致。
             // 旧版漏调 → 月卡用户跨天必须杀进程重启才拿到券（P0-4）。
             this.eco.claimMonthlyTicket();
+            this.tianjie?.refresh(this.save); // 天劫跨日翻新（次数/今日最佳）
             this.persist();
             this.social.reportScores(this.save);
             this.stack?.top?.onResume?.();

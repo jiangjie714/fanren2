@@ -4,6 +4,7 @@ import { Game } from '../infra/Game';
 import { Analytics } from '../infra/Analytics';
 import { SaveStore } from '../infra/SaveStore';
 import { claimDailyGift } from '../infra/dailyGift';
+import { Ads } from '../infra/Ads';
 import { enterIllusion } from '../infra/enterIllusion';
 import { REALMS } from '../core/config/realms';
 import { themeOf } from '../core/config/trial';
@@ -36,6 +37,7 @@ import { BoxScene } from './BoxScene';
 import { CollectionScene } from './CollectionScene';
 import { TrailScene } from './TrailScene';
 import { TowerScene } from './TowerScene';
+import { TianjieScene } from './TianjieScene';
 import { formatCompact } from '../core/bignum';
 import { LudaoScene } from './LudaoScene';
 import { QuestScene } from './QuestScene';
@@ -81,9 +83,15 @@ export class HomeScene implements IScene {
     /** 引导条当前状态定格的动作（refreshGuide 写入，onGuideTap 读取） */
     private guideAction: 'break' | 'trial' | 'box' | 'gift' = 'break';
     private giftBtn!: ButtonHandle;
+    /** M36 优化：昨日天劫提示条（今日未打且有昨日战报时出现在 gift 行上方） */
+    private tianjieNudge: Node | null = null;
     private questBtn!: ButtonHandle;
     private trailBtn!: ButtonHandle;
     private towerBtn!: ButtonHandle;
+    /** 剑冢横幅主标 / 天劫切换后需要跟着改文案，故保留引用 */
+    private towerTitleLabel!: Label;
+    /** 横幅当前路由用途（M36：练气前显示「每日天劫」，之后显示「剑冢试炼」） */
+    private towerAction: 'tower' | 'tianjie' = 'tower';
     private towerSubLabel!: Label;
     private questDot!: Node;
     /** M26 签到入口红点：今日尚未领取时点亮 */
@@ -218,7 +226,11 @@ export class HomeScene implements IScene {
 
         // ── M22 剑冢试炼横幅入口（方案 C）：主 CTA 下方宽横幅，Secondary 权重 ──
         // 全页唯一的宽横幅，填的正是当前最空的那条带子；CTA 下缘（-119）留 16px 间隙。
-        this.towerBtn = spriteButton(n, 660, 88, '', () => Game.stack.push(new TowerScene()), {
+        this.towerBtn = spriteButton(n, 660, 88, '', () => {
+            // M36：练气前横幅是「每日天劫」入口（首日 60 秒后第一个可玩内容），练气后回到剑冢
+            if (this.towerAction === 'tianjie') Game.stack.push(new TianjieScene());
+            else Game.stack.push(new TowerScene());
+        }, {
             fontSize: 24,
             variant: 'secondary',
             textColor: THEME.goldLight,
@@ -228,7 +240,11 @@ export class HomeScene implements IScene {
         // 主标左移、副行右移，拉开 30px 净间隙。
         // 旧值（主标 -96 居中 / 副行左缘 -82）实测主标右缘 -40 与副行左缘撞车 42px，
         // 截图里「剑冢试炼」被「最高第 N 层」压住 —— 横幅内左右两栏必须按包围盒分栏。
-        label(this.towerBtn.node, TEXTS.towerTitle, 28, { bold: true, color: THEME.goldLight }).setPosition(-170, 0, 0);
+        this.towerTitleLabel = label(this.towerBtn.node, TEXTS.towerTitle, 28, {
+            bold: true,
+            color: THEME.goldLight,
+        }).getComponent(Label)!;
+        this.towerTitleLabel.node.setPosition(-170, 0, 0);
         this.towerSubLabel = labelL(this.towerBtn.node, '', 18, { color: THEME.paper, width: 360 }).getComponent(Label);
         this.towerSubLabel!.node.setPosition(-84, 0, 0);
 
@@ -436,10 +452,24 @@ export class HomeScene implements IScene {
         this.statLabel.string = `${TEXTS.statAtk} ${stats.atk} · ${TEXTS.statDef} ${stats.def} · ${TEXTS.statPower} ${stats.power}`;
 
         // M22：剑冢横幅副行（最高层 + 塔内剑气；塔内数值不外溢主页 atk/def/power）
-        this.towerSubLabel.string = TEXTS.towerBannerSub(save.tower.best, formatCompact(Game.tower.atk(save)));
+        // M36：练气前（realmIndex 0）横幅改挂「每日天劫」——首日 60 秒走完后
+        // 玩家第一个能每天玩的内容；练气后恢复剑冢（每日天劫仍在论道页常驻入口）。
+        if (save.realmIndex === 0) {
+            this.towerAction = 'tianjie';
+            const tv = Game.tianjie.view(save);
+            this.towerTitleLabel.string = TEXTS.tianjieTitle;
+            this.towerSubLabel.string = tv.attemptsLeft > 0
+                ? TEXTS.tianjieAttempts(tv.attemptsLeft, 3)
+                : TEXTS.tianjieAttemptsNone;
+        } else {
+            this.towerAction = 'tower';
+            this.towerTitleLabel.string = TEXTS.towerTitle;
+            this.towerSubLabel.string = TEXTS.towerBannerSub(save.tower.best, formatCompact(Game.tower.atk(save)));
+        }
 
         this.refreshGuide();
-        this.giftBtn.node.active = !Game.save.daily.dailyGiftUsed;
+        this.giftBtn.node.active = !Game.save.daily.dailyGiftUsed && Ads.isConfigured('dailyGift');
+        this.refreshTianjieNudge();
 
         // M8 红点：修行 = 有可领的活跃度宝箱
         const chestClaimable = ACTIVITY_CHESTS.some((c) => Game.quests.canClaimChest(Game.save, c.at));
@@ -524,6 +554,37 @@ export class HomeScene implements IScene {
         }
         // 引导条恒可点（四态各有去向），与旧版「机缘未满则置灰」不同
         this.breakBtn.setEnabled(true);
+    }
+
+    /**
+     * 昨日天劫提示条（M36 优化，2026-10-22）：今天是「未打 + 有昨日战报」时，
+     * 在每日仙缘行上方压一条窄提示「昨日 39 分 · 今日已换题」。
+     *
+     * 为什么挂在首页而不是每日天劫入口页：入口页只有已经想去的人才会进；
+     * 提示条负责把「昨天打过的人」拉回来——这是天劫参与率（目标 ≥50%）漏得最多的一段。
+     * 文案给的是「今日已换题」而非分数排名，避免变成焦虑型提醒（合规/体验都更稳）。
+     */
+    private refreshTianjieNudge() {
+        const show = Game.tianjie.shouldNudge(Game.save);
+        if (!show) {
+            if (this.tianjieNudge) {
+                this.tianjieNudge.destroy();
+                this.tianjieNudge = null;
+            }
+            return;
+        }
+        if (this.tianjieNudge) return; // 已建且仍需要：不重复建（位置上不依赖任何数值）
+        const last = Game.tianjie.lastReport();
+        const bar = spriteButton(this.node, 660, 64, '', () => Game.stack.push(new TianjieScene()), {
+            fontSize: 21,
+            variant: 'secondary',
+            textColor: THEME.goldLight,
+        });
+        // 每日仙缘行在 -582；提示条贴在它上方，与剑冢横幅（-179）之间不冲突
+        bar.node.setPosition(0, -498, 0);
+        const text = last ? `昨日天劫 ${last.score} 分 · 今日已换题，再来一局？` : '今日天劫已换题';
+        labelL(bar.node, text, 21, { color: THEME.goldLight, width: 600, shrink: true }).setPosition(-300, 0, 0);
+        this.tianjieNudge = bar.node;
     }
 
     /** 引导条点击：按 refreshGuide 定格的状态路由 */
