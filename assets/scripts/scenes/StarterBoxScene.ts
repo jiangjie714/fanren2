@@ -4,6 +4,7 @@ import { Game } from '../infra/Game';
 import { AudioMgr } from '../infra/AudioMgr';
 import { Analytics } from '../infra/Analytics';
 import { TEXTS } from '../core/config/texts';
+import { REALMS } from '../core/config/realms';
 import { BoxResult } from '../core/systems/BoxSystem';
 import {
     DESIGN_H,
@@ -20,8 +21,15 @@ import { RainScene } from './RainScene';
 import { HomeScene } from './HomeScene';
 
 const FREE_BOXES = 3;
-/** 新手三连补足的目标机缘（= 练气门槛；与 REALMS[1].needJiyuan 同源，但这里不 import 以免循环） */
-const STARTER_JIYUAN = 60;
+/**
+ * 新手三连补足的目标机缘 = **下一次突破（练气）的门槛**。
+ *
+ * 2026-10-23 改为直接读 `REALMS[1].needJiyuan`（原本是硬编码 60 + 注释「与门槛同源」）：
+ * 硬编码时若门槛上调（如 60→80），新手三连补到 60 就破不了境，D1「首日必成一次」
+ * 会静默失效——这类漂移单测测不出（两处都「看得过去」），只能靠同源消除。
+ * `config/realms.ts` 零 import，不存在循环依赖。
+ */
+const STARTER_JIYUAN = REALMS[1].needJiyuan;
 
 /**
  * D1-60s 新手三连开箱（#59 / spec T4）：

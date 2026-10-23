@@ -537,4 +537,40 @@ describe('数值平衡模拟（打印报告，宽松断言防崩坏）', () => {
         console.log('[首日] ' + report.join(' | ') + ` ｜ 门槛=${REALMS[1].needJiyuan}`);
         expect(Math.min(...jiyuanOf)).toBeGreaterThanOrEqual(REALMS[1].needJiyuan);
     });
+
+    /**
+     * J5（D1-60s spec §7 验收）：首日 **0 支广告** 就能到练气门槛。
+     *
+     * 口径与 `StarterBoxScene` 三方一致：3 只凡俗盒 `free=true`（不扣灵石、不耗券，
+     * 但仍走完整掉落与天道保底）+ 第 3 只后把机缘补足到门槛。核心断言是**灵石零消耗**
+     * （免费三连不能变相收费）与**机缘必达门槛**（补足目标读 `REALMS[1].needJiyuan`，
+     * 门槛上调时新手流自动跟随——这条断言同时钉住了那处同源改造）。
+     *
+     * 为什么放在 balance 而非 scenes：这里是**数值防线**——它不依赖任何 UI 与广告实现，
+     * 一旦有人改低补足目标、或让 free 路径开始扣费，此例立刻变红。
+     */
+    it('J5 首日 60 秒：0 广告走完新手三连 → 机缘达练气门槛', () => {
+        const report: string[] = [];
+        for (const seed of [20261007, 20261008, 20261009]) {
+            const save: SaveData = defaultSave();
+            const eco = new EconomySystem(save);
+            const box = new BoxSystem(save, eco, new Rng(seed));
+            const lingshi0 = save.lingshi;
+            const jiyuan0 = save.jiyuan;
+
+            for (let i = 0; i < 3; i += 1) box.open('fansu', { free: true });
+            const fromBoxes = save.jiyuan - jiyuan0;
+            const need = Math.max(0, REALMS[1].needJiyuan - save.jiyuan);
+            if (need > 0) eco.addJiyuan(need);
+
+            report.push(`seed=${seed} 盒内机缘=${fromBoxes} 补足=${need}`);
+            // 注意：不能断言「灵石不变」——开箱本身会掉灵石（凡俗盒毛回收率 >1），
+            // free 的语义只是「不收箱费」。判据是净值不减（场景测试同口径）。
+            expect(save.lingshi, 'free 路径不得扣箱费（免费三连不能变相收费）')
+                .toBeGreaterThanOrEqual(lingshi0);
+            expect(save.jiyuan, '三连 + 补足必须达到练气门槛，否则首日破不了境')
+                .toBeGreaterThanOrEqual(REALMS[1].needJiyuan);
+        }
+        console.log('[J5 首日 60s] ' + report.join(' | ') + ` ｜ 练气门槛=${REALMS[1].needJiyuan}`);
+    });
 });

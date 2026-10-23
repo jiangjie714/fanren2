@@ -122,6 +122,13 @@ export const TEXTS = {
     tianjieShare: '晒战报',
     tianjieShareTitle: (score: number, rating: string) => `今日天劫 ${rating} ${score} 分，你接住了几片金雨？`,
     tianjieNoAd: '天劫不看广告 · 纯手法',
+    /**
+     * 论道页常驻入口（R1 修复，2026-10-23）：练气后首页横幅回归剑冢，
+     * 天劫需要一个「不依赖今日是否已打」的固定入口——这是唯一保证可达的位置。
+     */
+    tianjieEntryLine: (todayBest: number, left: number) => (left > 0
+        ? `每日天劫 · 今日 ${todayBest} 分 · 剩 ${left} 次 ›`
+        : `每日天劫 · 今日已尽 · 最佳 ${todayBest} 分 ›`),
 
     // ---------- D1-60s 新手流（#59，2026-10-22） ----------
     starterTitle: '凡 人 开 仙 缘',

@@ -9,6 +9,7 @@ import { REALMS } from '../core/config/realms';
 import { ILLUSION } from '../core/config/illusion';
 import { STAMINA_AD_PER_DAY, STAMINA_MAX, rankBadge, rankById, rankOf } from '../core/config/trial';
 import { TEXTS } from '../core/config/texts';
+import { TianjieScene } from './TianjieScene';
 import { showDialog } from '../ui/dialog';
 import {
     ButtonHandle,
@@ -161,9 +162,30 @@ export class LudaoScene implements IScene {
     private renderRank(parent: Node) {
         if (DouyinSocial.available()) {
             this.renderFriendRank(parent);
-            return;
+        } else {
+            this.renderRankFallback(parent);
         }
-        this.renderRankFallback(parent);
+        // R1 修复：天劫入口不随榜单路径变化，两路都要有
+        this.renderTianjieEntry(parent);
+    }
+
+    /**
+     * 每日天劫常驻入口（R1 修复，2026-10-23）。
+     *
+     * 为什么必须放在这里：练气后首页横幅回归剑冢，天劫就只剩「昨日战报提示条」
+     * 一个入口——而那条依赖「今日未打 + 有非今日战报」，**今天已打完或从没打过
+     * 天劫的玩家将完全无路可进**。榜单页是「看分数 → 想试一把」的天然落点，
+     * 且不占 tabbar（5 个 tab 已满），也不与榜键 chip 抢位置。
+     *
+     * 位置 -370：好友榜面板下缘 -288 与降级三卡末卡下缘 -231 之下的公共空档，
+     * 距底部说明行（-510）仍有 ~108px，两路布局都不压。
+     */
+    private renderTianjieEntry(parent: Node) {
+        const v = Game.tianjie.view(Game.save);
+        const btn = spriteButton(parent, 640, 64, TEXTS.tianjieEntryLine(v.todayBest, v.attemptsLeft), () => {
+            Game.stack.push(new TianjieScene());
+        }, { fontSize: 22, variant: 'secondary', textColor: THEME.paper });
+        btn.node.setPosition(0, -370, 0);
     }
 
     private renderFriendRank(parent: Node) {

@@ -453,7 +453,8 @@ export class HomeScene implements IScene {
 
         // M22：剑冢横幅副行（最高层 + 塔内剑气；塔内数值不外溢主页 atk/def/power）
         // M36：练气前（realmIndex 0）横幅改挂「每日天劫」——首日 60 秒走完后
-        // 玩家第一个能每天玩的内容；练气后恢复剑冢（每日天劫仍在论道页常驻入口）。
+        // 玩家第一个能每天玩的内容；练气后恢复剑冢，天劫交给论道页排行 tab 的
+        // 常驻入口条承接（R1 修复 2026-10-23——此前本注释声称有入口，实际没有）。
         if (save.realmIndex === 0) {
             this.towerAction = 'tianjie';
             const tv = Game.tianjie.view(save);

@@ -2205,6 +2205,35 @@ describe('场景集成：M36 每日天劫（同种子 8 秒挑战）', () => {
         expect(Game.tianjie).toBeInstanceOf(TianjieSystem);
         expect(Game.save.version).toBe(16);
     });
+
+    // R1 修复：练气后首页横幅回归剑冢，天劫必须有一个「不依赖今日是否已打」的固定入口。
+    // 这两例锁的就是「可达性」——不是「昨日战报提示条」（那条本身有前置条件）。
+    it('R1 常驻入口：论道页排行 tab 榜下有天劫入口，点击进 TianjieScene', () => {
+        bootGame();
+        h.reset();
+        Game.save.realmIndex = 1; // 练气：首页横幅已是剑冢，提示条可能有也可能没有
+        const s = new LudaoScene();
+        s.onEnter();
+        const entry = lastBtn((b) => b.text.indexOf(TEXTS.tianjieEntryLine(0, 3)) === 0);
+        expect(entry, '论道排行 tab 缺少天劫入口').toBeTruthy();
+        const push = vi.spyOn(Game.stack, 'push').mockImplementation(() => { });
+        (entry as unknown as { onClick: () => void }).onClick();
+        expect(push).toHaveBeenCalledWith(expect.any(TianjieScene));
+    });
+
+    it('R1 常驻入口：今日次数用尽（已打 3 次）时入口仍在，只是文案改为「今日已尽」', () => {
+        bootGame();
+        h.reset();
+        Game.save.realmIndex = 1;
+        Game.tianjie.refresh(Game.save);
+        Game.save.tianjie.attempts = 3; // 今日次数已用尽
+        Game.save.tianjie.todayBest = 71;
+        const s = new LudaoScene();
+        s.onEnter();
+        const entry = lastBtn((b) => b.text.indexOf(TEXTS.tianjieEntryLine(71, 0)) === 0);
+        expect(entry, '次数用尽后入口不应消失（否则当天再也进不去）').toBeTruthy();
+        expect((entry as unknown as { text: string }).text).toContain('今日已尽');
+    });
 });
 
 describe('场景集成：M36 战绩卡（可分享）', () => {
