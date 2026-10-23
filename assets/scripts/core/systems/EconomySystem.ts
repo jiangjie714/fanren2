@@ -90,6 +90,7 @@ export class EconomySystem {
         this.save.daily.illusionRewardedTier = 0;
         this.save.daily.pkUsed = 0;
         this.save.daily.doubleRewardUsed = 0;
+        this.save.daily.doubleXiuweiUsed = 0;
         // M25（#50）：交情礼日封顶随日重置
         this.save.daily.pkFriendGift = 0;
         // v6（M14 #42）：秘境广告补给次数随日重置；体力本身走惰性时间戳回复，不随天清

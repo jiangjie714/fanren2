@@ -60,6 +60,11 @@ export type OpenFailReason = 'lingshiNotEnough' | 'boxLocked';
 export interface OpenOptions {
     /** 灵气共鸣：蓄力命中金区（只放大非概率产出，不碰概率/保底） */
     resonate?: boolean;
+    /**
+     * 免费开（D1-60s 新手三连专用）：跳过扣费/券，但仍计 stats.opens、保底与正常掉落。
+     * 只允许在「starter 未完成」的脚本流程里使用；普通 UI 不暴露此参数。
+     */
+    free?: boolean;
 }
 
 export class BoxSystem {
@@ -74,8 +79,9 @@ export class BoxSystem {
         return true;
     }
 
-    canOpen(boxId: BoxId): { ok: boolean; reason?: OpenFailReason } {
+    canOpen(boxId: BoxId, opts: OpenOptions = {}): { ok: boolean; reason?: OpenFailReason } {
         if (!this.isBoxUnlocked(boxId)) return { ok: false, reason: 'boxLocked' };
+        if (opts.free) return { ok: true };
         // 修真宝盒券：持券免费开（活跃度宝箱获得，M8 #27）
         if (boxId === 'xiuzhen' && this.save.xiuzhenTickets > 0) return { ok: true };
         if (!this.eco.canAfford(getBox(boxId).cost)) return { ok: false, reason: 'lingshiNotEnough' };
@@ -88,11 +94,13 @@ export class BoxSystem {
      * 保底：连续 3 次非稀有，第 4 次强制稀有；开出稀有即清零；劫难不重置（PRD 第五节）。
      */
     open(boxId: BoxId, opts: OpenOptions = {}): BoxResult {
-        const check = this.canOpen(boxId);
+        const check = this.canOpen(boxId, opts);
         if (!check.ok) throw new Error(`open blocked: ${check.reason}`);
         const box = getBox(boxId);
         let usedTicket = false;
-        if (boxId === 'xiuzhen' && this.save.xiuzhenTickets > 0) {
+        if (opts.free) {
+            // 新手三连：不扣灵石/不耗券，但仍走完整掉落与保底
+        } else if (boxId === 'xiuzhen' && this.save.xiuzhenTickets > 0) {
             this.save.xiuzhenTickets -= 1;
             usedTicket = true;
         } else {

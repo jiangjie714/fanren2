@@ -858,19 +858,19 @@ export class BoxScene implements IScene {
 
         const canSeek = !!this.session && Game.box.canSeek(this.session) && Game.box.canOpen(r.boxId).ok;
         const seekText = canSeek ? `${TEXTS.seekAgain}（${getBox(r.boxId).cost} 灵石）` : TEXTS.seekLimit;
-        showDialog(this.node, {
-            title: '仙缘揭晓',
-            lines,
-            buttons: [
-                { text: TEXTS.keepReward, primary: true, cb: () => this.afterSettle() },
-                {
-                    text: seekText,
-                    cb: canSeek ? () => this.doSeek() : () => toast(this.node, TEXTS.seekLimit),
-                    close: canSeek,
-                },
-                { text: `${TEXTS.doubleXiuweiBtn} · 广告`, cb: () => this.doubleXiuwei(r), close: false },
-            ],
-        });
+        const buttons: Array<{ text: string; primary?: boolean; cb: () => void; close?: boolean }> = [
+            { text: TEXTS.keepReward, primary: true, cb: () => this.afterSettle() },
+            {
+                text: seekText,
+                cb: canSeek ? () => this.doSeek() : () => toast(this.node, TEXTS.seekLimit),
+                close: canSeek,
+            },
+        ];
+        // 广告位未配置 / 今日已用 2 次 → 不展示「修为加倍」按钮（死按钮比没有更伤）
+        if (Ads.isConfigured('doubleXiuwei') && Game.save.daily.doubleXiuweiUsed < 2) {
+            buttons.push({ text: `${TEXTS.doubleXiuweiBtn} · 广告`, cb: () => this.doubleXiuwei(r), close: false });
+        }
+        showDialog(this.node, { title: '仙缘揭晓', lines, buttons });
     }
 
     private rewardLine(item: RewardItem): string | { text: string; color?: number } {
@@ -912,6 +912,7 @@ export class BoxScene implements IScene {
         Ads.show('doubleXiuwei', this.node, {
             onSuccess: () => {
                 const extra = Game.eco.addXiuwei(xw.amount);
+                Game.save.daily.doubleXiuweiUsed += 1;
                 (xw as any)._doubled = true;
                 xw.label = `修为 +${xw.amount}（已加倍 +${extra}）`;
                 Game.persist();
@@ -932,16 +933,18 @@ export class BoxScene implements IScene {
 
     private lingshiNotEnoughDialog() {
         const remain = Game.eco.aidRemaining();
+        // 广告位未配置时隐藏「去获取」：点开只会 onSkip，玩家会以为游戏坏了
+        const canAd = remain > 0 && Ads.isConfigured('dailyGift');
         const lines: Array<string | { text: string; color?: number }> = [TEXTS.lingshiNotEnough];
-        if (remain > 0) {
+        if (canAd) {
             lines.push({ text: TEXTS.lingshiAidRemain(remain, DAILY_LINGSHI_AID_LIMIT), color: 1 });
-        } else {
+        } else if (remain <= 0) {
             lines.push({ text: TEXTS.lingshiAidExhausted, color: 2 });
         }
         showDialog(this.node, {
             title: '灵石不足',
             lines,
-            buttons: remain > 0 ? [
+            buttons: canAd ? [
                 {
                     text: '去获取',
                     primary: true,
