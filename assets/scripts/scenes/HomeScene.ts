@@ -9,6 +9,7 @@ import { enterIllusion } from '../infra/enterIllusion';
 import { REALMS } from '../core/config/realms';
 import { themeOf } from '../core/config/trial';
 import { TEXTS } from '../core/config/texts';
+import { TIANJIE } from '../core/tianjie';
 import { statusBar } from '../ui/StatusBar';
 import {
     ButtonHandle,
@@ -460,7 +461,7 @@ export class HomeScene implements IScene {
             const tv = Game.tianjie.view(save);
             this.towerTitleLabel.string = TEXTS.tianjieTitle;
             this.towerSubLabel.string = tv.attemptsLeft > 0
-                ? TEXTS.tianjieAttempts(tv.attemptsLeft, 3)
+                ? TEXTS.tianjieAttempts(tv.attemptsLeft, TIANJIE.attemptsPerDay)
                 : TEXTS.tianjieAttemptsNone;
         } else {
             this.towerAction = 'tower';

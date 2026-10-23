@@ -27,7 +27,7 @@ import {
 import { GOLD_RAIN_XIUWEI } from '../config/economy';
 import { ILLUSION, IllusionTier, judgeIllusionScore, judgeIllusionTier } from '../config/illusion';
 import { TRIAL_THEMES, TrialTheme, themeOf } from '../config/trial';
-import { Modifier, combinedScoreMult, difficultyOf, tianjieRating, tianjieScore } from '../tianjie';
+import { Modifier, TIANJIE, combinedScoreMult, difficultyOf, tianjieRating, tianjieScore } from '../tianjie';
 
 export type RainMode = 'tribulation' | 'illusion' | 'tianjie';
 
@@ -151,7 +151,12 @@ export class RainSystem {
         firstBattle = false,
         tianjie?: Modifier[] | null,
     ): RainSession {
-        const duration = mode === 'illusion' ? ILLUSION.duration : 8;
+        // 天劫读 TIANJIE.duration（原本三处独立写 8，改一处另两处不跟随＝静默漂移）；
+        // 渡劫固定 8 —— 与 REALMS 全表 rainDuration（凡人 0，练气起统一 8）一致，
+        // 但渡劫时长属主线手感，本期不重构为查表，只在此注明来源。
+        const duration = mode === 'illusion' ? ILLUSION.duration
+            : mode === 'tianjie' ? TIANJIE.duration
+                : 8;
         // 秘境主题：调用方可显式指定（测试/回放），缺省按今日日序轮换（#42）
         const resolvedTheme = mode === 'illusion' ? (theme ?? themeOf()) : null;
         return {
