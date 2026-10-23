@@ -10,6 +10,8 @@ import {
     UNLOCKS,
     UNLOCK_COUNT_BY_REALM,
     UNLOCK_IDS,
+    MAX_UNLOCK_REALM,
+    effectiveRealm,
     isUnlocked,
     nextUnlockEntries,
     nextUnlockRealm,
@@ -125,5 +127,28 @@ describe('境界解锁表：落位与下一档（首页/仙路总览用）', () 
         slots.forEach((s) => {
             expect(unlockedSlots(5, s).length, `落位 ${s} 无任何项`).toBeGreaterThan(0);
         });
+    });
+});
+
+describe('有效境界：老档全开 / 新号按表（v17 unlocks.seasoned）', () => {
+    it('seasoned=true → 全开，与真实境界无关', () => {
+        expect(effectiveRealm(0, true)).toBe(MAX_UNLOCK_REALM);
+        expect(unlockedAt(effectiveRealm(0, true))).toHaveLength(17);
+        expect(nextUnlockRealm(effectiveRealm(0, true))).toBeNull();
+    });
+
+    it('seasoned=false → 用真实境界；脏值落凡人档', () => {
+        expect(effectiveRealm(0, false)).toBe(0);
+        expect(effectiveRealm(1, false)).toBe(1);
+        expect(effectiveRealm(2, false)).toBe(2);
+        expect(effectiveRealm(NaN, false)).toBe(0);
+        expect(effectiveRealm(-3, false)).toBe(0);
+        expect(effectiveRealm(2.7, false)).toBe(2);
+        expect(effectiveRealm(99, false)).toBe(99);
+    });
+
+    it('老档全开时练气期也看不到「未解锁」灰标（不该有锁定项）', () => {
+        const realm = effectiveRealm(1, true);
+        expect(UNLOCKS.filter((u) => !isUnlocked(u.id, realm))).toHaveLength(0);
     });
 });

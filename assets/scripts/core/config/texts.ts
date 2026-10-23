@@ -131,6 +131,8 @@ export const TEXTS = {
         : `每日天劫 · 今日已尽 · 最佳 ${todayBest} 分 ›`),
 
     // ---------- D1-60s 新手流（#59，2026-10-22） ----------
+    /** 环形未解锁占位（spec §5）：{境界}解锁 */
+    unlockLocked: (realm: string) => `${realm}解锁`,
     starterTitle: '凡 人 开 仙 缘',
     starterRealm: '【凡人】',
     starterHint: '凡人开局 · 先开三只宝盒',

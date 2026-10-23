@@ -10,6 +10,7 @@ import { REALMS } from '../core/config/realms';
 import { themeOf } from '../core/config/trial';
 import { TEXTS } from '../core/config/texts';
 import { TIANJIE } from '../core/tianjie';
+import { FeatureId, UNLOCKS, effectiveRealm, isUnlocked } from '../core/config/unlocks';
 import { statusBar } from '../ui/StatusBar';
 import {
     ButtonHandle,
@@ -109,6 +110,63 @@ export class HomeScene implements IScene {
     private charNode!: Node;
     private shownRealm = -1;
     private shownGender: 'm' | 'f' | '' = '';
+    /**
+     * 每个入口的节点组（钮 + 标签 + 红点），供 `applyUnlocks` 统一显隐。
+     *
+     * 为什么是「先全建、再按表隐藏」而不是「没解锁就不建」：这些节点同时被 `refresh()`
+     * 直接引用（红点/计数/文案），条件构建会让 refresh 到处判空；而 spec §4 要求
+     * rail「不足时留白、不重排既有项」，隐藏（保留坐标）恰好就是留白。
+     */
+    private entryNodes: Partial<Record<FeatureId, Node[]>> = {};
+
+    /** 当前存档的有效解锁境界（老档全开 / 新号按真实境界；脏读缺字段按新号） */
+    private realmForUnlock(): number {
+        return effectiveRealm(Game.save.realmIndex, Game.save.unlocks?.seasoned ?? false);
+    }
+
+    /** 登记入口节点组（供 applyUnlocks 统一显隐）。同一功能可能有多个入口（如图鉴：环形 + 左 rail），累加不覆盖 */
+    private register(id: FeatureId, ...nodes: Array<Node | null | undefined>) {
+        const list = nodes.filter((x): x is Node => !!x);
+        this.entryNodes[id] = [...(this.entryNodes[id] ?? []), ...list];
+    }
+
+    /**
+     * 未解锁的环形占位：半透明圆 +「{境界}解锁」。
+     * **不绑点击**——点了没反应会被当成 bug，占位的语义是「看得见、摸不到」。
+     */
+    private lockedRing(parent: Node, x: number, y: number, size: number, id: FeatureId) {
+        const holder = uinode('lockedSlot', parent, size, size);
+        holder.setPosition(x, y, 0);
+        const g = holder.addComponent(Graphics);
+        g.fillColor = faded(THEME.tintDeep, 190);
+        g.circle(0, 0, size / 2);
+        g.fill();
+        const unlock = UNLOCKS.find((u) => u.id === id);
+        const realmName = REALMS[Math.min(REALMS.length - 1, unlock?.unlockRealm ?? 0)].name;
+        label(holder, TEXTS.unlockLocked(realmName), 17, {
+            color: faded(THEME.inkSoft, 230),
+            width: size - 8,
+            align: 'center',
+        }).setPosition(0, 0, 0);
+    }
+
+    /**
+     * 按解锁表隐藏未解锁的入口（保留坐标 = spec 要求的「留白不重排」）。
+     *
+     * 这里**不能**按 `slot` 短路跳过 `ring`：图鉴同时占环形与左 rail 两个落位
+     * （环形留占位灰标、rail 是带进度的圆钮），跳过 `ring` 会让 rail 那份漏隐藏，
+     * 凡人新号左 rail 就多出一个点不动的图鉴。环形占位本身不登记进 `entryNodes`
+     * （`lockedRing` 不调 `register`），所以对锁定项一律遍历登记的节点是安全的：
+     * 环形没建钮 → 该 id 下只有 rail 节点 → 正好只隐藏它该隐藏的。
+     */
+    private applyUnlocks(realm: number) {
+        UNLOCKS.forEach((u) => {
+            if (isUnlocked(u.id, realm)) return;
+            (this.entryNodes[u.id] ?? []).forEach((node) => {
+                if (node && node.isValid) node.active = false;
+            });
+        });
+    }
 
     constructor() {
         this.node = new Node('HomeScene');
@@ -117,6 +175,8 @@ export class HomeScene implements IScene {
 
     onEnter() {
         const n = this.node;
+        // D1-60s §4：解锁表适用范围（老档 seasoned=true 全开 / 新号按境界表逐步解锁）
+        const realm = this.realmForUnlock();
         // 60 秒漏斗起点：一次安装只发一次 first_home（老玩家也会补发一次，用于历史基线）
         Analytics.trackOnce('first_home', 'first_home', {
             realm_index: Game.save.realmIndex,
@@ -253,28 +313,37 @@ export class HomeScene implements IScene {
         // 旧版 2×2 表格四入口（含设置）改为：设置独立成左上角齿轮圆钮，
         // 炼丹淬体/福禄炼制为 M13 新功能入口。
         // M22：为剑冢横幅让位，整环下移 99px（spec §5.1，五条水平间隙均 ≥12px）。
-        const ringEntries: Array<[string, string, number, number, number, () => void]> = [
-            // [名称, 图标, x, y, 圆盘直径, 回调]
-            ['仙缘宝盒', 'box', -130, -287, 96, () => Game.stack.push(new BoxScene())],
-            ['灵根图鉴', 'collection', 130, -287, 96, () => Game.stack.push(new CollectionScene())],
-            ['炼丹淬体', 'alchemy', -130, -451, 96, () => Game.stack.push(new AlchemyScene())],
-            ['福禄炼制', 'fortune', 130, -451, 96, () => Game.stack.push(new FortuneScene())],
-            ['仙府商店', 'shop', 0, -367, 124, () => Game.stack.push(new ShopScene())],
+        // D1-60s §4：按解锁表构建——未解锁位**保留占位灰标**（看得见「还有东西」但点不动）。
+        const ringEntries: Array<[FeatureId, string, string, number, number, number, () => void]> = [
+            // [功能 id, 名称, 图标, x, y, 圆盘直径, 回调]
+            ['box', '仙缘宝盒', 'box', -130, -287, 96, () => Game.stack.push(new BoxScene())],
+            ['collection', '灵根图鉴', 'collection', 130, -287, 96, () => Game.stack.push(new CollectionScene())],
+            ['alchemy', '炼丹淬体', 'alchemy', -130, -451, 96, () => Game.stack.push(new AlchemyScene())],
+            ['fortune', '福禄炼制', 'fortune', 130, -451, 96, () => Game.stack.push(new FortuneScene())],
+            ['shop', '仙府商店', 'shop', 0, -367, 124, () => Game.stack.push(new ShopScene())],
         ];
-        ringEntries.forEach(([title, icon, x, y, size, cb]) => {
-            iconButton(n, `art/ui/icons/icon_${icon}/spriteFrame`, cb, size, size).node.setPosition(x, y, 0);
+        ringEntries.forEach(([id, title, icon, x, y, size, cb]) => {
+            if (!isUnlocked(id, realm)) {
+                this.lockedRing(n, x, y, size, id);
+                return;
+            }
+            const btn = iconButton(n, `art/ui/icons/icon_${icon}/spriteFrame`, cb, size, size);
+            btn.node.setPosition(x, y, 0);
             // 圆盘钮下方的名称标签：压在高饱和插画上必须描边（与右侧 rail 同规）
-            label(n, title, 19, {
+            const nameNode = label(n, title, 19, {
                 bold: true,
                 color: THEME.paper,
                 outline: faded(THEME.void, 220),
                 outlineWidth: 3,
-            }).setPosition(x, y - size / 2 - 18, 0);
+            });
+            nameNode.setPosition(x, y - size / 2 - 18, 0);
+            this.register(id, btn.node, nameNode);
         });
 
         // 设置：左上角齿轮圆钮（与右侧功能 rail 对称位）
-        iconButton(n, 'art/ui/icons/icon_settings/spriteFrame', () => Game.stack.push(new SettingsScene()), 72, 72)
-            .node.setPosition(-286, 370, 0);
+        const settingsNode = iconButton(n, 'art/ui/icons/icon_settings/spriteFrame', () => Game.stack.push(new SettingsScene()), 72, 72)
+            .node;
+        settingsNode.setPosition(-286, 370, 0);
 
         this.giftBtn = spriteButton(n, 660, 78, '', () => claimDailyGift(this.node), {
             fontSize: 23,
@@ -294,39 +363,46 @@ export class HomeScene implements IScene {
         // 图标下沿 = y - 36，标签放到 -52 留 16px 间隙（旧值 -46 时标签顶着图标底缘）；
         // 标签压在高饱和插画上，必须给描边，否则 18px 白字在亮部直接糊掉。
         // M12：x 可传，左上角设置齿轮钮复用同款标签样式。
-        const railLabel = (text: string, y: number, x = 286) => label(n, text, 18, {
-            bold: true,
-            color: THEME.paper,
-            outline: faded(THEME.void, 220),
-            outlineWidth: 3,
-        }).setPosition(x, y, 0);
-        railLabel('设置', 318, -286);
+        // 返回节点本身（不是 setPosition 的 void）——`register` 要拿它做显隐。
+        const railLabel = (text: string, y: number, x = 286) => {
+            const node = label(n, text, 18, {
+                bold: true,
+                color: THEME.paper,
+                outline: faded(THEME.void, 220),
+                outlineWidth: 3,
+            });
+            node.setPosition(x, y, 0);
+            return node;
+        };
+        this.register('settings', settingsNode, railLabel('设置', 318, -286));
         this.questBtn = iconButton(n, 'art/ui/icons/icon_quest/spriteFrame', () => Game.stack.push(new QuestScene()), 72, 72);
         this.questBtn.node.setPosition(286, 370, 0);
-        railLabel('修行', 318);
+        const questLabelNode = railLabel('修行', 318);
         this.questDot = makeRedDot(n, 310, 394);
+        this.register('quests', this.questBtn.node, questLabelNode, this.questDot);
 
         this.trailBtn = iconButton(n, 'art/ui/icons/icon_expedition/spriteFrame', () => Game.stack.push(new TrailScene()), 72, 72);
         this.trailBtn.node.setPosition(286, 266, 0);
-        railLabel('妖径', 214);
+        this.register('trail', this.trailBtn.node, railLabel('妖径', 214));
 
         // M9a 论道入口：排行（降级版）/ 论武 / 幻境 / 成就
         this.ludaoBtn = iconButton(n, 'art/ui/icons/icon_ludao/spriteFrame', () => Game.stack.push(new LudaoScene()), 72, 72);
         this.ludaoBtn.node.setPosition(286, 162, 0);
-        railLabel('论道', 110);
+        const ludaoLabelNode = railLabel('论道', 110);
         this.ludaoDot = makeRedDot(n, 310, 186);
+        this.register('ludao', this.ludaoBtn.node, ludaoLabelNode, this.ludaoDot);
 
         // M11 法器阁入口：锻体 + 六档法器
         this.weaponBtn = iconButton(n, 'art/ui/icons/icon_weapon/spriteFrame', () => Game.stack.push(new WeaponScene()), 72, 72);
         this.weaponBtn.node.setPosition(286, 58, 0);
-        railLabel('法器', 6);
+        this.register('weapon', this.weaponBtn.node, railLabel('法器', 6));
 
         // M23 修仙之路入口：五线进度总览（境界/妖径/剑冢/图鉴/成就）
         // rail 从 4 钮（间距 130）压缩为 5 钮（间距 104）：规格首选的法器下方 -150
         // 被 M22 剑冢横幅（y=-179，660 宽）堵死，压缩间距是不动 CTA/横幅/环形的唯一解。
-        iconButton(n, 'art/ui/icons/icon_rank/spriteFrame', () => Game.stack.push(new PathScene()), 72, 72)
-            .node.setPosition(286, -46, 0);
-        railLabel('仙路', -98);
+        const pathNode = iconButton(n, 'art/ui/icons/icon_rank/spriteFrame', () => Game.stack.push(new PathScene()), 72, 72).node;
+        pathNode.setPosition(286, -46, 0);
+        this.register('path', pathNode, railLabel('仙路', -98));
 
         // A11 图鉴入口：改为与右侧 rail（法器 / 论道 / 妖径 / 修行）**完全同构**的圆钮。
         //
@@ -339,21 +415,21 @@ export class HomeScene implements IScene {
         // M26 连续登录签到入口：插在左侧 rail 的空位（设置 370 与图鉴 58 之间），
         // 左 rail 只有 2 个钮、上下各留 >100px，不动任何既有坐标。
         // 图标暂用 icon_streak（「连续」语义最贴切）占位，待美术补 icon_checkin 后替换。
-        iconButton(n, 'art/ui/icons/icon_streak/spriteFrame', () => Game.stack.push(new CheckinScene()), 72, 72)
-            .node.setPosition(-286, 266, 0);
-        railLabel('签到', 214, -286);
+        const checkinNode = iconButton(n, 'art/ui/icons/icon_streak/spriteFrame', () => Game.stack.push(new CheckinScene()), 72, 72).node;
+        checkinNode.setPosition(-286, 266, 0);
         this.checkinDot = makeRedDot(n, -262, 290);
+        this.register('checkin', checkinNode, railLabel('签到', 214, -286), this.checkinDot);
 
         // M29 离线吐纳入口：插在左侧 rail 的空位（签到 266 与图鉴 58 之间，间距 104
         // 与右侧 rail 压缩后的节律一致），不动任何既有坐标。图标用 icon_timer（语义
         // 最贴「挂机计时」）占位，待美术补 icon_offline 后替换（同 M26 签到钮口径）。
-        iconButton(n, 'art/ui/icons/icon_timer/spriteFrame', () => Game.stack.push(new OfflineScene()), 72, 72)
-            .node.setPosition(-286, 162, 0);
-        railLabel(TEXTS.offlineRail, 110, -286);
+        const offlineNode = iconButton(n, 'art/ui/icons/icon_timer/spriteFrame', () => Game.stack.push(new OfflineScene()), 72, 72).node;
+        offlineNode.setPosition(-286, 162, 0);
+        this.register('offline', offlineNode, railLabel(TEXTS.offlineRail, 110, -286));
 
         this.collectionBtn = iconButton(n, 'art/ui/icons/icon_collection/spriteFrame', () => Game.stack.push(new CollectionScene()), 72, 72);
         this.collectionBtn.node.setPosition(-286, 58, 0);
-        railLabel('图鉴', 6, -286);
+        const collectionRailLabel = railLabel('图鉴', 6, -286);
         // 计数与进度：两行小字挂在圆钮正下方，宽度收在安全线内（-332 → -250 = 82px 可用）。
         // 进度条中心 -50：底缘 -55 与剑冢横幅顶缘 -135 留 80px 间隙
         // （M23 rail 压缩后随法器对称上移到 58）。
@@ -366,7 +442,11 @@ export class HomeScene implements IScene {
         this.collectionLabel.node.setPosition(-286, -28, 0);
         this.collectionBar = progressBar(n, 72, 10);
         this.collectionBar.node.setPosition(-286, -50, 0);
+        // 图鉴有两个入口（环形 + 左 rail 带进度），都由同一个解锁项控制
+        this.register('collection', this.collectionBtn.node, collectionRailLabel, this.collectionLabel.node, this.collectionBar.node);
 
+        // D1-60s §4：按解锁表隐藏未解锁的 rail 入口（必须在 refresh 之前——refresh 会写红点/文案）
+        this.applyUnlocks(realm);
         this.refresh();
         // M29 离线吐纳：归来演出（弹窗由 Game 结算的结果驱动，进门/回前台各消费一次）
         this.maybeShowOfflineDialog();
@@ -453,10 +533,12 @@ export class HomeScene implements IScene {
         this.statLabel.string = `${TEXTS.statAtk} ${stats.atk} · ${TEXTS.statDef} ${stats.def} · ${TEXTS.statPower} ${stats.power}`;
 
         // M22：剑冢横幅副行（最高层 + 塔内剑气；塔内数值不外溢主页 atk/def/power）
-        // M36：练气前（realmIndex 0）横幅改挂「每日天劫」——首日 60 秒走完后
-        // 玩家第一个能每天玩的内容；练气后恢复剑冢，天劫交给论道页排行 tab 的
-        // 常驻入口条承接（R1 修复 2026-10-23——此前本注释声称有入口，实际没有）。
-        if (save.realmIndex === 0) {
+        // M36 + D1-60s §4：横幅路由 = 剑冢解锁了才挂剑冢，否则挂「每日天劫」。
+        // 剑冢按解锁表要金丹（tower.unlockRealm=3），于是凡人/练气/筑基看到的是天劫
+        // （首日 60 秒走完后第一个能每天玩的内容），金丹起回到剑冢；天劫入口则一直
+        // 由论道页排行 tab 的常驻入口条承接（R1）。老档 seasoned=true 恒为剑冢。
+        const unlockRealm = this.realmForUnlock();
+        if (!isUnlocked('tower', unlockRealm)) {
             this.towerAction = 'tianjie';
             const tv = Game.tianjie.view(save);
             this.towerTitleLabel.string = TEXTS.tianjieTitle;
@@ -470,7 +552,10 @@ export class HomeScene implements IScene {
         }
 
         this.refreshGuide();
-        this.giftBtn.node.active = !Game.save.daily.dailyGiftUsed && Ads.isConfigured('dailyGift');
+        // 每日仙缘：练气解锁（首日 60 秒 0 广告），且今日未领、已配广告位
+        this.giftBtn.node.active = isUnlocked('dailyGift', unlockRealm)
+            && !Game.save.daily.dailyGiftUsed
+            && Ads.isConfigured('dailyGift');
         this.refreshTianjieNudge();
 
         // M8 红点：修行 = 有可领的活跃度宝箱

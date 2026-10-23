@@ -42,7 +42,7 @@ assets/
     ├── infra/            # Game(装配+生命周期)/存档/广告(模拟+tt)/社交上报桩/音频/场景栈
     ├── ui/               # 程序化国风 UI 库（ThemeLib/弹窗/状态栏/合规弹窗）
     └── scenes/           # 34 个页面（含签到/吐纳/修行/历练/论道/幻境结算/仙闻录/新手60秒/天劫三页）
-tests/                    # Vitest 37 文件 652 例：core(29)/nav/m7/m8/m9/m9b(8)/balance/combat/checkin/guide/offline/story/sect/starter/tianjie/unlocks
+tests/                    # Vitest 37 文件 667 例：core(29)/nav/m7/m8/m9/m9b(8)/balance/combat/checkin/guide/offline/story/sect/starter/tianjie/unlocks
 tools/                    # build.mjs(双端构建+后处理+子域注入) / preview-server.mjs
                           # generate-art.py(美术+meta) / m7|m8|m9-shots.mjs(回归截图) / uuid.mjs
 open-data-context/        # M9b 开放数据域子域（纯 JS 好友榜渲染/对比，构建时自动拷入抖音产物）

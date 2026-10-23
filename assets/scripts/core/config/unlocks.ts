@@ -12,13 +12,16 @@
  *   筑基，练气期只有 3 个任务可完成、活跃度上限 75，100 档宝箱永远拿不到。筑基后
  *   开箱/渡劫/妖径/金雨 4 项正好 100（金丹再加剑冢，仍按「任意 4 项」满额）——这条
  *   不是风格偏好，是**活跃度可达性**的硬约束，改动前者必须同时改后者；
- * - **环形位保留占位、rail 位不构建**：未解锁的环形位渲染灰标「{境界}解锁」，
- *   让玩家看见「还有东西」，但**不绑点击**；rail 位整钮不建（否则右侧一列灰钮）。
+ * - **环形位保留占位、rail 位建后隐藏**：未解锁的环形位渲染灰标「{境界}解锁」，
+ *   让玩家看见「还有东西」，但**不绑点击**；rail/横幅位仍然构建，随后由
+ *   `HomeScene.applyUnlocks` 统一 `node.active = false`（不建会让 `refresh()` 到处判空，
+ *   而且隐藏保留坐标恰好就是 spec §4 要求的「留白、不重排既有项」）。
  *
- * ⚠ 本期（2026-10-23）只落地**判定层**：HomeScene 的按表构建是独立一期（见
- * `docs/项目现状与后续规划.md` §9.5i）。原因：接入会把练气期玩家的可见入口从 17
- * 降到 7（妖径/论道/法器/吐纳/剑冢/炼丹/福禄全部收起），属**对存量玩家可见的功能削减**，
- * 需产品确认后再动首页。
+ * ✅ 2026-10-23 已接入页面（`HomeScene` 全量 + `LudaoScene` 宗门 tab），采用
+ * **只对新号生效**口径：存档 `unlocks.seasoned`（v17）为 true 的存量老档，
+ * `effectiveRealm` 直接返回 `MAX_UNLOCK_REALM`——17 项全开、可见入口一个不减；
+ * 只有新号按本表逐档解锁。原计划「对所有人生效」会把练气期可见入口从 17 降到 7，
+ * 属对存量玩家的功能削减，故改为新号专用。
  */
 
 /** 功能 id（新增只能追加，不改既有 id —— 存档/埋点/测试都按 id 引用） */
@@ -101,6 +104,20 @@ const INDEX: Record<string, UnlockEntry> = (() => {
 
 /** 全 id 列表（按表序；给测试与「全开」校验用） */
 export const UNLOCK_IDS: FeatureId[] = Array.from(UNLOCKS).map((u) => u.id);
+
+/** 表里最高的一档（= 全开只需达到这个境界） */
+export const MAX_UNLOCK_REALM: number = UNLOCKS.reduce((m, u) => Math.max(m, u.unlockRealm), 0);
+
+/**
+ * 有效境界：`seasoned`（老档）视为已全开，新号用真实境界。
+ *
+ * 页面层统一调它再喂 `isUnlocked`，别在每处各写一遍三元——「老档全开」这个口径
+ * 一旦有一处漏写，老玩家就会莫名少一个入口（而这类缺失很难在测试里被发现）。
+ */
+export function effectiveRealm(realmIndex: number, seasoned: boolean): number {
+    if (seasoned) return MAX_UNLOCK_REALM;
+    return Number.isFinite(realmIndex) && realmIndex > 0 ? Math.floor(realmIndex) : 0;
+}
 
 /** 取表项（未知 id 返回 null —— 脏档/旧存档兼容） */
 export function unlockOf(id: string): UnlockEntry | null {

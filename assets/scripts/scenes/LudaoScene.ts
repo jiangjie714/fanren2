@@ -35,6 +35,7 @@ import { PkBattleScene } from './PkBattleScene';
 import { DaoFriendScene } from './DaoFriendScene';
 import { SectView } from '../ui/SectView';
 import { PK_DAILY_LIMIT, WEAPONS } from '../core/config/combat';
+import { effectiveRealm, isUnlocked } from '../core/config/unlocks';
 
 type LudaoTab = 'rank' | 'illusion' | 'achieve' | 'pk' | 'sect';
 
@@ -95,6 +96,7 @@ export class LudaoScene implements IScene {
         this.tabbar?.destroy();
         const n = this.node;
         this.tabbar = uinode('tabbar', n, DESIGN_W, 80);
+        const unlockRealm = effectiveRealm(Game.save.realmIndex, Game.save.unlocks?.seasoned ?? false);
         const tabs: Array<[LudaoTab, string]> = [
             ['rank', TEXTS.ludaoTabRank],
             ['illusion', TEXTS.ludaoTabIllusion],
@@ -102,9 +104,12 @@ export class LudaoScene implements IScene {
             // M31 宗门（#57）：社交 hub 的归属长线，内联渲染（SectView），不占压栈
             ['sect', TEXTS.sectTab],
             ['achieve', TEXTS.ludaoTabAchieve],
-        ];
+        ].filter(([id]) => id !== 'sect' || isUnlocked('sect', unlockRealm)) as Array<[LudaoTab, string]>;
+        // 选中项若被解锁表藏了（脏档：tab 落在未解锁页）则回落到排行，别渲染空内容
+        if (!tabs.some(([id]) => id === this.tab)) this.tab = 'rank';
         // 5 钮重排：pitch 172→136、宽 164→128（4 钮时间距 172 时 5 钮总宽 5×164+4×8=852 出屏）；
         // 相邻钮间隙 8px，命中区同层不重叠（spriteButton 高 70 → 命中 88，同排无纵向堆叠）。
+        // 宗门未解锁时只有 4 钮，按实际数量居中（5 钮时与旧坐标完全一致，截图基线不动）。
         tabs.forEach(([id, name], i) => {
             const active = id === this.tab;
             const btn = spriteButton(this.tabbar!, 128, 70, name, () => this.switchTab(id), {
@@ -112,7 +117,7 @@ export class LudaoScene implements IScene {
                 variant: active ? 'primary' : 'secondary',
                 textColor: active ? THEME.white : THEME.ink,
             });
-            btn.node.setPosition((i - 2) * 136, DESIGN_H / 2 - 160, 0);
+            btn.node.setPosition((i - (tabs.length - 1) / 2) * 136, DESIGN_H / 2 - 160, 0);
             if (id === 'achieve' && Game.ach.claimableCount(Game.save) > 0) {
                 makeRedDot(btn.node, 62, 26);
             }

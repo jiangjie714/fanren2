@@ -457,6 +457,27 @@ function bootGame() {
     return { root, canvas };
 }
 
+/**
+ * 以「老档全开」启动（D1-60s §4 解锁表只对新号生效）。
+ *
+ * `unlocks.seasoned = true` → `effectiveRealm` 视为已全开，17 个入口全在。
+ * 需要「所有入口都在」的用例（环形/rail 接线、布局回归）用它；
+ * 想验证「新号逐步解锁」请用 `bootGame()`（defaultSave → seasoned=false）。
+ */
+function bootVeteran(realmIndex = 1) {
+    sys.localStorage.setItem('fanren_save_v1', JSON.stringify({
+        version: 17,
+        lingshi: 5000,
+        jiyuan: 200,
+        realmIndex,
+        profile: { gender: 'm', name: '老道', createdAt: 1729000000000 },
+        stats: { opens: 40 },
+        starter: { done: true, jiyuanGranted: true },
+        unlocks: { seasoned: true },
+    }));
+    return bootGame();
+}
+
 /** 取**最后一次**匹配文案的按钮（场景重建会在 registry 里留下旧记录） */
 function lastBtn(pred: (b: { text: string }) => boolean) {
     const arr = h.registry.buttons;
@@ -478,9 +499,121 @@ beforeEach(() => {
     if (!g.window) g.window = { addEventListener: () => { }, removeEventListener: () => { } };
 });
 
-describe('场景集成：HomeScene 入口接线（导航错乱回归）', () => {
-    it('五入口环形 + 右侧 rail + 设置：每个入口 push 到正确场景', () => {
+describe('场景集成：D1-60s §4 解锁表接入（只对新号生效）', () => {
+    /** 取最后一次注册的某图标钮（每重建一次首页就多一条记录） */
+    function iconOf(suffix: string) {
+        const arr = h.registry.iconButtons.filter((b) => b.path.includes(`icon_${suffix}/`));
+        return arr[arr.length - 1];
+    }
+    const active = (suffix: string) => {
+        const b = iconOf(suffix);
+        return !!b && (b.node as { active: boolean }).active;
+    };
+
+    it('凡人新号：环形只留宝盒，炼丹/福禄/商店不建钮（灰标占位）', () => {
+        bootGame(); // defaultSave → seasoned=false, realmIndex=0
+        h.reset();
+        new HomeScene().onEnter();
+        expect(active('box'), '宝盒凡人可用').toBe(true);
+        // 未解锁的环形位不建钮（改为 lockedRing 占位），所以 registry 里查不到
+        expect(iconOf('alchemy'), '炼丹淬体要金丹').toBeUndefined();
+        expect(iconOf('fortune'), '福禄炼制要金丹').toBeUndefined();
+        expect(iconOf('shop'), '仙府商店要练气').toBeUndefined();
+        // 占位灰标：至少 3 个「{境界}解锁」文案（炼丹/福禄/商店）
+        const locked = h.registry.labels.filter((l) => String((l.comp as { string: string }).string).indexOf('解锁') >= 0);
+        expect(locked.length, '未渲染解锁占位').toBeGreaterThanOrEqual(3);
+        // 凡人只有 3 个可点：宝盒 + 冲击境界（CTA）+ 设置
+        expect(active('settings'), '设置合规必需，凡人可用').toBe(true);
+    });
+
+    it('凡人新号：右侧功能 rail 全部隐藏（留白不重排），左 rail 只留设置', () => {
         bootGame();
+        h.reset();
+        new HomeScene().onEnter();
+        ['quest', 'expedition', 'ludao', 'weapon', 'rank', 'streak', 'timer', 'collection'].forEach((s) => {
+            const b = iconOf(s);
+            expect(b, `${s} 钮应仍构建（保留坐标留白）`).toBeTruthy();
+            expect((b!.node as { active: boolean }).active, `${s} 应隐藏`).toBe(false);
+        });
+        expect(active('settings')).toBe(true);
+    });
+
+    it('练气：签到/图鉴/商店/每日仙缘解锁，修行妖径仍锁', () => {
+        bootGame();
+        Game.save.realmIndex = 1;
+        h.reset();
+        new HomeScene().onEnter();
+        expect(active('streak'), '签到练气解锁').toBe(true);
+        expect(active('collection'), '图鉴练气解锁（两处入口都开）').toBe(true);
+        expect(iconOf('shop'), '商店练气解锁').toBeTruthy();
+        expect(active('quest'), '修行要筑基').toBe(false);
+        expect(active('expedition'), '妖径要筑基').toBe(false);
+        expect(iconOf('alchemy'), '炼丹要金丹').toBeUndefined();
+    });
+
+    it('筑基：修行/妖径/论道/法器/吐纳全开（修行与妖径同档，活跃度 100 才可达）', () => {
+        bootGame();
+        Game.save.realmIndex = 2;
+        h.reset();
+        new HomeScene().onEnter();
+        ['quest', 'expedition', 'ludao', 'weapon', 'timer'].forEach((s) => {
+            expect(active(s), `${s} 筑基应解锁`).toBe(true);
+        });
+        expect(active('rank'), '仙路要元婴').toBe(false);
+        expect(iconOf('fortune'), '福禄要金丹').toBeUndefined();
+    });
+
+    it('金丹：炼丹/福禄解锁，横幅从「每日天劫」切到「剑冢」', () => {
+        bootGame();
+        Game.save.realmIndex = 3;
+        h.reset();
+        new HomeScene().onEnter();
+        expect(iconOf('alchemy'), '炼丹金丹解锁').toBeTruthy();
+        expect(iconOf('fortune'), '福禄金丹解锁').toBeTruthy();
+        const push = vi.spyOn(Game.stack, 'push').mockImplementation(() => { });
+        const banners = h.registry.buttons.filter(
+            (b) => b.text === '' && (b.node as { getPosition(): { y: number } }).getPosition().y === -179,
+        );
+        banners[banners.length - 1].onClick();
+        expect(push, '金丹横幅应是剑冢').toHaveBeenLastCalledWith(expect.any(TowerScene));
+        push.mockRestore();
+    });
+
+    it('宗门 tab 随解锁表出现（slot=page 的唯一落位）：金丹前 4 钮，金丹起 5 钮', () => {
+        bootGame();
+        Game.save.realmIndex = 1; // 练气
+        h.reset();
+        new LudaoScene().onEnter();
+        let tabs = h.registry.buttons.filter((b) => b.w === 128 && b.h === 70);
+        expect(tabs.some((b) => b.text === TEXTS.sectTab), '练气不该有宗门 tab').toBe(false);
+        expect(tabs.length, '练气论道 4 钮').toBe(4);
+        // 少一个钮时按实际数量居中（旧坐标是按 5 钮硬编码的 (i-2)*136）
+        expect((tabs.map((b) => (b.node as Node).getPosition().x)).sort((a, b) => a - b))
+            .toEqual([-204, -68, 68, 204]);
+
+        Game.save.realmIndex = 3; // 金丹
+        h.reset();
+        new LudaoScene().onEnter();
+        tabs = h.registry.buttons.filter((b) => b.w === 128 && b.h === 70);
+        expect(tabs.some((b) => b.text === TEXTS.sectTab), '金丹应有宗门 tab').toBe(true);
+        // 5 钮与接入前完全一致（tools/ui-shots.mjs 截图基线不动）
+        expect((tabs.map((b) => (b.node as Node).getPosition().x)).sort((a, b) => a - b))
+            .toEqual([-272, -136, 0, 136, 272]);
+    });
+
+    it('老档（seasoned=true）练气期也不收任何入口：17 项全在', () => {        bootVeteran(1); // 练气 + seasoned
+        h.reset();
+        new HomeScene().onEnter();
+        ['box', 'settings', 'streak', 'collection', 'quest', 'expedition', 'ludao', 'weapon', 'timer', 'rank'].forEach((s) => {
+            expect(active(s), `老档 ${s} 不应被收起`).toBe(true);
+        });
+        expect(iconOf('alchemy'), '老档连金丹功能也保留').toBeTruthy();
+    });
+});
+
+describe('场景集成：HomeScene 入口接线（导航错乱回归）', () => {
+    it('五入口环形 + 右侧 rail + 设置：每个入口 push 到正确场景（老档全开）', () => {
+        bootVeteran();
         const home = new HomeScene();
         const push = vi.spyOn(Game.stack, 'push').mockImplementation(() => { });
         home.onEnter();
@@ -520,19 +653,25 @@ describe('场景集成：HomeScene 入口接线（导航错乱回归）', () => 
         expect(push).toHaveBeenLastCalledWith(expect.any(PathScene));
 
         // M22：剑冢横幅（宽横幅、无内建文本，按 y=−179 定位）
-        // M36：新号（realmIndex 0）横幅改挂「每日天劫」；练气后恢复剑冢。两条分支都要正确路由。
-        const towerBanner = () => h.registry.buttons.find(
-            (b) => b.text === '' && (b.node as { getPosition(): { y: number } }).getPosition().y === -179,
-        );
+        // M36 + D1-60s §4：横幅路由 = 剑冢解锁了才挂剑冢，否则挂「每日天劫」。
+        // 剑冢要金丹（unlockRealm=3），故新号在凡人/练气/筑基都看到天劫横幅。
+        // 取**最后一个**横幅实例：每重建一次首页就多注册一个，find 会命中旧实例的陈旧 towerAction
+        const towerBanner = () => {
+            const arr = h.registry.buttons.filter(
+                (b) => b.text === '' && (b.node as { getPosition(): { y: number } }).getPosition().y === -179,
+            );
+            return arr[arr.length - 1];
+        };
         Game.save.realmIndex = 0;
+        Game.save.unlocks.seasoned = false; // 新号口径（上方入口点击用的是老档全开）
         // refresh 在 onEnter 时写入 towerAction；新号重置后需重建首页
         const home2 = new HomeScene();
         home2.onEnter();
         expect(towerBanner(), '未找到剑冢横幅入口').toBeTruthy();
         towerBanner()!.onClick();
-        expect(push, '新号横幅应为每日天劫入口').toHaveBeenLastCalledWith(expect.any(TianjieScene));
+        expect(push, '未解锁剑冢时横幅应为每日天劫入口').toHaveBeenLastCalledWith(expect.any(TianjieScene));
 
-        // 练气后：取最后一个横幅实例（重建会留下旧记录），点击必须路由到剑冢
+        // 金丹（剑冢解锁）：取最后一个横幅实例（重建会留下旧记录），点击必须路由到剑冢
         Game.save.realmIndex = 3;
         const home3 = new HomeScene();
         home3.onEnter();
@@ -1894,8 +2033,15 @@ describe('场景集成：M30 剧情演出层（#56）', () => {
 
 // ───────────────────────── M31 宗门社交（#57）─────────────────────────
 
-/** 进论道页并切到宗门 tab，返回宗门视图根（内联在 content 下） */
+/**
+ * 进论道页并切到宗门 tab，返回宗门视图根（内联在 content 下）。
+ *
+ * D1-60s §4：宗门（`sect.unlockRealm = 3`，slot `page` 的唯一落位 = 论道第 5 tab）
+ * 要**金丹**才出 tab。本节用例验证的是宗门玩法本身，解锁判定不在其职责内，
+ * 故进页前把境界抬到金丹——解锁口径由「D1-60s §4 解锁表接入」describe 覆盖。
+ */
 function enterSectTab(): { view: Node; scene: LudaoScene } {
+    Game.save.realmIndex = 3;
     const s = new LudaoScene();
     s.onEnter();
     // 必须取**最新**场景的 tab 钮：整文件跑时旧 LudaoScene 实例的按钮记录仍在 registry 里，
@@ -1937,6 +2083,7 @@ function clickShopRow(view: Node, itemName: string) {
 describe('场景集成：M31 宗门社交 tab（#57）', () => {
     it('tabbar 4→5 重排：pitch 136 五钮就位，宗门 tab 加入', () => {
         bootGame();
+        Game.save.realmIndex = 3; // 宗门金丹解锁（D1-60s §4），见 enterSectTab 注释
         h.reset();
         const s = new LudaoScene();
         s.onEnter();
@@ -2203,7 +2350,7 @@ describe('场景集成：M36 每日天劫（同种子 8 秒挑战）', () => {
     it('TianjieSystem 默认装配在 Game 上（Game.init 链路）', () => {
         bootGame();
         expect(Game.tianjie).toBeInstanceOf(TianjieSystem);
-        expect(Game.save.version).toBe(16);
+        expect(Game.save.version).toBe(17);
     });
 
     // R1 修复：练气后首页横幅回归剑冢，天劫必须有一个「不依赖今日是否已打」的固定入口。

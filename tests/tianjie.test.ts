@@ -244,7 +244,7 @@ describe('每日天劫：存档 v16 迁移', () => {
         old.lingshi = 4321;
         old.realmIndex = 2;
         const m = migrate(old);
-        expect(m.version).toBe(16);
+        expect(m.version).toBe(17);
         expect(m.lingshi).toBe(4321);
         expect(m.realmIndex).toBe(2);
         expect(m.tianjie).toEqual({
@@ -274,9 +274,9 @@ describe('每日天劫：存档 v16 迁移', () => {
         expect(m.tianjie.totalRuns).toBe(0);
     });
 
-    it('未知版本（v17+）照旧重置为默认档', () => {
+    it('未知版本（v18+）照旧重置为默认档', () => {
         const future: any = defaultSave();
-        future.version = 17;
+        future.version = 18;
         future.lingshi = 9999;
         expect(migrate(future).lingshi).toBe(defaultSave().lingshi);
     });

@@ -323,7 +323,7 @@ describe('v13 宗门字段迁移（#57）', () => {
     it('v12 老档无 sect 字段 → 未加入态（不补课）', () => {
         const raw = { version: 12, lingshi: 5000, xiuwei: 100 };
         const s = migrate(raw);
-        expect(s.version).toBe(16);
+        expect(s.version).toBe(17);
         expect(s.sect.id).toBeNull();
         expect(s.sect.exp).toBe(0);
         expect(s.sect.contrib).toBe(0);
@@ -374,7 +374,7 @@ describe('v13 宗门字段迁移（#57）', () => {
 
     it('defaultSave 带合法 sect 且版本 13', () => {
         const d = defaultSave();
-        expect(d.version).toBe(16);
+        expect(d.version).toBe(17);
         expect(d.sect.id).toBeNull();
         expect(d.sect.exp).toBe(0);
         expect(isSectId(d.sect.id) || d.sect.id === null).toBe(true);

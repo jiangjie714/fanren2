@@ -1,4 +1,4 @@
-/** 存档模型 v16：v15 字段 + 每日天劫（tianjie，M36） */
+/** 存档模型 v17：v16 字段 + 解锁表适用范围（unlocks，D1-60s §4「只对新号生效」） */
 import { STAMINA_MAX, STAMINA_AD_PER_DAY } from './config/trial';
 import { weekKeyOf } from './config/illusion';
 
@@ -309,8 +309,26 @@ export interface TianjieState {
     totalRuns: number;
 }
 
+// ---------- v17（D1-60s 解锁表：只对新号生效） ----------
+
+/**
+ * 解锁表的适用范围。**这是产品决策，不是技术妥协**：
+ *
+ * - `seasoned = true`：D1-60s 之前就在玩的老档 → **全功能开放**，一个入口都不收。
+ *   老玩家已经拥有的东西不能因为一次改版消失（练气期玩家原本能打妖径/剑冢）；
+ * - `seasoned = false`：新号 → 按 `core/config/unlocks.ts` 的境界表逐步解锁
+ *   （凡人 3 / 练气 7 / 筑基 12 / 金丹 16 / 元婴 17）。
+ *
+ * 为什么不能用 `starter.done` 区分：老档迁移时 done 被补成 true（不补课），
+ * 新号走完三连后也是 true —— 两者无法区分，必须单独记一个布尔。
+ */
+export interface UnlockScope {
+    /** true = 老档全开；false = 新号按境界表解锁 */
+    seasoned: boolean;
+}
+
 export interface SaveData {
-    version: 16;
+    version: 17;
     lingshi: number;
     xiuwei: number;
     jiyuan: number;
@@ -382,6 +400,9 @@ export interface SaveData {
     // ---------- v16（M36 每日天劫） ----------
     /** 每日天劫进度（同种子 8 秒挑战）；跨日惰性翻新 */
     tianjie: TianjieState;
+    // ---------- v17（D1-60s 解锁表） ----------
+    /** 解锁表适用范围：老档全开 / 新号按境界表解锁 */
+    unlocks: UnlockScope;
 }
 
 import { INITIAL_LINGSHI } from './config/economy';
@@ -398,7 +419,7 @@ const OFFLINE_DAY_CAP_MIRROR = 480;
 
 export function defaultSave(): SaveData {
     return {
-        version: 16,
+        version: 17,
         lingshi: INITIAL_LINGSHI,
         xiuwei: 0,
         jiyuan: 0,
@@ -497,6 +518,8 @@ export function defaultSave(): SaveData {
         starter: { done: false, jiyuanGranted: false },
         // v16 每日天劫：今日未挑战（day='' → 首次读到即按今天翻新并给满 3 次）
         tianjie: { day: '', hasDay: '', weekKey: '', weekBest: 0, attempts: 0, todayBest: 0, best: 0, streak: 0, bestStreak: 0, totalRuns: 0 },
+        // v17 解锁表：白纸新号 → 按境界表逐步解锁（老档在 migrate 里被标 true）
+        unlocks: { seasoned: false },
     };
 }
 
@@ -509,7 +532,7 @@ export function migrate(raw: unknown): SaveData {
     const d = defaultSave();
     if (!raw || typeof raw !== 'object') return d;
     const r = raw as Record<string, unknown>;
-    if (r.version !== 1 && r.version !== 2 && r.version !== 3 && r.version !== 4 && r.version !== 5 && r.version !== 6 && r.version !== 7 && r.version !== 8 && r.version !== 9 && r.version !== 10 && r.version !== 11 && r.version !== 12 && r.version !== 13 && r.version !== 14 && r.version !== 15 && r.version !== 16) return d;
+    if (r.version !== 1 && r.version !== 2 && r.version !== 3 && r.version !== 4 && r.version !== 5 && r.version !== 6 && r.version !== 7 && r.version !== 8 && r.version !== 9 && r.version !== 10 && r.version !== 11 && r.version !== 12 && r.version !== 13 && r.version !== 14 && r.version !== 15 && r.version !== 16 && r.version !== 17) return d;
     const profile = { ...d.profile, ...(r.profile as object ?? {}) };
     const srcTrial = (r.trial as Partial<TrialState>) ?? {};
     return {
@@ -585,7 +608,9 @@ export function migrate(raw: unknown): SaveData {
         starter: migrateStarter(r.starter, r.realmIndex, (r.stats as SaveStats | undefined)?.opens),
         // v16：每日天劫（v15 及更老无此字段 → 全零；日键 '' 会在首次读取时按今天翻新）
         tianjie: migrateTianjie(r.tianjie),
-        version: 16,
+        // v17：解锁表适用范围（v16 及更老 → 按进度推导：老玩家全开，零进度新档按表解锁）
+        unlocks: migrateUnlocks(r.unlocks, r.version === 17, r.realmIndex, (r.stats as SaveStats | undefined)?.opens),
+        version: 17,
     } as SaveData;
 }
 
@@ -684,6 +709,28 @@ function migrateStarter(raw: unknown, realmIndex: unknown, opens: unknown): Star
         return { done: Boolean(s.done), jiyuanGranted: Boolean(s.jiyuanGranted) };
     }
     return { done: veteran, jiyuanGranted: veteran };
+}
+
+/**
+ * v17 解锁表适用范围迁移：
+ * - **当前版本（v17）**且带 `unlocks` 对象 → 布尔化；脏值按 `false`（宁可当新号按表解锁，
+ *   也不要把「全开」漏给一个存疑的档）；
+ * - **更老版本（≤v16）**：即使因为某种原因带着 `unlocks` 残留字段也**不信任它**，
+ *   一律按进度推导 —— 否则「把 version 改回 16 再塞 seasoned:true」就能白拿全开；
+ * - 推导口径：有进度（`realmIndex > 0` 或 `stats.opens > 0`）→ `true` 全开，不削减老玩家
+ *   已有入口；零进度 → `false`（这就是全新号）。
+ *
+ * **刻意不用 `starter.done` 推导**：老档迁移时 done 被补成 true（不补课），
+ * 新号走完三连后也是 true —— 两者不可区分（见 `UnlockScope` 注释）。
+ */
+function migrateUnlocks(raw: unknown, current: boolean, realmIndex: unknown, opens: unknown): UnlockScope {
+    if (current && raw && typeof raw === 'object') {
+        const u = raw as Partial<UnlockScope>;
+        return { seasoned: Boolean(u.seasoned) };
+    }
+    const veteran = (typeof realmIndex === 'number' && Number.isFinite(realmIndex) && realmIndex > 0)
+        || (typeof opens === 'number' && Number.isFinite(opens) && opens > 0);
+    return { seasoned: veteran };
 }
 
 /**
